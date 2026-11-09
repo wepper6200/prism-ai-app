@@ -100,8 +100,15 @@ void log_callback(sd_log_level_t level, const char * text, void * /*data*/) {
     }
 }
 
+// Тот же обработчик получает и ход декодирования по частям (тайлы VAE): пропускаем только шаги семплирования —
+// с заданным числом шагов и до последнего из них.
+std::atomic<int> g_expected_steps{0};
+std::atomic<bool> g_sampling_done{false};
+
 void progress_callback(int step, int steps, float /*time*/, void * /*data*/) {
-    if (steps > 0) emit({{"event", "progress"}, {"step", step}, {"steps", steps}});
+    if (steps <= 0 || steps != g_expected_steps.load() || g_sampling_done.load()) return;
+    emit({{"event", "progress"}, {"step", step}, {"steps", steps}});
+    if (step >= steps) g_sampling_done.store(true);
 }
 
 std::string device_name() {
@@ -250,6 +257,8 @@ private:
         }
         params.vae_tiling_params.enabled = vae_tiling_;
 
+        g_expected_steps.store(params.sample_params.sample_steps);
+        g_sampling_done.store(false);
         sd_cancel_generation(ctx_, SD_CANCEL_RESET);
         clear_last_error();
         sd_image_generation_result_t * result = nullptr;

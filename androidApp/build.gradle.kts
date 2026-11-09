@@ -103,7 +103,7 @@ val syncImageGen = tasks.register<Sync>("syncImageGenAndroid") {
     into(imagegenJniLibs.map { it.dir("arm64-v8a") })
 }
 
-android.sourceSets.getByName("main").jniLibs.srcDir(imagegenJniLibs)
+android.sourceSets.getByName("main").jniLibs.srcDir(imagegenJniLibs.get().asFile)
 tasks.named("preBuild") { dependsOn(syncImageGen) }
 
 kotlin {
