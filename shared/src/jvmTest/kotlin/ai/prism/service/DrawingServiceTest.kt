@@ -160,8 +160,8 @@ class DrawingServiceTest {
         assertNull(app.imageGenerator.lastRequest)
         val reply = app.chats.messagesSnapshot(chat.id).last()
         assertEquals(MessageStatus.FAILED, reply.status)
-        assertEquals(GenerationError.TRANSLATION_FAILED, reply.error)
         assertIs<EngineState.Idle>(app.engine.state.value)
+        assertEquals(GenerationError.TRANSLATION_FAILED, reply.error)
     }
 
     @Test
