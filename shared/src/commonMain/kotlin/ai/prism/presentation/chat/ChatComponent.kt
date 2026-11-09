@@ -101,18 +101,18 @@ class DefaultChatComponent(
         chatRepository.messages(chatId),
         generation.active,
     ) { title, messages, active ->
-        val streamingId = active?.takeIf { it.chatId == chatId }?.messageId
+        val activeHere = active?.takeIf { it.chatId == chatId }
         ConversationPart(
             title = title,
             messages = messages.map { message ->
-                val streaming = message.id == streamingId
+                val streaming = activeHere?.takeIf { it.messageId == message.id }
                 MessageItem(
                     id = message.id,
                     role = message.role,
-                    text = if (streaming) active?.text.orEmpty() else message.content,
+                    text = streaming?.text ?: message.content,
                     status = message.status,
                     error = message.error,
-                    isStreaming = streaming,
+                    isStreaming = streaming != null,
                 )
             },
             isGenerating = active?.chatId == chatId,

@@ -18,7 +18,7 @@ val vulkan = providers.gradleProperty("prism.vulkan").map { it.toBoolean() }.orE
 val ccache = providers.gradleProperty("prism.ccache").map { it.toBoolean() }.orElse(false)
 val cmakeBuildDir = layout.buildDirectory.dir("cmake")
 
-val configureNative by tasks.registering(Exec::class) {
+val configureNative = tasks.register<Exec>("configureNative") {
     group = "native"
     description = "Конфигурирует CMake-сборку llama.cpp и JNI-моста."
     val buildDir = cmakeBuildDir.get().asFile
@@ -33,7 +33,7 @@ val configureNative by tasks.registering(Exec::class) {
     commandLine(args)
 }
 
-val buildNative by tasks.registering(Exec::class) {
+val buildNative = tasks.register<Exec>("buildNative") {
     group = "native"
     description = "Собирает нативные библиотеки."
     dependsOn(configureNative)
@@ -41,7 +41,7 @@ val buildNative by tasks.registering(Exec::class) {
 }
 
 // Библиотеки для запуска и тестов: build/libs.
-val assembleNative by tasks.registering(Sync::class) {
+val assembleNative = tasks.register<Sync>("assembleNative") {
     group = "native"
     description = "Собирает нативные библиотеки текущей ОС в build/libs."
     dependsOn(buildNative)
@@ -60,7 +60,7 @@ val assembleNative by tasks.registering(Sync::class) {
 }
 
 // Ресурсы приложения Compose Desktop: build/app-resources/<ос>-<архитектура>/.
-val assembleAppResources by tasks.registering(Sync::class) {
+val assembleAppResources = tasks.register<Sync>("assembleAppResources") {
     group = "native"
     description = "Раскладывает нативные библиотеки в ресурсы приложения Compose Desktop."
     from(assembleNative)
