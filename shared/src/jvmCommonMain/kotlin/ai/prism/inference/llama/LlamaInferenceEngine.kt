@@ -13,6 +13,7 @@ import ai.prism.domain.model.CatalogModel
 import ai.prism.domain.model.ChatFormat
 import ai.prism.domain.model.DeviceInfo
 import ai.prism.inference.ChatPromptFormatter
+import ai.prism.inference.ReplyFilter
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -83,6 +84,7 @@ class LlamaInferenceEngine(
                 val prompt = fitPrompt(session, projector, model.chatFormat, request, contextSize - replyBudget, pixels)
                 val images = prompt.images.map { image -> image.id to checkNotNull(pixels[image.id]) }
                 val sampling = request.sampling
+                val filter = ReplyFilter.forFormat(model.chatFormat)
                 val status = LlamaNative.generate(
                     session = session,
                     projector = projector,
@@ -101,11 +103,13 @@ class LlamaInferenceEngine(
                         override fun onPrefill(done: Int, total: Int): Boolean = producer.isActive
 
                         override fun onToken(bytes: ByteArray): Boolean {
-                            producer.trySend(bytes.decodeToString())
+                            val visible = filter.push(bytes.decodeToString())
+                            if (visible.isNotEmpty()) producer.trySend(visible)
                             return producer.isActive
                         }
                     },
                 )
+                filter.finish().takeIf { it.isNotEmpty() }?.let { producer.trySend(it) }
                 when (status) {
                     LlamaNative.STATUS_DONE, LlamaNative.STATUS_MAX_TOKENS, LlamaNative.STATUS_CANCELLED -> Unit
                     LlamaNative.STATUS_CONTEXT_FULL ->

@@ -225,6 +225,8 @@ class LlamaInferenceEngineIntegrationTest {
         ).toList().joinToString("")
         println("Gemma 4 E2B (text): $text")
         assertTrue("Paris" in text, "ожидался ответ «Paris», получено: $text")
+        // Рассуждения модели до <channel|> и служебные теги не попадают в ответ.
+        assertFalse("<channel|>" in text || "<|channel>" in text || "The user" in text, "в ответе остались рассуждения: $text")
 
         val photo = solidImage(Color.RED)
         val answer = engine.generate(
@@ -239,6 +241,7 @@ class LlamaInferenceEngineIntegrationTest {
         ).toList().joinToString("")
         println("Gemma 4 E2B (image): $answer")
         assertTrue("red" in answer.lowercase(), "ожидался ответ «red», получено: $answer")
+        assertFalse("<channel|>" in answer || "The user" in answer, "в ответе остались рассуждения: $answer")
 
         // Продолжение диалога по-русски: изображение остаётся в истории (и в кэше).
         val followUp = engine.generate(
@@ -247,13 +250,13 @@ class LlamaInferenceEngineIntegrationTest {
                 messages = listOf(
                     PromptMessage(MessageRole.USER, "Что на этой картинке? Ответь одним предложением.", images = listOf(photo)),
                 ),
-                maxTokens = 96,
+                maxTokens = 320,
                 sampling = SamplingParams(temperature = 0f),
             ),
         ).toList().joinToString("")
         println("Gemma 4 E2B (ru): $followUp")
-        assertTrue(followUp.isNotBlank())
-        assertFalse("<__media__>" in followUp || "<turn|>" in followUp)
+        assertTrue(followUp.isNotBlank(), "пустой ответ: рассуждения заняли весь лимит токенов?")
+        assertFalse("<__media__>" in followUp || "<turn|>" in followUp || "<channel|>" in followUp)
         engine.unload()
     }
 
