@@ -27,22 +27,25 @@ jobs:
               print(f"\n### search '{q}':")
               for m in found:
                   print(f'  {m["id"]}  downloads={m.get("downloads")}  likes={m.get("likes")}')
-          for repo in ["madebyollin/taesdxl", "madebyollin/taesd"]:
+          for q in ["Wan2.2 gguf", "Wan2.2-TI2V-5B", "LTX-2", "LTX-2 gguf", "umt5-xxl gguf", "LTX-Video gguf"]:
+              found = get("https://huggingface.co/api/models?search=" + urllib.parse.quote(q) + "&sort=downloads&direction=-1&limit=15")
+              print(f"\n### search '{q}':")
+              for m in found:
+                  print(f'  {m["id"]}  downloads={m.get("downloads")}')
+          for repo in ["Wan-AI/Wan2.2-TI2V-5B", "Wan-AI/Wan2.2-T2V-A14B", "QuantStack/Wan2.2-TI2V-5B-GGUF",
+                       "city96/umt5-xxl-encoder-gguf", "Lightricks/LTX-2", "Lightricks/LTX-Video"]:
               print("\n=== " + repo)
               try:
                   info = get(f"https://huggingface.co/api/models/{repo}")
                   card = info.get("cardData") or {}
-                  print("gated:", info.get("gated"), "| license:", card.get("license"), card.get("license_name"), card.get("license_link"),
-                        "| base:", card.get("base_model"), "| tags:", info.get("tags"))
+                  print("gated:", info.get("gated"), "| license:", card.get("license"), card.get("license_name"), card.get("license_link"))
                   tree = get(f"https://huggingface.co/api/models/{repo}/tree/main?recursive=true")
                   for f in tree:
-                      if f.get("type") == "file" and f["path"].endswith((".gguf", ".safetensors", ".ckpt")):
+                      if f.get("type") == "file" and f["path"].endswith((".gguf", ".safetensors")):
                           lfs = f.get("lfs") or {}
                           print(f'{f["path"]}\t{f.get("size")}\t{lfs.get("oid")}')
-                  try:
-                      with urllib.request.urlopen(urllib.request.Request(f"https://huggingface.co/{repo}/raw/main/README.md", headers={"User-Agent": "prism-ai-ci"}), timeout=60) as r:
-                          print("--- README ---\n" + r.read().decode("utf-8", "replace")[:2500])
-                  except Exception as e:
-                      print("no README", e)
+                  with urllib.request.urlopen(urllib.request.Request(f"https://huggingface.co/{repo}/raw/main/README.md", headers={"User-Agent": "prism-ai-ci"}), timeout=60) as r:
+                      text = r.read().decode("utf-8", "replace")
+                      print("--- README ---\n" + text[:3000])
               except Exception as e:
                   print("ERROR", e)
