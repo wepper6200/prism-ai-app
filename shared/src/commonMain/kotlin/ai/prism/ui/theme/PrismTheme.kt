@@ -8,8 +8,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ColorScheme
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.MaterialExpressiveTheme
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -39,7 +38,11 @@ private val PrismShapes = Shapes(
 
 private const val THEME_ANIMATION_MS = 450
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+/**
+ * Тема Prism AI. Официальные API Material 3 Expressive (`MaterialExpressiveTheme`, `MotionScheme`)
+ * в стабильной версии material3 закрыты, поэтому стиль Expressive собран из публичных API:
+ * насыщенная фирменная палитра (или Material You), увеличенные скругления и плавная смена цветов.
+ */
 @Composable
 fun PrismTheme(
     settings: AppSettings,
@@ -61,7 +64,7 @@ fun PrismTheme(
     SystemBarsEffect(darkTheme)
 
     CompositionLocalProvider(LocalPrismStyle provides PrismStyle(settings.themeStyle, darkTheme)) {
-        MaterialExpressiveTheme(
+        MaterialTheme(
             colorScheme = animateColorScheme(targetScheme),
             shapes = PrismShapes,
             content = content,

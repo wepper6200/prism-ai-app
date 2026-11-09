@@ -27,7 +27,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
       - name: Build debug APK (warnings are errors)
         run: ./gradlew --stacktrace --warning-mode=all :androidApp:assembleDebug
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         with:
           name: PrismAI-android-debug-apk
           path: androidApp/build/outputs/apk/debug/*.apk
@@ -48,14 +48,14 @@ jobs:
         run: ./gradlew --stacktrace --warning-mode=all :desktopApp:compileKotlin :shared:jvmTest
       - name: Upload screenshots
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: PrismAI-screenshots
           path: shared/build/screenshots/
           if-no-files-found: warn
       - name: Upload test reports
         if: failure()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: test-reports
           path: shared/build/reports/tests/
@@ -74,7 +74,7 @@ jobs:
       - name: Build Windows app image
         run: ./gradlew --stacktrace --warning-mode=all :desktopApp:createDistributable
         shell: bash
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         with:
           name: PrismAI-windows
           path: desktopApp/build/compose/binaries/main/app/PrismAI/
