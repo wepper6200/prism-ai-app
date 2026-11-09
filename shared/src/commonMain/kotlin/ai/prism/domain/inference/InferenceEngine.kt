@@ -65,6 +65,11 @@ data class SamplingParams(
 data class GenerationRequest(
     val systemPrompt: String,
     val messages: List<PromptMessage>,
+    /**
+     * Образец диалога, который ставится перед историей и никогда не обрезается
+     * (например, ответ на «Кто ты?» — маленькие модели лучше следуют примеру, чем правилу).
+     */
+    val primer: List<PromptMessage> = emptyList(),
     val maxTokens: Int = 2048,
     val sampling: SamplingParams = SamplingParams(),
 )

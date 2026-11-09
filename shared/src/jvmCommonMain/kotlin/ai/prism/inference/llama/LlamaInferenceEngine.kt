@@ -225,7 +225,7 @@ class LlamaInferenceEngine(
     private fun fitPrompt(session: Long, format: ChatFormat, request: GenerationRequest, budget: Int): String {
         var messages = request.messages
         while (true) {
-            val prompt = ChatPromptFormatter.format(format, request.systemPrompt, messages)
+            val prompt = ChatPromptFormatter.format(format, request.systemPrompt, request.primer + messages)
             if (LlamaNative.tokenCount(session, prompt.encodeToByteArray()) <= budget) return prompt
             if (messages.size <= 1) {
                 throw InferenceException(InferenceError.CONTEXT_FULL, "Сообщение слишком длинное для модели")

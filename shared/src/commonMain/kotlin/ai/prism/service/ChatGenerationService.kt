@@ -20,9 +20,15 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.concurrent.Volatile
 
-/** Текст системного промпта (личность Prism AI) на языке интерфейса. */
-fun interface SystemPromptProvider {
-    suspend fun systemPrompt(): String
+/** Личность ассистента: системный промпт и образец ответа на вопрос «кто ты?». */
+data class AssistantPersona(
+    val systemPrompt: String,
+    val primer: List<PromptMessage>,
+)
+
+/** Личность Prism AI на языке интерфейса. */
+fun interface PersonaProvider {
+    suspend fun persona(): AssistantPersona
 }
 
 /** Ответ, который генерируется прямо сейчас. [messageId] пуст, пока сообщение ещё не создано. */
@@ -40,7 +46,7 @@ class ChatGenerationService(
     private val engine: InferenceEngine,
     private val chats: ChatRepository,
     private val models: ModelRepository,
-    private val systemPrompt: SystemPromptProvider,
+    private val personaProvider: PersonaProvider,
     private val scope: CoroutineScope,
 ) {
     private val mutableActive = MutableStateFlow<ActiveGeneration?>(null)
@@ -120,7 +126,12 @@ class ChatGenerationService(
         try {
             engine.load(model, path)
             if (!stopRequested) {
-                val request = GenerationRequest(systemPrompt = systemPrompt.systemPrompt(), messages = history)
+                val persona = personaProvider.persona()
+                val request = GenerationRequest(
+                    systemPrompt = persona.systemPrompt,
+                    messages = history,
+                    primer = persona.primer,
+                )
                 engine.generate(request).collect { piece ->
                     text.append(piece)
                     mutableActive.value = ActiveGeneration(chatId, reply.id, text.toString())

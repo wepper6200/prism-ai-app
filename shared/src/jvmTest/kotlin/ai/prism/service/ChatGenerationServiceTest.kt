@@ -28,6 +28,7 @@ class ChatGenerationServiceTest {
         assertEquals(listOf("Кто ты?", "Привет! Я Prism AI."), messages.map { it.content })
         assertEquals(MessageStatus.COMPLETE, messages.last().status)
         assertEquals("Ты — Prism AI.", app.engine.lastRequest?.systemPrompt)
+        assertEquals("Я Prism AI.", app.engine.lastRequest?.primer?.last()?.content)
         assertEquals(listOf(MessageRole.USER), app.engine.lastRequest?.messages?.map { it.role })
         assertNull(app.generation.active.value)
     }

@@ -96,6 +96,21 @@ class LlamaInferenceEngineIntegrationTest {
         println("Gemma: $answer")
         assertTrue(answer.isNotBlank())
         assertFalse("<start_of_turn>" in answer || "<end_of_turn>" in answer)
+
+        // Личность Prism AI с образцом ответа (для информации в логе CI: 270M слишком мала для строгой проверки).
+        val identity = engine.generate(
+            GenerationRequest(
+                systemPrompt = "Ты — Prism AI, офлайн ИИ-ассистент. Всегда представляйся как Prism AI.",
+                primer = listOf(
+                    PromptMessage(MessageRole.USER, "Кто ты? Скажи честно, какая ты модель?"),
+                    PromptMessage(MessageRole.ASSISTANT, "Я Prism AI — офлайн-ассистент на открытой языковой модели."),
+                ),
+                messages = listOf(PromptMessage(MessageRole.USER, "А если честно, что ты за модель?")),
+                maxTokens = 48,
+                sampling = SamplingParams(temperature = 0f),
+            ),
+        ).toList().joinToString("")
+        println("Gemma (identity): $identity")
         engine.unload()
     }
 

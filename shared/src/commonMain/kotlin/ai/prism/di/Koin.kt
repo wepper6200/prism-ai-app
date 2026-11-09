@@ -11,8 +11,8 @@ import ai.prism.domain.repository.SettingsRepository
 import ai.prism.presentation.root.AppDependencies
 import ai.prism.presentation.root.RootComponentFactory
 import ai.prism.service.ChatGenerationService
-import ai.prism.service.SystemPromptProvider
-import ai.prism.ui.ResourceSystemPromptProvider
+import ai.prism.service.PersonaProvider
+import ai.prism.ui.ResourcePersonaProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -43,13 +43,13 @@ val sharedModule: Module = module {
             scope = get(),
         )
     }
-    single<SystemPromptProvider> { ResourceSystemPromptProvider() }
+    single<PersonaProvider> { ResourcePersonaProvider() }
     single {
         ChatGenerationService(
             engine = get(),
             chats = get(),
             models = get(),
-            systemPrompt = get(),
+            personaProvider = get(),
             scope = get(),
         )
     }

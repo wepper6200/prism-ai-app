@@ -18,6 +18,9 @@ import ai.prism.domain.model.ModelStatus
 import ai.prism.domain.model.PlatformCapabilities
 import ai.prism.domain.repository.ModelRepository
 import ai.prism.presentation.root.AppDependencies
+import ai.prism.domain.inference.PromptMessage
+import ai.prism.domain.model.MessageRole
+import ai.prism.service.AssistantPersona
 import ai.prism.service.ChatGenerationService
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import kotlinx.coroutines.CoroutineScope
@@ -137,7 +140,21 @@ class TestApp(
     val settings = DefaultSettingsRepository(MapKeyValueStore())
     val chats = inMemoryChatRepository()
     val scope = CoroutineScope(Dispatchers.Unconfined)
-    val generation = ChatGenerationService(engine, chats, models, { "Ты — Prism AI." }, scope)
+    val generation = ChatGenerationService(
+        engine = engine,
+        chats = chats,
+        models = models,
+        personaProvider = {
+            AssistantPersona(
+                systemPrompt = "Ты — Prism AI.",
+                primer = listOf(
+                    PromptMessage(MessageRole.USER, "Кто ты?"),
+                    PromptMessage(MessageRole.ASSISTANT, "Я Prism AI."),
+                ),
+            )
+        },
+        scope = scope,
+    )
     val dependencies = AppDependencies(
         chatRepository = chats,
         modelRepository = models,
