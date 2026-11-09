@@ -27,8 +27,7 @@ jobs:
               print(f"\n### search '{q}':")
               for m in found:
                   print(f'  {m["id"]}  downloads={m.get("downloads")}  likes={m.get("likes")}')
-          for repo in ["vladmandic/fast-sdxl", "mzwing/SDXL-Lightning-GGUF", "OlegSkutte/SDXL-Lightning-GGUF",
-                       "hum-ma/SDXL-models-GGUF", "second-state/stable-diffusion-xl-base-1.0-GGUF", "OlegSkutte/sdxl-turbo-GGUF"]:
+          for repo in ["madebyollin/taesdxl", "madebyollin/taesd"]:
               print("\n=== " + repo)
               try:
                   info = get(f"https://huggingface.co/api/models/{repo}")
