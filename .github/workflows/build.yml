@@ -46,6 +46,12 @@ jobs:
             echo "Gradle download failed, retry $i"; sleep $((i * 15))
           done
           exit 1
+      - name: Install Android NDK and CMake
+        shell: bash
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses > /dev/null
+          "$SDKMANAGER" --install "ndk;29.0.13113456" "cmake;3.31.6" > /dev/null
       - name: Build debug APK with llama.cpp (warnings are errors)
         run: ./gradlew --stacktrace --warning-mode=all -Pprism.ccache=true :androidApp:assembleDebug
       - name: Check native libraries in APK
@@ -107,11 +113,11 @@ jobs:
           done
           exit 1
       - name: Compile desktop app, build llama.cpp and run all tests (warnings are errors)
-        run: ./gradlew --stacktrace --warning-mode=all -Pprism.nativeTests=true -Pprism.ccache=true :desktopApp:compileKotlin :shared:jvmTest
+        run: ./gradlew --stacktrace --warning-mode=all -Pprism.skipAndroid=true -Pprism.nativeTests=true -Pprism.ccache=true :desktopApp:compileKotlin :shared:jvmTest
       - name: Show compiler warnings (diagnostics on failure)
         if: failure()
         run: |
-          ./gradlew --console=plain -Pprism.werror=false --rerun-tasks \
+          ./gradlew --console=plain -Pprism.skipAndroid=true -Pprism.werror=false --rerun-tasks \
             :shared:compileKotlinJvm :shared:compileTestKotlinJvm :desktopApp:compileKotlin 2>&1 \
             | grep -E '^(w|e): ' || echo "No compiler warnings printed"
       - name: Upload screenshots
@@ -166,10 +172,10 @@ jobs:
           echo "PRISM_TEST_MODEL=$(cygpath -w "$HOME/prism-test-models/tiny.gguf")" >> "$GITHUB_ENV"
       - name: Build Windows app with llama.cpp (CPU + Vulkan)
         shell: bash
-        run: ./gradlew --stacktrace --warning-mode=all -Pprism.vulkan=true :desktopApp:createDistributable
+        run: ./gradlew --stacktrace --warning-mode=all -Pprism.skipAndroid=true -Pprism.vulkan=true :desktopApp:createDistributable
       - name: Check DLL loading on Windows (llama.cpp integration test)
         shell: bash
-        run: ./gradlew --stacktrace -Pprism.nativeTests=true -Pprism.vulkan=true :shared:jvmTest --tests "ai.prism.inference.llama.*"
+        run: ./gradlew --stacktrace -Pprism.skipAndroid=true -Pprism.nativeTests=true -Pprism.vulkan=true :shared:jvmTest --tests "ai.prism.inference.llama.*"
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v6

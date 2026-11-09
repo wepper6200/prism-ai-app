@@ -29,6 +29,9 @@ dependencyResolutionManagement {
 }
 
 include(":shared")
-include(":androidApp")
+// Desktop-сборкам Android-приложение не нужно: -Pprism.skipAndroid=true не конфигурирует его (и не требует NDK).
+if (providers.gradleProperty("prism.skipAndroid").orNull != "true") {
+    include(":androidApp")
+}
 include(":desktopApp")
 include(":native")
