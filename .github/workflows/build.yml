@@ -25,6 +25,14 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: gradle/actions/setup-gradle@v5
+      - name: Provision Gradle (retries on network errors)
+        shell: bash
+        run: |
+          for i in 1 2 3 4 5; do
+            ./gradlew --version && exit 0
+            echo "Gradle download failed, retry $i"; sleep $((i * 15))
+          done
+          exit 1
       - name: Build debug APK (warnings are errors)
         run: ./gradlew --stacktrace --warning-mode=all :androidApp:assembleDebug
       - name: Show compiler warnings (diagnostics on failure)
@@ -50,6 +58,14 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: gradle/actions/setup-gradle@v5
+      - name: Provision Gradle (retries on network errors)
+        shell: bash
+        run: |
+          for i in 1 2 3 4 5; do
+            ./gradlew --version && exit 0
+            echo "Gradle download failed, retry $i"; sleep $((i * 15))
+          done
+          exit 1
       - name: Compile desktop app and run tests (warnings are errors)
         run: ./gradlew --stacktrace --warning-mode=all :desktopApp:compileKotlin :shared:jvmTest
       - name: Show compiler warnings (diagnostics on failure)
@@ -83,9 +99,23 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: gradle/actions/setup-gradle@v5
-      - name: Build Windows app image
-        run: ./gradlew --stacktrace --warning-mode=all :desktopApp:createDistributable
+      - name: Provision Gradle (retries on network errors)
         shell: bash
+        run: |
+          for i in 1 2 3 4 5; do
+            ./gradlew --version && exit 0
+            echo "Gradle download failed, retry $i"; sleep $((i * 15))
+          done
+          exit 1
+      - name: Build Windows app image
+        # WiX скачивается с GitHub Releases, который иногда отвечает 504 — повторяем.
+        shell: bash
+        run: |
+          for i in 1 2 3; do
+            ./gradlew --stacktrace --warning-mode=all :desktopApp:createDistributable && exit 0
+            echo "Build failed, retry $i"; sleep $((i * 20))
+          done
+          exit 1
       - uses: actions/upload-artifact@v6
         with:
           name: PrismAI-windows
