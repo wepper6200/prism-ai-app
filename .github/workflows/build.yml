@@ -27,6 +27,12 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
       - name: Build debug APK (warnings are errors)
         run: ./gradlew --stacktrace --warning-mode=all :androidApp:assembleDebug
+      - name: Show compiler warnings (diagnostics on failure)
+        if: failure()
+        run: |
+          ./gradlew --console=plain -Pprism.werror=false --rerun-tasks \
+            :shared:compileAndroidMain :androidApp:compileDebugKotlin 2>&1 \
+            | grep -E '^(w|e): ' || echo "No compiler warnings printed"
       - uses: actions/upload-artifact@v6
         with:
           name: PrismAI-android-debug-apk
@@ -46,6 +52,12 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
       - name: Compile desktop app and run tests (warnings are errors)
         run: ./gradlew --stacktrace --warning-mode=all :desktopApp:compileKotlin :shared:jvmTest
+      - name: Show compiler warnings (diagnostics on failure)
+        if: failure()
+        run: |
+          ./gradlew --console=plain -Pprism.werror=false --rerun-tasks \
+            :shared:compileKotlinJvm :shared:compileTestKotlinJvm :desktopApp:compileKotlin 2>&1 \
+            | grep -E '^(w|e): ' || echo "No compiler warnings printed"
       - name: Upload screenshots
         if: always()
         uses: actions/upload-artifact@v6

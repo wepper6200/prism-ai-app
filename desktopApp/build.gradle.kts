@@ -8,7 +8,7 @@ plugins {
 
 kotlin {
     compilerOptions {
-        allWarningsAsErrors.set(true)
+        allWarningsAsErrors.set(providers.gradleProperty("prism.werror").map { it.toBoolean() }.orElse(true))
     }
 }
 
