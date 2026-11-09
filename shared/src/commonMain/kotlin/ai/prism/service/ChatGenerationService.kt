@@ -434,6 +434,17 @@ class ChatGenerationService(
         private const val MIN_IMAGE_SIDE = 256
 
         /** Заголовок диалога — начало первой строки сообщения. */
+        /**
+         * Размер для перерисовки фото: пропорции исходника, большая сторона — [maxSide],
+         * обе стороны кратны 64 (так требуют модели) и не меньше 256.
+         */
+        fun fitImageSize(width: Int, height: Int, maxSide: Int): Pair<Int, Int> {
+            val scale = maxSide.toFloat() / maxOf(width, height, 1)
+            fun snap(value: Int): Int = ((value * scale / IMAGE_SIZE_STEP).roundToInt() * IMAGE_SIZE_STEP)
+                .coerceIn(MIN_IMAGE_SIDE, maxSide)
+            return snap(width) to snap(height)
+        }
+
         fun titleFrom(text: String): String {
             val line = text.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty()
                 .replace(Regex("\\s+"), " ").trim()
