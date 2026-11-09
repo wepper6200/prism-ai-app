@@ -1,5 +1,3 @@
-import org.jetbrains.compose.desktop.application.dsl.TargetFormat
-
 plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.compose.compiler)
@@ -24,7 +22,8 @@ compose.desktop {
         jvmArgs += listOf("-Dfile.encoding=UTF-8")
 
         nativeDistributions {
-            targetFormats(TargetFormat.Msi, TargetFormat.Exe)
+            // Пока собирается только портативное приложение (createDistributable). Форматы установщика
+            // (MSI/EXE) не заданы: иначе плагин требует WiX, а он скачивается с нестабильного GitHub Releases.
             packageName = "PrismAI"
             packageVersion = libs.versions.prism.versionName.get()
             description = "Prism AI — офлайн ИИ-ассистент"
@@ -34,10 +33,6 @@ compose.desktop {
 
             windows {
                 iconFile.set(project.file("icons/prism.ico"))
-                menuGroup = "Prism AI"
-                shortcut = true
-                perUserInstall = true
-                upgradeUuid = "6f1d2c1e-3b8a-4f5e-9c2d-7a4b8e9f0a11"
             }
         }
     }
