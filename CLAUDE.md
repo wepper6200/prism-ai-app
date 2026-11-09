@@ -109,6 +109,9 @@ Prism AI — полностью офлайн ИИ-ассистент для **Wi
     подмодуля сверяйся с `include/llama.h`;
   - Gemma 4 использует формат `<|turn>…<turn|>`, который не понимает `llama_chat_apply_template` — промпт собирает
     `ChatPromptFormatter` по полю `chatFormat` из каталога.
+  - Gemma 4 (проверено на E2B в CI) рассуждает текстом даже при пустом канале `<|channel>thought\n<channel|>`
+    в промпте: «…The capital of France is Paris.<channel|>Paris». `Gemma4ReplyFilter` скрывает всё до `<channel|>`
+    и служебные теги; пока идут рассуждения, чат показывает «думает…». В историю попадает только ответ.
 
 ## Правила работы
 
