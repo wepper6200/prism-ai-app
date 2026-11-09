@@ -25,10 +25,10 @@ jobs:
           found = get("https://huggingface.co/api/models?author=ggml-org&search=gemma&limit=200")
           print("ggml-org gemma repos:", sorted(m["id"] for m in found))
           repos = [
-              "ggml-org/gemma-4-E2B-it-GGUF", "ggml-org/gemma-4-E4B-it-GGUF",
-              "ggml-org/gemma-4-26B-A4B-it-GGUF", "ggml-org/gemma-4-31B-it-GGUF",
-              "ggml-org/gemma-3-270m-it-GGUF", "ggml-org/gemma-3-1b-it-GGUF",
-              "ggml-org/gemma-3-4b-it-GGUF", "ggml-org/models",
+              "ggml-org/gemma-4-12B-it-GGUF", "ggml-org/gemma-3n-E2B-it-GGUF",
+              
+              
+              
           ]
           for repo in repos:
               print("\n=== " + repo)
