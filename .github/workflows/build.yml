@@ -50,7 +50,8 @@ jobs:
         shell: bash
         run: |
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
-          yes | "$SDKMANAGER" --licenses > /dev/null
+          # yes завершается с «Broken pipe», когда sdkmanager перестаёт читать, — это не ошибка.
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
           "$SDKMANAGER" --install "ndk;29.0.13113456" "cmake;3.31.6" > /dev/null
       - name: Build debug APK with llama.cpp (warnings are errors)
         run: ./gradlew --stacktrace --warning-mode=all -Pprism.ccache=true :androidApp:assembleDebug

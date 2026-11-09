@@ -37,7 +37,10 @@ val buildNative = tasks.register<Exec>("buildNative") {
     group = "native"
     description = "Собирает нативные библиотеки."
     dependsOn(configureNative)
-    commandLine("cmake", "--build", cmakeBuildDir.get().asFile.absolutePath, "--config", "Release", "--parallel")
+    // Число потоков ограничено ядрами: «--parallel» без числа в Makefile-генераторе запускает
+    // неограниченное число компиляторов и исчерпывает память.
+    val jobs = Runtime.getRuntime().availableProcessors().toString()
+    commandLine("cmake", "--build", cmakeBuildDir.get().asFile.absolutePath, "--config", "Release", "--parallel", jobs)
 }
 
 // Библиотеки для запуска и тестов: build/libs.
