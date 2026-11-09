@@ -1,0 +1,45 @@
+name: Model catalog report
+
+# Разовый отчёт о файлах GGUF на Hugging Face (размеры, SHA-256, лицензии, доступ)
+# для составления каталога моделей. Ничего не скачивает, только читает метаданные.
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/complex-mobile-app-u76tdy]
+    paths: [.github/workflows/model-catalog-report.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Query Hugging Face metadata
+        shell: python
+        run: |
+          import json, urllib.request
+          def get(url):
+              with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "prism-ai-ci"}), timeout=60) as r:
+                  return json.load(r)
+          found = get("https://huggingface.co/api/models?author=ggml-org&search=gemma&limit=200")
+          print("ggml-org gemma repos:", sorted(m["id"] for m in found))
+          repos = [
+              "ggml-org/gemma-4-E2B-it-GGUF", "ggml-org/gemma-4-E4B-it-GGUF",
+              "ggml-org/gemma-4-26B-A4B-it-GGUF", "ggml-org/gemma-4-31B-it-GGUF",
+              "ggml-org/gemma-3-270m-it-GGUF", "ggml-org/gemma-3-1b-it-GGUF",
+              "ggml-org/gemma-3-4b-it-GGUF", "ggml-org/models",
+          ]
+          for repo in repos:
+              print("\n=== " + repo)
+              try:
+                  info = get(f"https://huggingface.co/api/models/{repo}")
+                  card = info.get("cardData") or {}
+                  print("gated:", info.get("gated"), "| license:", card.get("license"), card.get("license_name"), card.get("license_link"))
+                  tree = get(f"https://huggingface.co/api/models/{repo}/tree/main?recursive=true")
+                  for f in tree:
+                      if f.get("type") == "file" and f["path"].endswith(".gguf"):
+                          lfs = f.get("lfs") or {}
+                          print(f'{f["path"]}\t{f.get("size")}\t{lfs.get("oid")}')
+              except Exception as e:
+                  print("ERROR", e)
