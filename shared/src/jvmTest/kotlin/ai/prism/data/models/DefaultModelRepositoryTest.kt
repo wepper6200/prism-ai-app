@@ -22,7 +22,8 @@ import kotlin.test.assertTrue
 class DefaultModelRepositoryTest {
 
     private val model = testModel()
-    private val visionModel = testModel(id = "vision-model", vision = testVision("vision-model"))
+    private val visionFile = testVision("vision-model")
+    private val visionModel = testModel(id = "vision-model", vision = visionFile)
 
     private fun catalogJson(models: List<CatalogModel>) =
         Json.encodeToString(ModelCatalogFile.serializer(), ModelCatalogFile(version = 2, models = models))
@@ -128,8 +129,8 @@ class DefaultModelRepositoryTest {
         val entry = repo.models.value.single()
         assertEquals(ModelStatus.Downloaded, entry.status)
         assertTrue(entry.visionReady)
-        assertEquals(listOf(visionModel.fileName, visionModel.vision!!.fileName), downloader.requested)
-        assertEquals("/models/${visionModel.vision!!.fileName}", repo.downloadedProjectorPath(visionModel.id))
+        assertEquals(listOf(visionModel.fileName, visionFile.fileName), downloader.requested)
+        assertEquals("/models/${visionFile.fileName}", repo.downloadedProjectorPath(visionModel.id))
     }
 
     /** Модель, скачанная до появления зрения: текст работает, докачивается только модуль зрения. */
@@ -148,14 +149,14 @@ class DefaultModelRepositoryTest {
 
         repo.download(visionModel.id)
 
-        assertEquals(listOf(visionModel.vision!!.fileName), downloader.requested)
+        assertEquals(listOf(visionFile.fileName), downloader.requested)
         assertTrue(repo.models.value.single().visionReady)
     }
 
     @Test
     fun failedVisionDownloadStillActivatesTextModel() {
         val storage = MemoryStorage()
-        val downloader = ScriptedDownloader(storage).apply { failing[visionModel.vision!!.fileName] = DownloadError.NETWORK }
+        val downloader = ScriptedDownloader(storage).apply { failing[visionFile.fileName] = DownloadError.NETWORK }
         val repo = repository(storage, downloader, listOf(visionModel))
 
         repo.download(visionModel.id)
