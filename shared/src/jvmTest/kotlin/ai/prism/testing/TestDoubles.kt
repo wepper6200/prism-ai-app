@@ -12,10 +12,14 @@ import ai.prism.domain.inference.ModelInfo
 import ai.prism.domain.model.CatalogModel
 import ai.prism.domain.model.ChatFormat
 import ai.prism.domain.model.DeviceInfo
+import ai.prism.domain.model.ImageAttachment
 import ai.prism.domain.model.ModelEntry
+import ai.prism.domain.model.ModelFile
 import ai.prism.domain.model.ModelLicense
 import ai.prism.domain.model.ModelStatus
 import ai.prism.domain.model.PlatformCapabilities
+import ai.prism.domain.repository.ImageException
+import ai.prism.domain.repository.ImageStore
 import ai.prism.domain.repository.ModelRepository
 import ai.prism.presentation.root.AppDependencies
 import ai.prism.domain.inference.PromptMessage
@@ -36,6 +40,7 @@ fun testModel(
     name: String = "Gemma 4 E2B",
     minRamMb: Int = 6144,
     recommendedFor: List<String> = listOf("android"),
+    vision: ModelFile? = null,
 ) = CatalogModel(
     id = id,
     name = name,
@@ -52,7 +57,42 @@ fun testModel(
     chatFormat = ChatFormat.GEMMA4,
     license = ModelLicense("Apache 2.0", "https://www.apache.org/licenses/LICENSE-2.0"),
     recommendedFor = recommendedFor,
+    vision = vision,
 )
+
+fun testVision(id: String = "test-model") = ModelFile(
+    url = "https://example.com/mmproj-$id.gguf",
+    fileName = "mmproj-$id.gguf",
+    sizeBytes = 557_368_096,
+    sha256 = "1".repeat(64),
+)
+
+/** Изображения в памяти: сохраняет байты как есть, размер — из [size]. */
+class MemoryImageStore(var size: Pair<Int, Int> = 640 to 480) : ImageStore {
+    val files = linkedMapOf<String, ByteArray>()
+    val deleted = mutableListOf<String>()
+    private var counter = 0
+
+    override suspend fun save(bytes: ByteArray): ImageAttachment {
+        if (bytes.isEmpty()) throw ImageException("пустой файл")
+        counter += 1
+        val id = "image-$counter"
+        val fileName = "$id.jpg"
+        files[fileName] = bytes
+        return ImageAttachment(id, fileName, size.first, size.second)
+    }
+
+    override fun path(fileName: String): String = "/images/$fileName"
+
+    override suspend fun read(fileName: String): ByteArray? = files[fileName]
+
+    override suspend fun delete(fileNames: Collection<String>) {
+        fileNames.forEach { files.remove(it) }
+        deleted += fileNames
+    }
+
+    override suspend fun deleteOrphans(referenced: Set<String>, olderThanMillis: Long) = Unit
+}
 
 class FakeDeviceInfo(override val totalRamBytes: Long = 8L * 1024 * 1024 * 1024) : DeviceInfo {
     override fun availableRamBytes(): Long = totalRamBytes / 2
@@ -70,11 +110,15 @@ class FakeInferenceEngine(
     var loadError: InferenceException? = null
     var generateError: InferenceException? = null
     var lastRequest: GenerationRequest? = null
+    var lastProjectorPath: String? = null
     private val cancelled = AtomicBoolean(false)
 
-    override suspend fun load(model: CatalogModel, filePath: String) {
+    override suspend fun load(model: CatalogModel, filePath: String, projectorPath: String?) {
         loadError?.let { throw it }
-        mutableState.value = EngineState.Ready(ModelInfo(model.id, model.name, "fake", 4096, "CPU"))
+        lastProjectorPath = projectorPath
+        mutableState.value = EngineState.Ready(
+            ModelInfo(model.id, model.name, "fake", 4096, "CPU", supportsImages = projectorPath != null),
+        )
     }
 
     override fun generate(request: GenerationRequest): Flow<String> = flow {
@@ -123,13 +167,16 @@ class FakeModelRepository(
     override fun catalogModel(modelId: String): CatalogModel? = models.value.firstOrNull { it.model.id == modelId }?.model
 
     override fun downloadedFilePath(modelId: String): String? =
-        models.value.firstOrNull { it.model.id == modelId && it.status == ModelStatus.Downloaded }?.let { "/models/${it.model.fileName}" }
+        models.value.firstOrNull { it.model.id == modelId && it.chatReady }?.let { "/models/${it.model.fileName}" }
+
+    override fun downloadedProjectorPath(modelId: String): String? =
+        models.value.firstOrNull { it.model.id == modelId && it.visionReady }?.model?.vision?.let { "/models/${it.fileName}" }
 }
 
-fun inMemoryChatRepository(): SqlChatRepository {
+fun inMemoryChatRepository(images: ImageStore = MemoryImageStore()): SqlChatRepository {
     val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
     PrismDatabase.Schema.create(driver)
-    return SqlChatRepository(PrismDatabase(driver), Dispatchers.Unconfined)
+    return SqlChatRepository(PrismDatabase(driver), images, Dispatchers.Unconfined)
 }
 
 /** Набор зависимостей приложения на подставных реализациях; всё выполняется синхронно. */
@@ -138,7 +185,8 @@ class TestApp(
     val models: FakeModelRepository = FakeModelRepository(),
 ) {
     val settings = DefaultSettingsRepository(MapKeyValueStore())
-    val chats = inMemoryChatRepository()
+    val images = MemoryImageStore()
+    val chats = inMemoryChatRepository(images)
     val scope = CoroutineScope(Dispatchers.Unconfined)
     val generation = ChatGenerationService(
         engine = engine,
@@ -153,6 +201,7 @@ class TestApp(
                 ),
             )
         },
+        images = images,
         scope = scope,
     )
     val dependencies = AppDependencies(
@@ -161,6 +210,7 @@ class TestApp(
         settingsRepository = settings,
         generationService = generation,
         engine = engine,
+        imageStore = images,
         capabilities = PlatformCapabilities(supportsDynamicColor = false),
         deviceInfo = FakeDeviceInfo(),
     )

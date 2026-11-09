@@ -23,5 +23,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Временный файл для снимка с камеры: только внутри приложения, в галерею не попадает. -->
+        <provider
+            android:name="ai.prism.platform.CameraOutputProvider"
+            android:authorities="${applicationId}.camera"
+            android:exported="false"
+            android:grantUriPermissions="true" />
     </application>
 </manifest>

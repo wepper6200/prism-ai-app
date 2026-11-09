@@ -4,12 +4,20 @@ import ai.prism.desktop.runOnUiThread
 import ai.prism.domain.model.MessageRole
 import ai.prism.domain.model.MessageStatus
 import ai.prism.domain.model.ThemeStyle
+import ai.prism.domain.model.ModelEntry
+import ai.prism.domain.model.ModelStatus
+import ai.prism.presentation.chat.AttachmentError
 import ai.prism.presentation.chat.ChatIntent
+import ai.prism.presentation.chat.ChatState
+import ai.prism.presentation.chat.VisionSupport
 import ai.prism.presentation.chats.ChatListIntent
 import ai.prism.presentation.root.DefaultRootComponent
 import ai.prism.presentation.root.RootComponent
 import ai.prism.presentation.settings.SettingsIntent
+import ai.prism.testing.FakeModelRepository
 import ai.prism.testing.TestApp
+import ai.prism.testing.testModel
+import ai.prism.testing.testVision
 import com.arkivanov.decompose.DefaultComponentContext
 import com.arkivanov.essenty.lifecycle.LifecycleRegistry
 import com.arkivanov.essenty.lifecycle.resume
@@ -21,7 +29,7 @@ import kotlin.test.assertTrue
 
 class RootComponentTest {
 
-    private val app = TestApp()
+    private var app = TestApp()
 
     private fun createRoot(): RootComponent {
         val lifecycle = LifecycleRegistry()
@@ -117,5 +125,35 @@ class RootComponentTest {
         assertEquals(ThemeStyle.LIQUID_GLASS, root.settings.value.themeStyle)
         assertEquals(ThemeStyle.LIQUID_GLASS, settings.state.value.settings.themeStyle)
         assertEquals(listOf("Apache 2.0"), settings.state.value.modelLicenses.map { it.licenseName })
+    }
+
+    @Test
+    fun imagesAreAttachedRemovedAndSent(): Unit = runOnUiThread {
+        val model = testModel(vision = testVision())
+        app = TestApp(models = FakeModelRepository(listOf(ModelEntry(model, ModelStatus.Downloaded, fitsInMemory = true))))
+        val root = createRoot()
+        root.chatList.onIntent(ChatListIntent.NewChat)
+        val chat = assertIs<RootComponent.Child.Chat>(root.active).component
+        assertEquals(VisionSupport.READY, chat.state.value.vision)
+
+        chat.onIntent(ChatIntent.AttachImages(List(ChatState.MAX_ATTACHMENTS + 1) { byteArrayOf(it.toByte(), 1) }))
+        assertEquals(ChatState.MAX_ATTACHMENTS, chat.state.value.attachments.size)
+        assertEquals(AttachmentError.TOO_MANY, chat.state.value.attachmentError)
+
+        val removed = chat.state.value.attachments.first()
+        chat.onIntent(ChatIntent.RemoveAttachment(removed.id))
+        assertEquals(listOf(removed.fileName), app.images.deleted)
+
+        chat.onIntent(ChatIntent.AttachImages(listOf(ByteArray(0))))
+        assertEquals(AttachmentError.UNREADABLE, chat.state.value.attachmentError)
+        chat.onIntent(ChatIntent.DismissAttachmentError)
+
+        // Сообщение из одних изображений тоже отправляется.
+        assertTrue(chat.state.value.canSend)
+        chat.onIntent(ChatIntent.Send)
+        val state = chat.state.value
+        assertTrue(state.attachments.isEmpty())
+        assertEquals(ChatState.MAX_ATTACHMENTS - 1, state.messages.first().images.size)
+        assertEquals(MessageStatus.COMPLETE, state.messages.last().status)
     }
 }

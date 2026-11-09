@@ -1,30 +1,30 @@
 package ai.prism.data.models
 
-import ai.prism.domain.model.CatalogModel
 import ai.prism.domain.model.DownloadError
+import ai.prism.domain.model.ModelFile
 
 /** Где лежат файлы моделей. */
 interface ModelStorage {
-    fun isDownloaded(model: CatalogModel): Boolean
+    fun isDownloaded(file: ModelFile): Boolean
 
     /** Сколько байт уже скачано в незавершённый файл. */
-    fun partialBytes(model: CatalogModel): Long
+    fun partialBytes(file: ModelFile): Long
 
-    fun filePath(model: CatalogModel): String
+    fun filePath(file: ModelFile): String
 
-    fun delete(model: CatalogModel)
+    fun delete(file: ModelFile)
 
     fun freeSpaceBytes(): Long
 }
 
-/** Скачивание модели с докачкой и проверкой SHA-256. */
+/** Скачивание файла модели с докачкой и проверкой SHA-256. */
 interface ModelDownloader {
     /**
-     * Скачивает модель (продолжает с места остановки), проверяет контрольную сумму
-     * и переносит файл на место. Бросает [DownloadException].
+     * Скачивает файл (продолжает с места остановки), проверяет контрольную сумму
+     * и переносит его на место. Бросает [DownloadException].
      */
     suspend fun download(
-        model: CatalogModel,
+        file: ModelFile,
         onProgress: (downloadedBytes: Long, totalBytes: Long) -> Unit,
         onVerifying: () -> Unit,
     )

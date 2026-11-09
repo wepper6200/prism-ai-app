@@ -1,7 +1,7 @@
 package ai.prism.data.models
 
 import ai.prism.core.BuildInfo
-import ai.prism.domain.model.CatalogModel
+import ai.prism.domain.model.ModelFile
 import ai.prism.domain.model.DownloadError
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
@@ -28,15 +28,15 @@ class HttpModelDownloader(
 ) : ModelDownloader {
 
     override suspend fun download(
-        model: CatalogModel,
+        file: ModelFile,
         onProgress: (downloadedBytes: Long, totalBytes: Long) -> Unit,
         onVerifying: () -> Unit,
     ) {
-        withContext(Dispatchers.IO) { downloadBlocking(model, onProgress, onVerifying) }
+        withContext(Dispatchers.IO) { downloadBlocking(file, onProgress, onVerifying) }
     }
 
     private suspend fun downloadBlocking(
-        model: CatalogModel,
+        model: ModelFile,
         onProgress: (downloadedBytes: Long, totalBytes: Long) -> Unit,
         onVerifying: () -> Unit,
     ) {
@@ -81,7 +81,7 @@ class HttpModelDownloader(
 
     /** Докачивает файл начиная с [startFrom] байта; возвращает итоговый размер. */
     private suspend fun transfer(
-        model: CatalogModel,
+        model: ModelFile,
         startFrom: Long,
         onProgress: (Long, Long) -> Unit,
     ): Long {

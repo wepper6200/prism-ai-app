@@ -1,0 +1,32 @@
+-- Изображения, приложенные к сообщениям. Файлы (уменьшенный JPEG) лежат в каталоге изображений приложения.
+
+CREATE TABLE message_image (
+    id TEXT NOT NULL PRIMARY KEY,
+    message_id TEXT NOT NULL,
+    chat_id TEXT NOT NULL,
+    file_name TEXT NOT NULL,
+    width INTEGER NOT NULL,
+    height INTEGER NOT NULL,
+    position INTEGER NOT NULL
+);
+
+CREATE INDEX message_image_by_chat ON message_image(chat_id, message_id, position);
+
+insertImage:
+INSERT INTO message_image(id, message_id, chat_id, file_name, width, height, position)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+selectImagesOfChat:
+SELECT * FROM message_image WHERE chat_id = ? ORDER BY message_id, position;
+
+selectFilesOfChat:
+SELECT file_name FROM message_image WHERE chat_id = ?;
+
+selectAllFiles:
+SELECT file_name FROM message_image;
+
+deleteImagesOfChat:
+DELETE FROM message_image WHERE chat_id = ?;
+
+deleteImagesOfMessage:
+DELETE FROM message_image WHERE message_id = ?;

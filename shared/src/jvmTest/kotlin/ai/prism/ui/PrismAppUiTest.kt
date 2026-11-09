@@ -4,11 +4,13 @@ import ai.prism.domain.model.DarkMode
 import ai.prism.domain.model.ModelEntry
 import ai.prism.domain.model.ModelStatus
 import ai.prism.domain.model.ThemeStyle
+import ai.prism.presentation.chat.ChatIntent
 import ai.prism.presentation.root.DefaultRootComponent
 import ai.prism.presentation.root.RootComponent
 import ai.prism.testing.FakeModelRepository
 import ai.prism.testing.TestApp
 import ai.prism.testing.testModel
+import ai.prism.testing.testVision
 import androidx.compose.ui.graphics.toAwtImage
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
@@ -26,10 +28,16 @@ import com.arkivanov.decompose.ExperimentalDecomposeApi
 import com.arkivanov.essenty.lifecycle.LifecycleRegistry
 import com.arkivanov.essenty.lifecycle.resume
 import kotlinx.coroutines.Dispatchers
+import java.awt.Color
+import java.awt.GradientPaint
+import java.awt.RenderingHints
+import java.awt.image.BufferedImage
+import java.io.ByteArrayOutputStream
 import java.io.File
 import javax.imageio.ImageIO
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 
 /**
  * Сквозной UI-тест: диалог с (подставной) моделью, экран моделей, навигация и темы
@@ -40,10 +48,19 @@ class PrismAppUiTest {
 
     private val screenshotDir = File(System.getProperty("prism.screenshotDir") ?: "build/screenshots").apply { mkdirs() }
 
-    /** Каталог для скриншота экрана моделей: скачанная, скачивающаяся и слишком тяжёлая модели. */
+    /**
+     * Каталог для скриншота экрана моделей: скачанная модель со зрением, модель без скачанного модуля зрения,
+     * скачивающаяся и слишком тяжёлая модели.
+     */
     private val models = FakeModelRepository(
         entries = listOf(
-            ModelEntry(testModel(), ModelStatus.Downloaded, fitsInMemory = true),
+            ModelEntry(testModel(vision = testVision()), ModelStatus.Downloaded, fitsInMemory = true),
+            ModelEntry(
+                testModel(id = "gemma-4-e2b-old", name = "Gemma 4 E2B (без зрения)", vision = testVision("gemma-4-e2b-old")),
+                ModelStatus.Paused(downloadedBytes = 2_841_481_184, totalBytes = 3_398_849_280, error = null),
+                fitsInMemory = true,
+                chatReady = true,
+            ),
             ModelEntry(
                 testModel(id = "gemma-4-e4b", name = "Gemma 4 E4B", minRamMb = 8192, recommendedFor = listOf("desktop")),
                 ModelStatus.Downloading(downloadedBytes = 1_900_000_000, totalBytes = 4_590_807_392),
@@ -65,6 +82,21 @@ class PrismAppUiTest {
         val root = DefaultRootComponent(DefaultComponentContext(lifecycle = lifecycle), app.dependencies, Dispatchers.Unconfined)
         lifecycle.resume()
         return app to root
+    }
+
+    /** «Фотография» для вложения: закат с солнцем. */
+    private fun photo(): ByteArray {
+        val image = BufferedImage(640, 480, BufferedImage.TYPE_INT_RGB)
+        val g = image.createGraphics()
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+        g.paint = GradientPaint(0f, 0f, Color(0x1E3A8A), 0f, 480f, Color(0xF97316))
+        g.fillRect(0, 0, 640, 480)
+        g.color = Color(0xFDE68A)
+        g.fillOval(250, 230, 140, 140)
+        g.color = Color(0x0F172A)
+        g.fillRect(0, 380, 640, 100)
+        g.dispose()
+        return ByteArrayOutputStream().also { ImageIO.write(image, "png", it) }.toByteArray()
     }
 
     private fun ComposeUiTest.screenshot(name: String) {
@@ -148,5 +180,43 @@ class PrismAppUiTest {
         onNodeWithTag("chat_item_$chatId").performClick()
         onNodeWithTag("chat_screen").assertIsDisplayed()
         screenshot("compact_6_glass_dark_chat")
+    }
+
+    @Test
+    fun compactChatWithImage() = runDesktopComposeUiTest(width = 412, height = 892) {
+        val (_, root) = createApp()
+        setContent { PrismApp(root) }
+
+        onNodeWithTag("new_chat").performClick()
+        val chat = assertIs<RootComponent.Child.Chat>(root.stack.value.active.instance).component
+        chat.onIntent(ChatIntent.AttachImages(listOf(photo())))
+        waitForIdle()
+        onNodeWithTag("attachment_strip").assertIsDisplayed()
+        onNodeWithTag("message_input").performTextInput("Что на фото?")
+        screenshot("compact_7_draft_with_image")
+
+        onNodeWithTag("send_button").performClick()
+        waitForIdle()
+        onNodeWithTag("message_images").assertIsDisplayed()
+        onNodeWithText("Привет! Я Prism AI.", substring = true).assertIsDisplayed()
+        assertEquals(1, chat.state.value.messages.first().images.size)
+        screenshot("compact_8_chat_with_image")
+    }
+
+    /** У активной модели не скачан модуль зрения: вместо выбора фото — объяснение и переход к моделям. */
+    @Test
+    fun visionDialogExplainsMissingModule() = runDesktopComposeUiTest(width = 412, height = 892) {
+        val (_, root) = createApp()
+        models.setActive("gemma-4-e2b-old")
+        setContent { PrismApp(root) }
+
+        onNodeWithTag("new_chat").performClick()
+        onNodeWithTag("attach_image").performClick()
+        onNodeWithTag("vision_dialog").assertIsDisplayed()
+        screenshot("compact_9_vision_dialog")
+
+        onNodeWithTag("vision_open_models").performClick()
+        onNodeWithTag("models_screen").assertIsDisplayed()
+        onNodeWithTag("download_vision_gemma-4-e2b-old").assertIsDisplayed()
     }
 }

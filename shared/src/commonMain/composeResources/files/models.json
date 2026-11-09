@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "models": [
     {
       "id": "gemma-4-e2b-it-q4_0",
@@ -18,7 +18,13 @@
       "minRamMb": 6144,
       "chatFormat": "gemma4",
       "license": { "name": "Apache 2.0", "url": "https://www.apache.org/licenses/LICENSE-2.0" },
-      "recommendedFor": ["android"]
+      "recommendedFor": ["android"],
+      "vision": {
+        "url": "https://huggingface.co/ggml-org/gemma-4-E2B-it-GGUF/resolve/main/mmproj-gemma-4-E2B-it-Q8_0.gguf",
+        "fileName": "mmproj-gemma-4-E2B-it-Q8_0.gguf",
+        "sizeBytes": 557368096,
+        "sha256": "042cc2561806cd3b5cb5efb25cab76911e3100c43cc09d854904f921924b1429"
+      }
     },
     {
       "id": "gemma-4-e4b-it-q4_0",
@@ -37,7 +43,13 @@
       "minRamMb": 8192,
       "chatFormat": "gemma4",
       "license": { "name": "Apache 2.0", "url": "https://www.apache.org/licenses/LICENSE-2.0" },
-      "recommendedFor": ["desktop"]
+      "recommendedFor": ["desktop"],
+      "vision": {
+        "url": "https://huggingface.co/ggml-org/gemma-4-E4B-it-GGUF/resolve/main/mmproj-gemma-4-E4B-it-Q8_0.gguf",
+        "fileName": "mmproj-gemma-4-E4B-it-Q8_0.gguf",
+        "sizeBytes": 559874848,
+        "sha256": "9257f21a0f5358204b4a612cff83fad2e56412f4f607f0049331ce60c0cf9d34"
+      }
     },
     {
       "id": "gemma-4-12b-it-q4_0",
@@ -56,7 +68,13 @@
       "minRamMb": 16384,
       "chatFormat": "gemma4",
       "license": { "name": "Apache 2.0", "url": "https://www.apache.org/licenses/LICENSE-2.0" },
-      "recommendedFor": ["desktop"]
+      "recommendedFor": ["desktop"],
+      "vision": {
+        "url": "https://huggingface.co/ggml-org/gemma-4-12B-it-GGUF/resolve/main/mmproj-gemma-4-12B-it-Q8_0.gguf",
+        "fileName": "mmproj-gemma-4-12B-it-Q8_0.gguf",
+        "sizeBytes": 158987648,
+        "sha256": "6b1088334bda27d7f293dcf426c0efaf1f1f20b65415ea354b695dbed9a0d65d"
+      }
     },
     {
       "id": "gemma-4-26b-a4b-it-q4_0",
@@ -75,7 +93,13 @@
       "minRamMb": 24576,
       "chatFormat": "gemma4",
       "license": { "name": "Apache 2.0", "url": "https://www.apache.org/licenses/LICENSE-2.0" },
-      "recommendedFor": []
+      "recommendedFor": [],
+      "vision": {
+        "url": "https://huggingface.co/ggml-org/gemma-4-26B-A4B-it-GGUF/resolve/main/mmproj-gemma-4-26B-A4B-it-Q8_0.gguf",
+        "fileName": "mmproj-gemma-4-26B-A4B-it-Q8_0.gguf",
+        "sizeBytes": 806408320,
+        "sha256": "cc4e855736da450bf1e162d8cccfe0ad685727d0c9e04ef7dd8d884f3121039b"
+      }
     },
     {
       "id": "gemma-3-1b-it-q4_k_m",

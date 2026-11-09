@@ -24,6 +24,7 @@ internal object LlamaNative {
     const val STATUS_ERROR_DECODE = -2
     const val STATUS_ERROR_CALLBACK = -3
     const val STATUS_ERROR_OOM = -4
+    const val STATUS_ERROR_IMAGE = -5
 
     /** Загружает бэкенды ggml из каталога (или из стандартных путей при `null`). */
     external fun backendInit(backendDir: String?): Boolean
@@ -50,13 +51,30 @@ internal object LlamaNative {
 
     external fun contextSize(session: Long): Int
 
-    external fun tokenCount(session: Long, text: ByteArray): Int
+    /**
+     * Сколько ячеек контекста займёт промпт; [imageSizes] — пары (ширина, высота) изображений по порядку меток.
+     * −1 — промпт не удалось разобрать.
+     */
+    external fun tokenCount(session: Long, projector: Long, text: ByteArray, imageSizes: IntArray?): Int
 
     external fun cancel(session: Long)
 
+    /** Загружает модуль зрения (mmproj) для модели; возвращает дескриптор или 0 при ошибке. */
+    external fun loadProjector(model: Long, path: String, useGpu: Boolean, threads: Int, maxImageTokens: Int): Long
+
+    external fun freeProjector(projector: Long)
+
+    /**
+     * Генерация ответа. Изображения передаются в порядке меток в промпте: пиксели RGB, размеры парами
+     * (ширина, высота) и идентификаторы (по ним переиспользуется кэш). Без изображений — `null`.
+     */
     external fun generate(
         session: Long,
+        projector: Long,
         prompt: ByteArray,
+        imagePixels: Array<ByteArray>?,
+        imageSizes: IntArray?,
+        imageIds: Array<String>?,
         maxTokens: Int,
         temperature: Float,
         topP: Float,

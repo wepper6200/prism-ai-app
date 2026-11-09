@@ -3,6 +3,8 @@
 # Android: собирается Gradle (androidApp → externalNativeBuild), ABI arm64-v8a.
 # Desktop: собирается задачами модуля :native (cmake), результат кладётся в ресурсы приложения.
 #
+# libmtmd (мультимодальность llama.cpp) — понимание изображений vision-моделями через проектор (mmproj).
+#
 # Бэкенды ggml собираются как отдельные динамические библиотеки (GGML_BACKEND_DL):
 # CPU — во всех вариантах набора инструкций (выбирается лучший при запуске),
 # Vulkan — по флагу PRISM_VULKAN (Windows). Если Vulkan-драйвера нет, остаётся CPU.
@@ -43,6 +45,10 @@ set(LLAMA_BUILD_SERVER OFF CACHE BOOL "" FORCE)
 set(LLAMA_BUILD_APP OFF CACHE BOOL "" FORCE)
 set(LLAMA_OPENSSL OFF CACHE BOOL "" FORCE)
 set(LLAMA_ALL_WARNINGS OFF CACHE BOOL "" FORCE)
+# libmtmd без инструментов и без видео (видео требует внешний ffmpeg).
+set(LLAMA_BUILD_MTMD ON CACHE BOOL "" FORCE)
+set(LLAMA_SUBPROCESS OFF CACHE BOOL "" FORCE)
+set(MTMD_VIDEO OFF CACHE BOOL "" FORCE)
 set(GGML_NATIVE OFF CACHE BOOL "" FORCE)
 set(GGML_BACKEND_DL ON CACHE BOOL "" FORCE)
 set(GGML_CPU_ALL_VARIANTS ON CACHE BOOL "" FORCE)
@@ -57,7 +63,7 @@ endif()
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/llama.cpp ${CMAKE_BINARY_DIR}/llama.cpp)
 
 add_library(prism_llama SHARED ${CMAKE_CURRENT_LIST_DIR}/prism_llama.cpp)
-target_link_libraries(prism_llama PRIVATE llama ggml)
+target_link_libraries(prism_llama PRIVATE mtmd llama ggml)
 
 if(ANDROID)
     target_link_libraries(prism_llama PRIVATE log)

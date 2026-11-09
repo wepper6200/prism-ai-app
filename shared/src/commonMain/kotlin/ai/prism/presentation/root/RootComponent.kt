@@ -5,6 +5,7 @@ import ai.prism.domain.model.AppSettings
 import ai.prism.domain.model.DeviceInfo
 import ai.prism.domain.model.PlatformCapabilities
 import ai.prism.domain.repository.ChatRepository
+import ai.prism.domain.repository.ImageStore
 import ai.prism.domain.repository.ModelRepository
 import ai.prism.domain.repository.SettingsRepository
 import ai.prism.presentation.chat.ChatComponent
@@ -59,6 +60,7 @@ class AppDependencies(
     val settingsRepository: SettingsRepository,
     val generationService: ChatGenerationService,
     val engine: InferenceEngine,
+    val imageStore: ImageStore,
     val capabilities: PlatformCapabilities,
     val deviceInfo: DeviceInfo,
 )
@@ -117,6 +119,7 @@ class DefaultRootComponent(
                     modelRepository = deps.modelRepository,
                     engine = deps.engine,
                     generation = deps.generationService,
+                    imageStore = deps.imageStore,
                     mainContext = mainContext,
                     onOpenModels = { openScreen(Config.Models) },
                     onBack = ::onBack,

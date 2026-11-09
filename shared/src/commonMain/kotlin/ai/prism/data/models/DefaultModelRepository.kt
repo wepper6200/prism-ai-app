@@ -36,17 +36,21 @@ class DefaultModelRepository(
 
     private val catalogModels = MutableStateFlow<List<CatalogModel>>(emptyList())
     private val statuses = MutableStateFlow<Map<String, ModelStatus>>(emptyMap())
+
+    /** Модели, у которых скачан основной файл: с ними уже можно разговаривать. */
+    private val chatReady = MutableStateFlow<Set<String>>(emptySet())
     private val jobs = MutableStateFlow<Map<String, Job>>(emptyMap())
     private val active = MutableStateFlow(store.getString(KEY_ACTIVE_MODEL)?.takeIf { it.isNotBlank() })
 
     override val activeModelId: StateFlow<String?> = active.asStateFlow()
 
-    override val models: StateFlow<List<ModelEntry>> = combine(catalogModels, statuses) { list, states ->
+    override val models: StateFlow<List<ModelEntry>> = combine(catalogModels, statuses, chatReady) { list, states, ready ->
         list.map { model ->
             ModelEntry(
                 model = model,
                 status = states[model.id] ?: ModelStatus.NotDownloaded,
                 fitsInMemory = deviceInfo.totalRamBytes >= model.minRamMb.toLong() * BYTES_IN_MB * RAM_TOLERANCE_PERCENT / 100,
+                chatReady = model.id in ready,
             )
         }
     }.stateIn(scope, SharingStarted.Eagerly, emptyList())
@@ -61,34 +65,47 @@ class DefaultModelRepository(
             }
             catalogModels.value = list
             statuses.value = list.associate { it.id to initialStatus(it) }
+            chatReady.value = list.filter { storage.isDownloaded(it.mainFile) }.map { it.id }.toSet()
         }
     }
 
+    /** Скачивает недостающие файлы модели: основной и модуль зрения. */
     override fun download(modelId: String) {
         val model = catalogModel(modelId) ?: return
         if (jobs.value[modelId]?.isActive == true) return
-        val partial = storage.partialBytes(model)
-        if (storage.freeSpaceBytes() < model.sizeBytes - partial + SPACE_MARGIN_BYTES) {
-            setStatus(modelId, ModelStatus.Paused(partial, model.sizeBytes, DownloadError.NOT_ENOUGH_SPACE))
+        val total = model.totalSizeBytes
+        val already = downloadedBytes(model)
+        if (storage.freeSpaceBytes() < total - already + SPACE_MARGIN_BYTES) {
+            setStatus(modelId, ModelStatus.Paused(already, total, DownloadError.NOT_ENOUGH_SPACE))
             return
         }
-        setStatus(modelId, ModelStatus.Downloading(partial, model.sizeBytes))
+        setStatus(modelId, ModelStatus.Downloading(already, total))
         val job = scope.launch {
             try {
-                downloader.download(
-                    model = model,
-                    onProgress = { done, total -> setStatus(modelId, ModelStatus.Downloading(done, total)) },
-                    onVerifying = { setStatus(modelId, ModelStatus.Verifying) },
-                )
+                var completed = 0L
+                for (file in model.files) {
+                    if (!storage.isDownloaded(file)) {
+                        val base = completed
+                        downloader.download(
+                            file = file,
+                            onProgress = { done, _ -> setStatus(modelId, ModelStatus.Downloading(base + done, total)) },
+                            onVerifying = { setStatus(modelId, ModelStatus.Verifying) },
+                        )
+                        if (file == model.mainFile) chatReady.update { it + modelId }
+                    }
+                    completed += file.sizeBytes
+                }
                 setStatus(modelId, ModelStatus.Downloaded)
                 val current = active.value
-                if (current == null || catalogModel(current)?.let(storage::isDownloaded) != true) {
+                if (current == null || current !in chatReady.value) {
                     setActive(modelId)
                 }
             } catch (e: DownloadException) {
-                setStatus(modelId, ModelStatus.Paused(storage.partialBytes(model), model.sizeBytes, e.error))
+                setStatus(modelId, ModelStatus.Paused(downloadedBytes(model), total, e.error))
+                // Основной файл мог докачаться раньше, чем оборвался модуль зрения.
+                if (current() == null && modelId in chatReady.value) setActive(modelId)
             } catch (e: CancellationException) {
-                setStatus(modelId, ModelStatus.Paused(storage.partialBytes(model), model.sizeBytes, null))
+                setStatus(modelId, ModelStatus.Paused(downloadedBytes(model), total, null))
                 throw e
             } finally {
                 jobs.update { it - modelId }
@@ -107,8 +124,9 @@ class DefaultModelRepository(
         scope.launch {
             job?.cancel()
             job?.join()
-            storage.delete(model)
+            model.files.forEach(storage::delete)
             setStatus(modelId, ModelStatus.NotDownloaded)
+            chatReady.update { it - modelId }
             if (active.value == modelId) {
                 active.value = null
                 store.putString(KEY_ACTIVE_MODEL, "")
@@ -125,12 +143,24 @@ class DefaultModelRepository(
         catalogModels.value.firstOrNull { it.id == modelId }
 
     override fun downloadedFilePath(modelId: String): String? =
-        catalogModel(modelId)?.takeIf(storage::isDownloaded)?.let(storage::filePath)
+        catalogModel(modelId)?.mainFile?.takeIf(storage::isDownloaded)?.let(storage::filePath)
 
-    private fun initialStatus(model: CatalogModel): ModelStatus = when {
-        storage.isDownloaded(model) -> ModelStatus.Downloaded
-        storage.partialBytes(model) > 0 -> ModelStatus.Paused(storage.partialBytes(model), model.sizeBytes, null)
-        else -> ModelStatus.NotDownloaded
+    override fun downloadedProjectorPath(modelId: String): String? =
+        catalogModel(modelId)?.vision?.takeIf(storage::isDownloaded)?.let(storage::filePath)
+
+    private fun current(): String? = active.value?.takeIf { it in chatReady.value }
+
+    /** Скачанные байты всех файлов модели, включая незавершённые части. */
+    private fun downloadedBytes(model: CatalogModel): Long =
+        model.files.sumOf { if (storage.isDownloaded(it)) it.sizeBytes else storage.partialBytes(it) }
+
+    private fun initialStatus(model: CatalogModel): ModelStatus {
+        val downloaded = downloadedBytes(model)
+        return when {
+            model.files.all(storage::isDownloaded) -> ModelStatus.Downloaded
+            downloaded > 0 -> ModelStatus.Paused(downloaded, model.totalSizeBytes, null)
+            else -> ModelStatus.NotDownloaded
+        }
     }
 
     private fun setStatus(modelId: String, status: ModelStatus) {

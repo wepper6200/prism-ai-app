@@ -10,10 +10,14 @@ import ai.prism.domain.model.MessageRole
  */
 object ChatPromptFormatter {
 
+    /** Место изображения в промпте; llama.cpp (libmtmd) заменяет его токенами изображения. */
+    const val MEDIA_MARKER = "<__media__>"
+
     /** Служебные метки диалога, которые нельзя пропускать из текста пользователя. */
     private val controlMarkers = listOf(
         "<|turn>", "<turn|>", "<|channel>", "<channel|>", "<|think|>",
         "<start_of_turn>", "<end_of_turn>", "<bos>", "<eos>",
+        "<start_of_image>", "<end_of_image>", "<|image>", "<image|>", MEDIA_MARKER,
     )
 
     fun format(format: ChatFormat, systemPrompt: String, messages: List<PromptMessage>): String = when (format) {
@@ -45,7 +49,7 @@ object ChatPromptFormatter {
         }
         messages.forEach { message ->
             append("<|turn>").append(message.role.gemmaRole()).append('\n')
-            append(sanitize(message.content)).append("<turn|>\n")
+            append(mediaMarkers(message)).append(sanitize(message.content)).append("<turn|>\n")
         }
         append("<|turn>model\n<|channel>thought\n<channel|>")
     }
@@ -60,15 +64,19 @@ object ChatPromptFormatter {
                 append(system).append("\n\n")
                 systemPending = false
             }
-            append(sanitize(message.content)).append("<end_of_turn>\n")
+            append(mediaMarkers(message)).append(sanitize(message.content)).append("<end_of_turn>\n")
         }
         append("<start_of_turn>model\n")
     }
 
     private fun raw(systemPrompt: String, messages: List<PromptMessage>): String = buildString {
         if (systemPrompt.isNotBlank()) append(systemPrompt.trim()).append("\n\n")
-        messages.forEach { append(it.content.trim()).append('\n') }
+        messages.forEach { append(mediaMarkers(it)).append(it.content.trim()).append('\n') }
     }
+
+    /** Метки изображений сообщения — перед его текстом, каждая с новой строки. */
+    private fun mediaMarkers(message: PromptMessage): String =
+        message.images.joinToString("") { MEDIA_MARKER + "\n" }
 
     private fun MessageRole.gemmaRole(): String = when (this) {
         MessageRole.USER -> "user"

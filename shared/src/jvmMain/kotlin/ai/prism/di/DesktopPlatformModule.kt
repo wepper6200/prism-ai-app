@@ -1,6 +1,9 @@
 package ai.prism.di
 
 import ai.prism.data.db.PrismDatabase
+import ai.prism.data.images.DesktopImageCodec
+import ai.prism.data.images.FileImageStore
+import ai.prism.data.images.ImageCodec
 import ai.prism.data.models.FileModelStorage
 import ai.prism.data.models.HttpModelDownloader
 import ai.prism.data.models.ModelDownloader
@@ -11,6 +14,7 @@ import ai.prism.desktop.AppDirectories
 import ai.prism.domain.inference.InferenceEngine
 import ai.prism.domain.model.DeviceInfo
 import ai.prism.domain.model.PlatformCapabilities
+import ai.prism.domain.repository.ImageStore
 import ai.prism.inference.llama.LlamaInferenceEngine
 import ai.prism.platform.DesktopDeviceInfo
 import ai.prism.platform.DesktopNativeLibraryLoader
@@ -36,8 +40,11 @@ fun desktopPlatformModule(): Module = module {
     single { FileModelStorage(File(AppDirectories.dataDir(), MODELS_DIR)) }
     single<ModelStorage> { get<FileModelStorage>() }
     single<ModelDownloader> { HttpModelDownloader(get()) }
-    single<InferenceEngine> { LlamaInferenceEngine(DesktopNativeLibraryLoader(), get()) }
+    single<ImageCodec> { DesktopImageCodec() }
+    single<ImageStore> { FileImageStore(File(AppDirectories.dataDir(), IMAGES_DIR), get()) }
+    single<InferenceEngine> { LlamaInferenceEngine(DesktopNativeLibraryLoader(), get(), get()) }
 }
 
 private const val DATABASE_NAME = "prism.db"
 private const val MODELS_DIR = "models"
+private const val IMAGES_DIR = "images"

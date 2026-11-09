@@ -28,6 +28,9 @@ import ai.prism.resources.models_privacy_note
 import ai.prism.resources.models_resume
 import ai.prism.resources.models_use
 import ai.prism.resources.models_verifying
+import ai.prism.resources.models_vision
+import ai.prism.resources.models_vision_download
+import ai.prism.resources.models_vision_missing
 import ai.prism.resources.nav_models
 import ai.prism.ui.LocalExpandedLayout
 import ai.prism.ui.components.PrismPanel
@@ -210,7 +213,7 @@ private fun ModelCard(
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(model.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                if (isActive && entry.status == ModelStatus.Downloaded) {
+                if (isActive && entry.chatReady) {
                     Icon(
                         Icons.Filled.CheckCircle,
                         contentDescription = null,
@@ -228,12 +231,13 @@ private fun ModelCard(
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if ("android" in model.recommendedFor) Tag(stringResource(Res.string.models_for_phone))
                 if ("desktop" in model.recommendedFor) Tag(stringResource(Res.string.models_for_desktop))
+                if (model.supportsImages) Tag(stringResource(Res.string.models_vision))
             }
             Text(
                 text = stringResource(
                     Res.string.models_details,
                     model.quantization,
-                    formatBytes(model.sizeBytes),
+                    formatBytes(model.totalSizeBytes),
                     formatContext(model.contextLength),
                 ),
                 style = MaterialTheme.typography.bodyMedium,
@@ -308,7 +312,9 @@ private fun ModelStatusSection(
             LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             Text(stringResource(Res.string.models_verifying), style = MaterialTheme.typography.bodySmall)
         }
-        is ModelStatus.Paused -> {
+        is ModelStatus.Paused -> if (entry.chatReady) {
+            VisionMissingSection(entry, status, isActive, onIntent, onDeleteRequest)
+        } else {
             if (status.totalBytes > 0 && status.downloadedBytes > 0) {
                 LinearProgressIndicator(
                     progress = { status.downloadedBytes.toFloat() / status.totalBytes },
@@ -350,4 +356,49 @@ private fun ModelStatusSection(
             }
         }
     }
+}
+
+/** Модель уже отвечает на текст, а модуль зрения не скачан (или его загрузка приостановлена). */
+@Composable
+private fun VisionMissingSection(
+    entry: ModelEntry,
+    status: ModelStatus.Paused,
+    isActive: Boolean,
+    onIntent: (ModelsIntent) -> Unit,
+    onDeleteRequest: () -> Unit,
+) {
+    val id = entry.model.id
+    val vision = entry.model.vision ?: return
+    Text(
+        text = stringResource(Res.string.models_vision_missing, formatBytes(vision.sizeBytes)),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    status.error?.let { error ->
+        Text(stringResource(error.message()), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+    }
+    FlowRowButtons {
+        Button(onClick = { onIntent(ModelsIntent.Download(id)) }, modifier = Modifier.testTag("download_vision_$id")) {
+            Icon(Icons.Outlined.Download, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(Res.string.models_vision_download))
+        }
+        if (!isActive) {
+            FilledTonalButton(onClick = { onIntent(ModelsIntent.Activate(id)) }, modifier = Modifier.testTag("use_$id")) {
+                Text(stringResource(Res.string.models_use))
+            }
+        }
+        TextButton(onClick = onDeleteRequest, modifier = Modifier.testTag("delete_$id")) {
+            Text(stringResource(Res.string.action_delete))
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun FlowRowButtons(content: @Composable () -> Unit) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) { content() }
 }

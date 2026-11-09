@@ -1,25 +1,25 @@
 package ai.prism.data.models
 
-import ai.prism.domain.model.CatalogModel
+import ai.prism.domain.model.ModelFile
 import java.io.File
 
 class FileModelStorage(private val directory: File) : ModelStorage {
 
-    fun file(model: CatalogModel): File = File(directory, model.fileName)
+    fun file(model: ModelFile): File = File(directory, model.fileName)
 
-    fun partFile(model: CatalogModel): File = File(directory, model.fileName + PART_SUFFIX)
+    fun partFile(model: ModelFile): File = File(directory, model.fileName + PART_SUFFIX)
 
-    override fun isDownloaded(model: CatalogModel): Boolean =
-        file(model).let { it.isFile && it.length() == model.sizeBytes }
+    override fun isDownloaded(file: ModelFile): Boolean =
+        file(file).let { it.isFile && it.length() == file.sizeBytes }
 
-    override fun partialBytes(model: CatalogModel): Long =
-        partFile(model).takeIf { it.isFile }?.length() ?: 0L
+    override fun partialBytes(file: ModelFile): Long =
+        partFile(file).takeIf { it.isFile }?.length() ?: 0L
 
-    override fun filePath(model: CatalogModel): String = file(model).absolutePath
+    override fun filePath(file: ModelFile): String = file(file).absolutePath
 
-    override fun delete(model: CatalogModel) {
-        file(model).delete()
-        partFile(model).delete()
+    override fun delete(file: ModelFile) {
+        file(file).delete()
+        partFile(file).delete()
     }
 
     override fun freeSpaceBytes(): Long {

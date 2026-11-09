@@ -23,6 +23,15 @@ data class ModelLicense(
     val url: String,
 )
 
+/** Один скачиваемый файл модели: адрес, имя на устройстве, размер и SHA-256 (проверяются при загрузке). */
+@Serializable
+data class ModelFile(
+    val url: String,
+    val fileName: String,
+    val sizeBytes: Long,
+    val sha256: String,
+)
+
 /** Модель из каталога `files/models.json`. */
 @Serializable
 data class CatalogModel(
@@ -43,7 +52,19 @@ data class CatalogModel(
     val license: ModelLicense,
     /** `android` и/или `desktop` — где модель рекомендуется. */
     val recommendedFor: List<String> = emptyList(),
-)
+    /** Модуль зрения (проектор mmproj): с ним модель понимает изображения. `null` — только текст. */
+    val vision: ModelFile? = null,
+) {
+    /** Основной файл с весами языковой модели. */
+    val mainFile: ModelFile get() = ModelFile(url, fileName, sizeBytes, sha256)
+
+    /** Все файлы модели в порядке загрузки. */
+    val files: List<ModelFile> get() = listOfNotNull(mainFile, vision)
+
+    val totalSizeBytes: Long get() = files.sumOf { it.sizeBytes }
+
+    val supportsImages: Boolean get() = vision != null
+}
 
 @Serializable
 data class ModelCatalogFile(
@@ -73,9 +94,22 @@ sealed interface ModelStatus {
     data object Downloaded : ModelStatus
 }
 
+/**
+ * Модель каталога на устройстве.
+ *
+ * [status] описывает все файлы модели вместе (основной + модуль зрения), а [chatReady] — что основной файл
+ * уже скачан: модель отвечает текстом, даже если модуль зрения ещё не докачан.
+ */
 data class ModelEntry(
     val model: CatalogModel,
     val status: ModelStatus,
     /** Хватает ли оперативной памяти устройства по требованиям модели. */
     val fitsInMemory: Boolean,
-)
+    val chatReady: Boolean = status == ModelStatus.Downloaded,
+) {
+    /** Модель понимает изображения: модуль зрения есть в каталоге и скачан. */
+    val visionReady: Boolean get() = model.supportsImages && status == ModelStatus.Downloaded
+
+    /** Модель уже работает с текстом, но модуль зрения ещё не скачан. */
+    val visionMissing: Boolean get() = model.supportsImages && chatReady && status != ModelStatus.Downloaded
+}

@@ -4,9 +4,21 @@ import ai.prism.domain.model.MessageRole
 import ai.prism.domain.model.MessageStatus
 import ai.prism.presentation.chat.ChatComponent
 import ai.prism.presentation.chat.ChatIntent
+import ai.prism.presentation.chat.AttachmentError
 import ai.prism.presentation.chat.ChatState
 import ai.prism.presentation.chat.MessageItem
+import ai.prism.presentation.chat.VisionSupport
 import ai.prism.resources.Res
+import ai.prism.resources.action_cancel
+import ai.prism.resources.attach_error_too_many
+import ai.prism.resources.attach_error_unreadable
+import ai.prism.resources.image_close
+import ai.prism.resources.image_description
+import ai.prism.resources.image_open
+import ai.prism.resources.vision_dialog_title
+import ai.prism.resources.vision_no_model_text
+import ai.prism.resources.vision_not_downloaded_text
+import ai.prism.resources.vision_unsupported_text
 import ai.prism.resources.chat_busy_other
 import ai.prism.resources.chat_greeting_text
 import ai.prism.resources.chat_greeting_title
@@ -25,9 +37,15 @@ import ai.prism.resources.prism_logo
 import ai.prism.ui.LocalExpandedLayout
 import ai.prism.ui.components.ChatInputBar
 import ai.prism.ui.components.EmptyState
+import ai.prism.ui.components.ImageBytesLoader
+import ai.prism.ui.components.ImageViewer
+import ai.prism.ui.components.InputAttachments
 import ai.prism.ui.components.PrismTopBar
+import ai.prism.ui.components.StoredImage
+import ai.prism.ui.components.formatBytes
 import ai.prism.ui.components.formatPercent
 import ai.prism.ui.components.message
+import ai.prism.ui.components.rememberImagePicker
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -35,9 +53,12 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -54,9 +75,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -76,6 +99,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.painterResource
@@ -88,6 +112,17 @@ fun ChatScreen(
 ) {
     val state by component.state.collectAsState()
     val expanded = LocalExpandedLayout.current
+    val loadImage: ImageBytesLoader = component::imageBytes
+    var visionDialog by remember { mutableStateOf(false) }
+    var viewing by remember { mutableStateOf<String?>(null) }
+    val picker = rememberImagePicker(
+        onPicked = { component.onIntent(ChatIntent.AttachImages(it)) },
+        onFailed = { component.onIntent(ChatIntent.AttachFailed) },
+    )
+    // Без модуля зрения вместо выбора фото объясняем, что нужно сделать.
+    fun whenVisionReady(action: () -> Unit) {
+        if (state.vision == VisionSupport.READY) action() else visionDialog = true
+    }
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -116,6 +151,8 @@ fun ChatScreen(
             } else {
                 MessageList(
                     state = state,
+                    loadImage = loadImage,
+                    onOpenImage = { viewing = it },
                     onRetry = { component.onIntent(ChatIntent.Retry) },
                     modifier = Modifier.fillMaxSize(),
                 )
@@ -129,6 +166,13 @@ fun ChatScreen(
                 modifier = Modifier.align(Alignment.CenterHorizontally),
             )
         }
+        state.attachmentError?.let { error ->
+            AttachmentErrorBanner(
+                error = error,
+                onDismiss = { component.onIntent(ChatIntent.DismissAttachmentError) },
+                modifier = Modifier.align(Alignment.CenterHorizontally).widthIn(max = 880.dp),
+            )
+        }
         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             ChatInputBar(
                 text = state.draft,
@@ -137,8 +181,90 @@ fun ChatScreen(
                 isGenerating = state.isGenerating,
                 onSend = { component.onIntent(ChatIntent.Send) },
                 onStop = { component.onIntent(ChatIntent.Stop) },
+                attachments = InputAttachments(
+                    items = state.attachments,
+                    isAttaching = state.isAttaching,
+                    canAttachMore = state.canAttachMore,
+                    canTakePhoto = picker.canTakePhoto,
+                    load = loadImage,
+                    onPickImages = { whenVisionReady(picker::pickImages) },
+                    onTakePhoto = { whenVisionReady(picker::takePhoto) },
+                    onRemove = { component.onIntent(ChatIntent.RemoveAttachment(it)) },
+                ),
                 modifier = Modifier.widthIn(max = 880.dp),
             )
+        }
+    }
+
+    if (visionDialog) {
+        VisionDialog(
+            state = state,
+            onOpenModels = {
+                visionDialog = false
+                component.onIntent(ChatIntent.OpenModels)
+            },
+            onDismiss = { visionDialog = false },
+        )
+    }
+    viewing?.let { fileName ->
+        ImageViewer(
+            fileName = fileName,
+            load = loadImage,
+            contentDescription = stringResource(Res.string.image_description),
+            onDismiss = { viewing = null },
+        )
+    }
+}
+
+@Composable
+private fun VisionDialog(state: ChatState, onOpenModels: () -> Unit, onDismiss: () -> Unit) {
+    val name = state.modelName
+    val text = when {
+        name == null -> stringResource(Res.string.vision_no_model_text)
+        state.vision == VisionSupport.NOT_DOWNLOADED ->
+            stringResource(Res.string.vision_not_downloaded_text, name, formatBytes(state.visionModuleBytes))
+        else -> stringResource(Res.string.vision_unsupported_text, name)
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Outlined.Memory, contentDescription = null) },
+        title = { Text(stringResource(Res.string.vision_dialog_title)) },
+        text = { Text(text) },
+        confirmButton = {
+            TextButton(onClick = onOpenModels, modifier = Modifier.testTag("vision_open_models")) {
+                Text(stringResource(Res.string.chat_open_models))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(Res.string.action_cancel)) }
+        },
+        modifier = Modifier.testTag("vision_dialog"),
+    )
+}
+
+@Composable
+private fun AttachmentErrorBanner(error: AttachmentError, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.errorContainer,
+        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+        modifier = modifier.testTag("attachment_error"),
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = when (error) {
+                    AttachmentError.UNREADABLE -> stringResource(Res.string.attach_error_unreadable)
+                    AttachmentError.TOO_MANY -> stringResource(Res.string.attach_error_too_many, ChatState.MAX_ATTACHMENTS)
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f),
+            )
+            IconButton(onClick = onDismiss) {
+                Icon(Icons.Filled.Close, contentDescription = stringResource(Res.string.image_close))
+            }
         }
     }
 }
@@ -168,6 +294,8 @@ private fun ChatEmptyState(state: ChatState, onOpenModels: () -> Unit) {
 @Composable
 private fun MessageList(
     state: ChatState,
+    loadImage: ImageBytesLoader,
+    onOpenImage: (String) -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -195,7 +323,7 @@ private fun MessageList(
         items(state.messages, key = { it.id }) { message ->
             Box(Modifier.widthIn(max = 880.dp).fillMaxWidth()) {
                 when (message.role) {
-                    MessageRole.USER -> UserMessage(message)
+                    MessageRole.USER -> UserMessage(message, loadImage, onOpenImage)
                     MessageRole.ASSISTANT -> AssistantMessage(
                         message = message,
                         loadingProgress = state.modelLoadingProgress.takeIf { message.isStreaming },
@@ -208,8 +336,44 @@ private fun MessageList(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun UserMessage(message: MessageItem) {
+private fun UserMessage(message: MessageItem, loadImage: ImageBytesLoader, onOpenImage: (String) -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.End,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        if (message.images.isNotEmpty()) {
+            val description = stringResource(Res.string.image_open)
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.End),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.padding(start = 48.dp).testTag("message_images"),
+            ) {
+                val single = message.images.size == 1
+                message.images.forEach { image ->
+                    val width = if (single) 240.dp else 140.dp
+                    val ratio = (image.width.toFloat() / image.height.coerceAtLeast(1)).coerceIn(0.5f, 2f)
+                    StoredImage(
+                        fileName = image.fileName,
+                        load = loadImage,
+                        contentDescription = description,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(width = width, height = if (single) width / ratio else width)
+                            .clip(RoundedCornerShape(16.dp))
+                            .clickable { onOpenImage(image.fileName) },
+                    )
+                }
+            }
+        }
+        if (message.text.isNotEmpty()) UserBubble(message)
+    }
+}
+
+@Composable
+private fun UserBubble(message: MessageItem) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
         Surface(
             shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 20.dp, bottomEnd = 6.dp),

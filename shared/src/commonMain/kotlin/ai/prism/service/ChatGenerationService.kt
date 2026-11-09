@@ -4,11 +4,15 @@ import ai.prism.domain.inference.GenerationRequest
 import ai.prism.domain.inference.InferenceEngine
 import ai.prism.domain.inference.InferenceError
 import ai.prism.domain.inference.InferenceException
+import ai.prism.domain.inference.PromptImage
 import ai.prism.domain.inference.PromptMessage
+import ai.prism.domain.model.ChatMessage
 import ai.prism.domain.model.GenerationError
+import ai.prism.domain.model.ImageAttachment
 import ai.prism.domain.model.MessageRole
 import ai.prism.domain.model.MessageStatus
 import ai.prism.domain.repository.ChatRepository
+import ai.prism.domain.repository.ImageStore
 import ai.prism.domain.repository.ModelRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -49,6 +53,7 @@ class ChatGenerationService(
     private val chats: ChatRepository,
     private val models: ModelRepository,
     private val personaProvider: PersonaProvider,
+    private val images: ImageStore,
     private val scope: CoroutineScope,
 ) {
     private val mutableActive = MutableStateFlow<ActiveGeneration?>(null)
@@ -58,17 +63,24 @@ class ChatGenerationService(
     private var stopRequested = false
 
     init {
-        scope.launch { chats.markInterruptedGenerations() }
+        scope.launch {
+            chats.markInterruptedGenerations()
+            // Изображения брошенных черновиков, на которые не ссылается ни одно сообщение.
+            images.deleteOrphans(chats.referencedImageFiles(), ORPHAN_IMAGE_AGE_MS)
+        }
     }
 
-    /** Отправляет сообщение и запускает ответ. `false` — уже идёт другая генерация или текст пуст. */
-    fun send(chatId: String, text: String): Boolean {
+    /**
+     * Отправляет сообщение (текст и/или изображения) и запускает ответ.
+     * `false` — уже идёт другая генерация или сообщение пустое.
+     */
+    fun send(chatId: String, text: String, attachments: List<ImageAttachment> = emptyList()): Boolean {
         val content = text.trim()
-        if (content.isEmpty() || !reserve(chatId)) return false
+        if ((content.isEmpty() && attachments.isEmpty()) || !reserve(chatId)) return false
         scope.launch {
             try {
-                chats.addMessage(chatId, MessageRole.USER, content, MessageStatus.COMPLETE, modelId = null)
-                chats.setTitleIfEmpty(chatId, titleFrom(content))
+                chats.addMessage(chatId, MessageRole.USER, content, MessageStatus.COMPLETE, modelId = null, images = attachments)
+                if (content.isNotEmpty()) chats.setTitleIfEmpty(chatId, titleFrom(content))
                 generateReply(chatId)
             } finally {
                 mutableActive.value = null
@@ -106,9 +118,7 @@ class ChatGenerationService(
     }
 
     private suspend fun generateReply(chatId: String) {
-        val history = chats.messagesSnapshot(chatId)
-            .filter { it.content.isNotBlank() && (it.status == MessageStatus.COMPLETE || it.status == MessageStatus.STOPPED) }
-            .map { PromptMessage(it.role, it.content) }
+        val messages = chats.messagesSnapshot(chatId)
         val modelId = models.activeModelId.value
         val reply = chats.addMessage(chatId, MessageRole.ASSISTANT, "", MessageStatus.GENERATING, modelId)
         mutableActive.value = ActiveGeneration(chatId, reply.id, "")
@@ -123,10 +133,18 @@ class ChatGenerationService(
             chats.updateMessage(reply.id, "", MessageStatus.FAILED, GenerationError.MODEL_NOT_DOWNLOADED)
             return
         }
+        // Без модуля зрения изображения из истории не передаются; на новое изображение ответить нельзя.
+        val projectorPath = models.downloadedProjectorPath(model.id)
+        val lastUser = messages.lastOrNull { it.role == MessageRole.USER }
+        if (projectorPath == null && lastUser != null && lastUser.images.isNotEmpty()) {
+            chats.updateMessage(reply.id, "", MessageStatus.FAILED, GenerationError.IMAGES_NOT_SUPPORTED)
+            return
+        }
+        val history = promptHistory(messages, withImages = projectorPath != null)
 
         val text = StringBuilder()
         try {
-            engine.load(model, path)
+            engine.load(model, path, projectorPath)
             if (!stopRequested) {
                 val persona = personaProvider.persona()
                 val request = GenerationRequest(
@@ -152,16 +170,33 @@ class ChatGenerationService(
         }
     }
 
+    /** Завершённые реплики диалога для промпта; изображения — только если модель их понимает. */
+    private fun promptHistory(messages: List<ChatMessage>, withImages: Boolean): List<PromptMessage> = messages
+        .filter { it.status == MessageStatus.COMPLETE || it.status == MessageStatus.STOPPED }
+        .map { message ->
+            val attached = if (withImages && message.role == MessageRole.USER) message.images else emptyList()
+            PromptMessage(
+                role = message.role,
+                content = message.content,
+                images = attached.map { PromptImage(id = it.id, path = images.path(it.fileName)) },
+            )
+        }
+        .filter { it.content.isNotBlank() || it.images.isNotEmpty() }
+
     private fun InferenceError.toGenerationError(): GenerationError = when (this) {
         InferenceError.NATIVE_LIBRARY_MISSING -> GenerationError.NATIVE_LIBRARY_MISSING
         InferenceError.NOT_ENOUGH_MEMORY -> GenerationError.NOT_ENOUGH_MEMORY
         InferenceError.MODEL_CORRUPTED -> GenerationError.MODEL_CORRUPTED
         InferenceError.CONTEXT_FULL -> GenerationError.CONTEXT_FULL
+        InferenceError.IMAGES_NOT_SUPPORTED -> GenerationError.IMAGES_NOT_SUPPORTED
+        InferenceError.IMAGE_FAILED -> GenerationError.IMAGE_FAILED
+        InferenceError.VISION_MODULE_CORRUPTED -> GenerationError.VISION_MODULE_CORRUPTED
         InferenceError.MODEL_NOT_LOADED, InferenceError.GENERATION_FAILED -> GenerationError.UNKNOWN
     }
 
     internal companion object {
         private const val TITLE_LENGTH = 48
+        private const val ORPHAN_IMAGE_AGE_MS = 7L * 24 * 60 * 60 * 1000
 
         /** Заголовок диалога — начало первой строки сообщения. */
         fun titleFrom(text: String): String {

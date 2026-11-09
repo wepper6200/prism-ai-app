@@ -1,5 +1,7 @@
 package ai.prism.domain.model
 
+import kotlinx.serialization.Serializable
+
 enum class MessageRole { USER, ASSISTANT }
 
 enum class MessageStatus {
@@ -25,6 +27,15 @@ enum class GenerationError {
     NATIVE_LIBRARY_MISSING,
     CONTEXT_FULL,
     INTERRUPTED,
+
+    /** В сообщении есть изображения, а активная модель их не понимает (или не скачан её модуль зрения). */
+    IMAGES_NOT_SUPPORTED,
+
+    /** Изображение не удалось прочитать или обработать моделью. */
+    IMAGE_FAILED,
+
+    /** Модуль зрения (mmproj) повреждён или не подходит к модели. */
+    VISION_MODULE_CORRUPTED,
     UNKNOWN,
 }
 
@@ -37,4 +48,15 @@ data class ChatMessage(
     val error: GenerationError?,
     val modelId: String?,
     val createdAt: Long,
+    /** Изображения, приложенные к сообщению пользователя, по порядку. */
+    val images: List<ImageAttachment> = emptyList(),
+)
+
+/** Изображение в сообщении: уменьшенный JPEG в каталоге изображений приложения (`ImageStore`). */
+@Serializable
+data class ImageAttachment(
+    val id: String,
+    val fileName: String,
+    val width: Int,
+    val height: Int,
 )

@@ -1,0 +1,13 @@
+-- Версия 1 → 2 (Этап 3): изображения в сообщениях.
+
+CREATE TABLE message_image (
+    id TEXT NOT NULL PRIMARY KEY,
+    message_id TEXT NOT NULL,
+    chat_id TEXT NOT NULL,
+    file_name TEXT NOT NULL,
+    width INTEGER NOT NULL,
+    height INTEGER NOT NULL,
+    position INTEGER NOT NULL
+);
+
+CREATE INDEX message_image_by_chat ON message_image(chat_id, message_id, position);

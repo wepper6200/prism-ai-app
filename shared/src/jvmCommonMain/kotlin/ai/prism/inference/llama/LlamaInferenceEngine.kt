@@ -1,11 +1,14 @@
 package ai.prism.inference.llama
 
+import ai.prism.data.images.ImageCodec
+import ai.prism.data.images.RgbImage
 import ai.prism.domain.inference.EngineState
 import ai.prism.domain.inference.GenerationRequest
 import ai.prism.domain.inference.InferenceEngine
 import ai.prism.domain.inference.InferenceError
 import ai.prism.domain.inference.InferenceException
 import ai.prism.domain.inference.ModelInfo
+import ai.prism.domain.inference.PromptImage
 import ai.prism.domain.model.CatalogModel
 import ai.prism.domain.model.ChatFormat
 import ai.prism.domain.model.DeviceInfo
@@ -29,10 +32,13 @@ import java.util.concurrent.Executors
  * [InferenceEngine] на llama.cpp через JNI.
  *
  * Все нативные вызовы идут из одного выделенного потока; [cancel] — из любого.
+ * Модуль зрения загружается в память только при первом запросе с изображениями:
+ * текстовые диалоги не тратят на него память телефона.
  */
 class LlamaInferenceEngine(
     private val libraryLoader: NativeLibraryLoader,
     private val deviceInfo: DeviceInfo,
+    private val imageCodec: ImageCodec,
 ) : InferenceEngine {
 
     private val dispatcher = Executors.newSingleThreadExecutor { runnable ->
@@ -47,13 +53,16 @@ class LlamaInferenceEngine(
     private var gpuName: String? = null
     private var modelHandle = 0L
     private var loadedModel: CatalogModel? = null
+    private var modelOnGpu = false
+    private var projectorPath: String? = null
+    private var projectorHandle = 0L
 
     @Volatile
     private var sessionHandle = 0L
 
-    override suspend fun load(model: CatalogModel, filePath: String) {
+    override suspend fun load(model: CatalogModel, filePath: String, projectorPath: String?) {
         mutex.withLock {
-            withContext(dispatcher) { loadLocked(model, filePath) }
+            withContext(dispatcher) { loadLocked(model, filePath, projectorPath) }
         }
     }
 
@@ -66,13 +75,21 @@ class LlamaInferenceEngine(
             }
             val producer = this
             withContext(dispatcher) {
+                val dialog = request.primer + request.messages
+                val projector = if (dialog.any { it.images.isNotEmpty() }) ensureProjectorLocked(model) else 0L
+                val pixels = decodeImages(dialog.flatMap { it.images })
                 val contextSize = LlamaNative.contextSize(session)
                 val replyBudget = request.maxTokens.coerceAtMost(contextSize / 2)
-                val prompt = fitPrompt(session, model.chatFormat, request, contextSize - replyBudget)
+                val prompt = fitPrompt(session, projector, model.chatFormat, request, contextSize - replyBudget, pixels)
+                val images = prompt.images.map { image -> image.id to checkNotNull(pixels[image.id]) }
                 val sampling = request.sampling
                 val status = LlamaNative.generate(
                     session = session,
-                    prompt = prompt.encodeToByteArray(),
+                    projector = projector,
+                    prompt = prompt.text.encodeToByteArray(),
+                    imagePixels = images.takeIf { it.isNotEmpty() }?.map { it.second.rgb }?.toTypedArray(),
+                    imageSizes = images.takeIf { it.isNotEmpty() }?.let { list -> sizesOf(list.map { it.second }) },
+                    imageIds = images.takeIf { it.isNotEmpty() }?.map { it.first }?.toTypedArray(),
                     maxTokens = replyBudget,
                     temperature = sampling.temperature,
                     topP = sampling.topP,
@@ -95,6 +112,11 @@ class LlamaInferenceEngine(
                         throw InferenceException(InferenceError.CONTEXT_FULL, "Закончилось место в контексте модели")
                     LlamaNative.STATUS_ERROR_OOM ->
                         throw InferenceException(InferenceError.NOT_ENOUGH_MEMORY, "Не хватило памяти во время ответа")
+                    LlamaNative.STATUS_ERROR_IMAGE ->
+                        throw InferenceException(
+                            InferenceError.IMAGE_FAILED,
+                            "Модель не смогла обработать изображение: ${LlamaNative.lastError().trim()}",
+                        )
                     else ->
                         throw InferenceException(
                             InferenceError.GENERATION_FAILED,
@@ -121,8 +143,18 @@ class LlamaInferenceEngine(
 
     override fun modelInfo(): ModelInfo? = (state.value as? EngineState.Ready)?.info
 
-    private fun loadLocked(model: CatalogModel, filePath: String) {
-        if (loadedModel?.id == model.id && sessionHandle != 0L) return
+    private fun loadLocked(model: CatalogModel, filePath: String, projector: String?) {
+        if (loadedModel?.id == model.id && sessionHandle != 0L) {
+            // Та же модель; модуль зрения мог быть докачан (или удалён) с прошлой загрузки.
+            if (projector != projectorPath) {
+                freeProjectorLocked()
+                projectorPath = projector
+                (mutableState.value as? EngineState.Ready)?.let { ready ->
+                    mutableState.value = ready.copy(info = ready.info.copy(supportsImages = projector != null))
+                }
+            }
+            return
+        }
         releaseLocked()
         mutableState.value = EngineState.Loading(model.id, 0f)
         try {
@@ -162,6 +194,8 @@ class LlamaInferenceEngine(
             modelHandle = handle
             sessionHandle = session
             loadedModel = model
+            modelOnGpu = onGpu
+            projectorPath = projector
             mutableState.value = EngineState.Ready(
                 ModelInfo(
                     modelId = model.id,
@@ -169,6 +203,7 @@ class LlamaInferenceEngine(
                     description = LlamaNative.modelDescription(handle),
                     contextSize = LlamaNative.contextSize(session),
                     accelerator = if (onGpu) gpuName ?: CPU else CPU,
+                    supportsImages = projector != null,
                 ),
             )
         } catch (e: InferenceException) {
@@ -193,16 +228,65 @@ class LlamaInferenceEngine(
     }
 
     private fun checkModelFile(model: CatalogModel, filePath: String) {
-        val file = File(filePath)
-        if (!file.isFile || file.length() != model.sizeBytes) {
+        if (!isGguf(File(filePath), model.sizeBytes)) {
             throw InferenceException(InferenceError.MODEL_CORRUPTED, "Файл модели повреждён или скачан не полностью")
         }
+    }
+
+    private fun isGguf(file: File, expectedSize: Long): Boolean {
+        if (!file.isFile || file.length() != expectedSize) return false
         val magic = ByteArray(4)
         val read = file.inputStream().use { it.read(magic) }
-        if (read != 4 || !magic.contentEquals(GGUF_MAGIC)) {
-            throw InferenceException(InferenceError.MODEL_CORRUPTED, "Файл не является моделью GGUF")
-        }
+        return read == 4 && magic.contentEquals(GGUF_MAGIC)
     }
+
+    /** Загружает модуль зрения при первом запросе с изображениями. */
+    private fun ensureProjectorLocked(model: CatalogModel): Long {
+        if (projectorHandle != 0L) return projectorHandle
+        val path = projectorPath
+        val vision = model.vision
+        if (path == null || vision == null) {
+            throw InferenceException(InferenceError.IMAGES_NOT_SUPPORTED, "У модели нет модуля зрения")
+        }
+        if (!isGguf(File(path), vision.sizeBytes)) {
+            throw InferenceException(InferenceError.VISION_MODULE_CORRUPTED, "Файл модуля зрения повреждён")
+        }
+        val threads = deviceInfo.inferenceThreads
+        var handle = LlamaNative.loadProjector(modelHandle, path, modelOnGpu, threads, MAX_IMAGE_TOKENS)
+        if (handle == 0L && modelOnGpu) {
+            handle = LlamaNative.loadProjector(modelHandle, path, false, threads, MAX_IMAGE_TOKENS)
+        }
+        if (handle == 0L) {
+            val error = LlamaNative.lastError().lowercase()
+            throw if ("memory" in error || "alloc" in error) {
+                InferenceException(InferenceError.NOT_ENOUGH_MEMORY, "Не хватает памяти для модуля зрения")
+            } else {
+                InferenceException(InferenceError.VISION_MODULE_CORRUPTED, "Не удалось загрузить модуль зрения: ${error.trim()}")
+            }
+        }
+        projectorHandle = handle
+        return handle
+    }
+
+    /** Пиксели всех изображений запроса по идентификатору. */
+    private fun decodeImages(images: List<PromptImage>): Map<String, RgbImage> {
+        val result = HashMap<String, RgbImage>()
+        for (image in images) {
+            if (image.id in result) continue
+            val decoded = try {
+                imageCodec.decodeRgb(File(image.path))
+            } catch (e: OutOfMemoryError) {
+                throw InferenceException(InferenceError.NOT_ENOUGH_MEMORY, "Не хватает памяти для изображения", e)
+            } ?: throw InferenceException(InferenceError.IMAGE_FAILED, "Не удалось открыть изображение")
+            result[image.id] = decoded
+        }
+        return result
+    }
+
+    private fun sizesOf(images: List<RgbImage>): IntArray =
+        IntArray(images.size * 2) { if (it % 2 == 0) images[it / 2].width else images[it / 2].height }
+
+    private class FittedPrompt(val text: String, val images: List<PromptImage>)
 
     private fun checkMemory(model: CatalogModel) {
         val required = model.minRamMb.toLong() * BYTES_IN_MB
@@ -221,13 +305,24 @@ class LlamaInferenceEngine(
         }
     }
 
-    /** Собирает промпт, отбрасывая самые старые реплики, пока он не поместится в [budget] токенов. */
-    private fun fitPrompt(session: Long, format: ChatFormat, request: GenerationRequest, budget: Int): String {
+    /** Собирает промпт, отбрасывая самые старые реплики (вместе с их изображениями), пока он не поместится в [budget]. */
+    private fun fitPrompt(
+        session: Long,
+        projector: Long,
+        format: ChatFormat,
+        request: GenerationRequest,
+        budget: Int,
+        pixels: Map<String, RgbImage>,
+    ): FittedPrompt {
         var messages = request.messages
         while (true) {
             val dialog = request.primer + ChatPromptFormatter.withReminder(messages, request.reminder)
             val prompt = ChatPromptFormatter.format(format, request.systemPrompt, dialog)
-            if (LlamaNative.tokenCount(session, prompt.encodeToByteArray()) <= budget) return prompt
+            val images = dialog.flatMap { it.images }
+            val sizes = if (images.isEmpty()) null else sizesOf(images.map { checkNotNull(pixels[it.id]) })
+            val tokens = LlamaNative.tokenCount(session, projector, prompt.encodeToByteArray(), sizes)
+            if (tokens < 0) throw InferenceException(InferenceError.IMAGE_FAILED, "Не удалось подготовить изображения")
+            if (tokens <= budget) return FittedPrompt(prompt, images)
             if (messages.size <= 1) {
                 throw InferenceException(InferenceError.CONTEXT_FULL, "Сообщение слишком длинное для модели")
             }
@@ -235,7 +330,14 @@ class LlamaInferenceEngine(
         }
     }
 
+    private fun freeProjectorLocked() {
+        if (projectorHandle != 0L) LlamaNative.freeProjector(projectorHandle)
+        projectorHandle = 0L
+    }
+
     private fun releaseLocked() {
+        freeProjectorLocked()
+        projectorPath = null
         val session = sessionHandle
         sessionHandle = 0L
         if (session != 0L) LlamaNative.freeSession(session)
@@ -249,6 +351,12 @@ class LlamaInferenceEngine(
         const val ALL_LAYERS = 999
         const val BATCH_SIZE = 512
         const val MIN_CONTEXT = 2048
+
+        /**
+         * Сколько токенов контекста занимает одно изображение у моделей с переменным разрешением (Gemma 4: 70–1120).
+         * 280 — рекомендованный баланс детализации и скорости; должно помещаться в один батч ([BATCH_SIZE]).
+         */
+        const val MAX_IMAGE_TOKENS = 280
         const val BYTES_IN_MB = 1024L * 1024L
         const val RAM_TOLERANCE_PERCENT = 85
         val GGUF_MAGIC = byteArrayOf(0x47, 0x47, 0x55, 0x46)

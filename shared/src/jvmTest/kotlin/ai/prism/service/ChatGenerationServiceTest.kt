@@ -3,11 +3,16 @@ package ai.prism.service
 import ai.prism.domain.inference.InferenceError
 import ai.prism.domain.inference.InferenceException
 import ai.prism.domain.model.GenerationError
+import ai.prism.domain.model.ModelEntry
+import ai.prism.domain.model.ModelStatus
 import ai.prism.domain.model.MessageRole
 import ai.prism.domain.model.MessageStatus
 import ai.prism.testing.FakeInferenceEngine
 import ai.prism.testing.FakeModelRepository
 import ai.prism.testing.TestApp
+import ai.prism.testing.testModel
+import ai.prism.testing.testVision
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -91,5 +96,75 @@ class ChatGenerationServiceTest {
         assertEquals("Как настроить VPN дома", ChatGenerationService.titleFrom("\n  Как   настроить VPN дома\nподробно"))
         val long = "а".repeat(80)
         assertEquals("а".repeat(48) + "…", ChatGenerationService.titleFrom(long))
+    }
+
+    private fun visionApp(visionDownloaded: Boolean): TestApp {
+        val model = testModel(vision = testVision())
+        val status = if (visionDownloaded) ModelStatus.Downloaded else ModelStatus.Paused(model.sizeBytes, model.totalSizeBytes, null)
+        return TestApp(models = FakeModelRepository(listOf(ModelEntry(model, status, fitsInMemory = true, chatReady = true)), model.id))
+    }
+
+    @Test
+    fun imagesReachTheEngineWithVisionModule() = runBlocking {
+        val app = visionApp(visionDownloaded = true)
+        val chat = app.chats.createChat()
+        val photo = app.images.save(byteArrayOf(1, 2, 3))
+
+        assertTrue(app.generation.send(chat.id, "Что на фото?", listOf(photo)))
+
+        val stored = app.chats.messagesSnapshot(chat.id)
+        assertEquals(listOf(photo), stored.first().images)
+        assertEquals(MessageStatus.COMPLETE, stored.last().status)
+        assertEquals("/models/mmproj-test-model.gguf", app.engine.lastProjectorPath)
+        val prompt = app.engine.lastRequest?.messages?.single()
+        assertEquals(listOf(photo.id), prompt?.images?.map { it.id })
+        assertEquals("/images/${photo.fileName}", prompt?.images?.single()?.path)
+    }
+
+    @Test
+    fun imageOnlyMessageIsSentWithoutTitle() = runBlocking {
+        val app = visionApp(visionDownloaded = true)
+        val chat = app.chats.createChat()
+        val photo = app.images.save(byteArrayOf(1))
+
+        assertTrue(app.generation.send(chat.id, "  ", listOf(photo)))
+
+        assertEquals("", app.chats.messagesSnapshot(chat.id).first().content)
+        assertNull(app.chats.chats.first().single { it.id == chat.id }.title)
+        assertEquals(1, app.engine.lastRequest?.messages?.single()?.images?.size)
+    }
+
+    @Test
+    fun imagesWithoutVisionModuleAreReportedAndOldOnesDropped() = runBlocking {
+        val app = visionApp(visionDownloaded = false)
+        val chat = app.chats.createChat()
+        val photo = app.images.save(byteArrayOf(1))
+
+        app.generation.send(chat.id, "Что на фото?", listOf(photo))
+
+        val reply = app.chats.messagesSnapshot(chat.id).last()
+        assertEquals(MessageStatus.FAILED, reply.status)
+        assertEquals(GenerationError.IMAGES_NOT_SUPPORTED, reply.error)
+
+        // Следующий текстовый вопрос работает: старое изображение просто не передаётся модели.
+        app.generation.send(chat.id, "Тогда просто привет")
+        val request = checkNotNull(app.engine.lastRequest)
+        assertTrue(request.messages.all { it.images.isEmpty() })
+        assertEquals(listOf("Что на фото?", "Тогда просто привет"), request.messages.map { it.content })
+        assertNull(app.engine.lastProjectorPath)
+    }
+
+    @Test
+    fun deletingChatDeletesItsImageFiles() = runBlocking {
+        val app = visionApp(visionDownloaded = true)
+        val chat = app.chats.createChat()
+        val photo = app.images.save(byteArrayOf(1))
+        app.generation.send(chat.id, "Фото", listOf(photo))
+
+        assertEquals(setOf(photo.fileName), app.chats.referencedImageFiles())
+        app.chats.deleteChat(chat.id)
+
+        assertEquals(listOf(photo.fileName), app.images.deleted)
+        assertTrue(app.chats.referencedImageFiles().isEmpty())
     }
 }

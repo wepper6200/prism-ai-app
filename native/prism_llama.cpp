@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <cstddef>
 #include <cstring>
+#include <memory>
 #include <mutex>
 #include <new>
 #include <string>
@@ -17,6 +18,8 @@
 
 #include "ggml-backend.h"
 #include "llama.h"
+#include "mtmd-helper.h"
+#include "mtmd.h"
 
 #ifdef __ANDROID__
 #include <android/log.h>
@@ -33,6 +36,7 @@ constexpr jint STATUS_ERROR_TOKENIZE = -1;
 constexpr jint STATUS_ERROR_DECODE = -2;
 constexpr jint STATUS_ERROR_CALLBACK = -3; // исключение в Kotlin-колбэке
 constexpr jint STATUS_ERROR_OOM = -4;
+constexpr jint STATUS_ERROR_IMAGE = -5;    // изображение не удалось подготовить или закодировать
 
 // ---------- Журнал: последняя ошибка llama.cpp для понятных сообщений в UI ----------
 
@@ -69,13 +73,27 @@ void log_callback(ggml_log_level level, const char * text, void * /*user_data*/)
 std::once_flag g_backend_once;
 bool g_backend_ready = false;
 
-// ---------- Сессия: контекст + батч + токены, уже лежащие в KV-кэше ----------
+// ---------- Сессия: контекст + батч + то, что уже лежит в KV-кэше ----------
+
+// Единица промпта: текстовый токен или целое изображение (его нельзя переиспользовать частично).
+struct CacheUnit {
+    llama_token token = LLAMA_TOKEN_NULL;  // LLAMA_TOKEN_NULL — изображение
+    std::string image_id;                  // идентификатор изображения (у текста пустой)
+    llama_pos n_pos = 1;                   // сколько позиций занимает
+    int32_t n_tokens = 1;                  // сколько ячеек KV-кэша занимает
+
+    bool is_image() const { return token == LLAMA_TOKEN_NULL; }
+
+    bool operator==(const CacheUnit & other) const {
+        return token == other.token && image_id == other.image_id && n_pos == other.n_pos && n_tokens == other.n_tokens;
+    }
+};
 
 struct Session {
     llama_model * model = nullptr;
     llama_context * ctx = nullptr;
     llama_batch_ext * batch = nullptr;
-    std::vector<llama_token> cached;  // токены, состояние которых уже в памяти контекста
+    std::vector<CacheUnit> cached;  // единицы, состояние которых уже в памяти контекста
     std::atomic<bool> cancel{false};
 };
 
@@ -85,6 +103,7 @@ bool abort_callback(void * data) {
 
 Session * as_session(jlong handle) { return reinterpret_cast<Session *>(handle); }
 llama_model * as_model(jlong handle) { return reinterpret_cast<llama_model *>(handle); }
+mtmd_context * as_projector(jlong handle) { return reinterpret_cast<mtmd_context *>(handle); }
 
 std::vector<llama_token> tokenize(const llama_vocab * vocab, const std::string & text, bool add_special) {
     int32_t n = -llama_tokenize(vocab, text.data(), static_cast<int32_t>(text.size()), nullptr, 0, add_special, true);
@@ -135,6 +154,130 @@ void fill_batch(llama_batch_ext * batch, const llama_token * tokens, int32_t n, 
     }
 }
 
+struct BitmapDeleter {
+    void operator()(mtmd_bitmap * bitmap) const { mtmd_bitmap_free(bitmap); }
+};
+using BitmapPtr = std::unique_ptr<mtmd_bitmap, BitmapDeleter>;
+
+struct ChunksDeleter {
+    void operator()(mtmd_input_chunks * chunks) const { mtmd_input_chunks_free(chunks); }
+};
+
+void set_last_error(const char * text) {
+    std::lock_guard<std::mutex> lock(g_log_mutex);
+    g_last_error = text;
+}
+
+// Изображения из Kotlin: пиксели RGB (или null — заглушка для подсчёта токенов), размеры парами (ширина, высота)
+// и идентификаторы. Возвращает false, если данные не согласованы.
+bool collect_bitmaps(JNIEnv * env, jobjectArray pixels, jintArray sizes, jobjectArray ids, std::vector<BitmapPtr> & out) {
+    if (sizes == nullptr) return true;
+    const jsize count = env->GetArrayLength(sizes) / 2;
+    if (count == 0) return true;
+    std::vector<jint> dims(static_cast<size_t>(count) * 2);
+    env->GetIntArrayRegion(sizes, 0, count * 2, dims.data());
+    if (pixels != nullptr && env->GetArrayLength(pixels) != count) return false;
+    if (ids != nullptr && env->GetArrayLength(ids) != count) return false;
+    for (jsize i = 0; i < count; ++i) {
+        const jint nx = dims[static_cast<size_t>(i) * 2];
+        const jint ny = dims[static_cast<size_t>(i) * 2 + 1];
+        if (nx <= 0 || ny <= 0) return false;
+        BitmapPtr bitmap;
+        if (pixels == nullptr) {
+            bitmap.reset(mtmd_bitmap_init(static_cast<uint32_t>(nx), static_cast<uint32_t>(ny), nullptr));
+        } else {
+            auto data = static_cast<jbyteArray>(env->GetObjectArrayElement(pixels, i));
+            if (data == nullptr) return false;
+            const jsize len = env->GetArrayLength(data);
+            if (static_cast<int64_t>(len) != static_cast<int64_t>(nx) * ny * 3) {
+                env->DeleteLocalRef(data);
+                return false;
+            }
+            std::vector<unsigned char> rgb(static_cast<size_t>(len));
+            env->GetByteArrayRegion(data, 0, len, reinterpret_cast<jbyte *>(rgb.data()));
+            env->DeleteLocalRef(data);
+            bitmap.reset(mtmd_bitmap_init(static_cast<uint32_t>(nx), static_cast<uint32_t>(ny), rgb.data()));
+        }
+        if (!bitmap) return false;
+        if (ids != nullptr) {
+            auto id = static_cast<jstring>(env->GetObjectArrayElement(ids, i));
+            if (id != nullptr) {
+                const char * chars = env->GetStringUTFChars(id, nullptr);
+                mtmd_bitmap_set_id(bitmap.get(), chars);
+                env->ReleaseStringUTFChars(id, chars);
+                env->DeleteLocalRef(id);
+            }
+        }
+        out.push_back(std::move(bitmap));
+    }
+    return true;
+}
+
+// Промпт, разбитый на единицы кэша; для изображений хранится чанк libmtmd.
+struct Prompt {
+    std::vector<CacheUnit> units;
+    std::vector<const mtmd_input_chunk *> chunks;  // для каждой единицы; nullptr у текста
+    std::unique_ptr<mtmd_input_chunks, ChunksDeleter> owner;
+};
+
+// Возвращает 0 или код ошибки STATUS_*.
+jint build_prompt(const llama_vocab * vocab, mtmd_context * projector, const std::string & text,
+                  const std::vector<BitmapPtr> & bitmaps, Prompt & out) {
+    if (bitmaps.empty()) {
+        for (llama_token token : tokenize(vocab, text, true)) {
+            CacheUnit unit;
+            unit.token = token;
+            out.units.push_back(unit);
+            out.chunks.push_back(nullptr);
+        }
+        return out.units.empty() ? STATUS_ERROR_TOKENIZE : 0;
+    }
+    if (projector == nullptr) return STATUS_ERROR_IMAGE;
+
+    out.owner.reset(mtmd_input_chunks_init());
+    mtmd_input_text input{text.c_str(), text.size(), true, true};
+    std::vector<const mtmd_bitmap *> raw;
+    raw.reserve(bitmaps.size());
+    for (const auto & bitmap : bitmaps) raw.push_back(bitmap.get());
+    if (mtmd_tokenize(projector, out.owner.get(), &input, raw.data(), raw.size()) != 0) return STATUS_ERROR_IMAGE;
+
+    const size_t n_chunks = mtmd_input_chunks_size(out.owner.get());
+    for (size_t i = 0; i < n_chunks; ++i) {
+        const mtmd_input_chunk * chunk = mtmd_input_chunks_get(out.owner.get(), i);
+        if (mtmd_input_chunk_get_type(chunk) == MTMD_INPUT_CHUNK_TYPE_TEXT) {
+            size_t n = 0;
+            const llama_token * tokens = mtmd_input_chunk_get_tokens_text(chunk, &n);
+            for (size_t t = 0; t < n; ++t) {
+                CacheUnit unit;
+                unit.token = tokens[t];
+                out.units.push_back(unit);
+                out.chunks.push_back(nullptr);
+            }
+        } else {
+            CacheUnit unit;
+            const char * id = mtmd_input_chunk_get_id(chunk);
+            unit.image_id = id != nullptr ? id : "";
+            unit.n_pos = mtmd_input_chunk_get_n_pos(chunk);
+            unit.n_tokens = static_cast<int32_t>(mtmd_input_chunk_get_n_tokens(chunk));
+            out.units.push_back(unit);
+            out.chunks.push_back(chunk);
+        }
+    }
+    return out.units.empty() ? STATUS_ERROR_TOKENIZE : 0;
+}
+
+int64_t cells_of(const std::vector<CacheUnit> & units, size_t from = 0) {
+    int64_t total = 0;
+    for (size_t i = from; i < units.size(); ++i) total += units[i].n_tokens;
+    return total;
+}
+
+llama_pos positions_of(const std::vector<CacheUnit> & units, size_t count) {
+    llama_pos total = 0;
+    for (size_t i = 0; i < count && i < units.size(); ++i) total += units[i].n_pos;
+    return total;
+}
+
 struct ProgressContext {
     JNIEnv * env;
     jobject listener;
@@ -164,6 +307,7 @@ Java_ai_prism_inference_llama_LlamaNative_backendInit(JNIEnv * env, jobject /*th
     }
     std::call_once(g_backend_once, [&dir]() {
         llama_log_set(log_callback, nullptr);
+        mtmd_helper_log_set(log_callback, nullptr);
         if (dir.empty()) {
             ggml_backend_load_all();
         } else {
@@ -314,12 +458,22 @@ Java_ai_prism_inference_llama_LlamaNative_contextSize(JNIEnv * /*env*/, jobject 
     return static_cast<jint>(llama_n_ctx(as_session(handle)->ctx));
 }
 
+// Сколько ячеек контекста займёт промпт; изображения считаются по размерам, без пикселей.
 JNIEXPORT jint JNICALL
-Java_ai_prism_inference_llama_LlamaNative_tokenCount(JNIEnv * env, jobject /*thiz*/, jlong handle, jbyteArray text) {
-    Session * session = as_session(handle);
-    const std::string prompt = to_std_string(env, text);
-    const llama_vocab * vocab = llama_model_get_vocab(session->model);
-    return -llama_tokenize(vocab, prompt.data(), static_cast<int32_t>(prompt.size()), nullptr, 0, true, true);
+Java_ai_prism_inference_llama_LlamaNative_tokenCount(
+        JNIEnv * env, jobject /*thiz*/, jlong handle, jlong projector, jbyteArray text, jintArray image_sizes) {
+    try {
+        Session * session = as_session(handle);
+        std::vector<BitmapPtr> bitmaps;
+        if (!collect_bitmaps(env, nullptr, image_sizes, nullptr, bitmaps)) return -1;
+        Prompt prompt;
+        const jint status = build_prompt(llama_model_get_vocab(session->model), as_projector(projector),
+                                         to_std_string(env, text), bitmaps, prompt);
+        if (status != 0) return -1;
+        return static_cast<jint>(cells_of(prompt.units));
+    } catch (...) {
+        return -1;
+    }
 }
 
 JNIEXPORT void JNICALL
@@ -328,12 +482,58 @@ Java_ai_prism_inference_llama_LlamaNative_cancel(JNIEnv * /*env*/, jobject /*thi
     if (session != nullptr) session->cancel.store(true);
 }
 
+// ---------- Проектор изображений (mmproj) ----------
+
+// Возвращает дескриптор проектора или 0 (ошибка — в lastError()).
+JNIEXPORT jlong JNICALL
+Java_ai_prism_inference_llama_LlamaNative_loadProjector(
+        JNIEnv * env, jobject /*thiz*/, jlong model, jstring path, jboolean use_gpu, jint n_threads, jint max_image_tokens) {
+    const char * chars = env->GetStringUTFChars(path, nullptr);
+    const std::string projector_path = chars;
+    env->ReleaseStringUTFChars(path, chars);
+    {
+        std::lock_guard<std::mutex> lock(g_log_mutex);
+        g_last_error.clear();
+    }
+    try {
+        mtmd_context_params params = mtmd_context_params_default();
+        params.use_gpu = use_gpu == JNI_TRUE;
+        params.n_threads = n_threads;
+        params.print_timings = false;
+        params.image_max_tokens = max_image_tokens > 0 ? max_image_tokens : -1;
+        // Прогрев выделяет память под вычисления сразу: нехватка памяти видна при загрузке, а не посреди ответа.
+        params.warmup = true;
+        mtmd_context * projector = mtmd_init_from_file(projector_path.c_str(), as_model(model), params);
+        if (projector == nullptr) return 0;
+        if (!mtmd_support_vision(projector)) {
+            mtmd_free(projector);
+            set_last_error("projector does not support images");
+            return 0;
+        }
+        return reinterpret_cast<jlong>(projector);
+    } catch (const std::bad_alloc &) {
+        set_last_error("out of memory");
+        return 0;
+    } catch (...) {
+        return 0;
+    }
+}
+
+JNIEXPORT void JNICALL
+Java_ai_prism_inference_llama_LlamaNative_freeProjector(JNIEnv * /*env*/, jobject /*thiz*/, jlong projector) {
+    if (projector != 0) mtmd_free(as_projector(projector));
+}
+
+// ---------- Генерация ----------
+
 JNIEXPORT jint JNICALL
 Java_ai_prism_inference_llama_LlamaNative_generate(
-        JNIEnv * env, jobject /*thiz*/, jlong handle, jbyteArray prompt_bytes, jint max_tokens,
+        JNIEnv * env, jobject /*thiz*/, jlong handle, jlong projector_handle, jbyteArray prompt_bytes,
+        jobjectArray image_pixels, jintArray image_sizes, jobjectArray image_ids, jint max_tokens,
         jfloat temperature, jfloat top_p, jint top_k, jfloat min_p, jfloat repeat_penalty, jint seed,
         jobject listener) {
     Session * session = as_session(handle);
+    mtmd_context * projector = as_projector(projector_handle);
     session->cancel.store(false);
 
     jclass listener_class = env->GetObjectClass(listener);
@@ -346,45 +546,87 @@ Java_ai_prism_inference_llama_LlamaNative_generate(
     try {
         const llama_vocab * vocab = llama_model_get_vocab(session->model);
         llama_memory_t memory = llama_get_memory(session->ctx);
-        const int32_t n_ctx = static_cast<int32_t>(llama_n_ctx(session->ctx));
+        const int64_t n_ctx = static_cast<int64_t>(llama_n_ctx(session->ctx));
         const int32_t n_batch = static_cast<int32_t>(llama_n_batch(session->ctx));
 
-        const std::vector<llama_token> tokens = tokenize(vocab, to_std_string(env, prompt_bytes), true);
-        if (tokens.empty()) return STATUS_ERROR_TOKENIZE;
-        if (static_cast<int32_t>(tokens.size()) >= n_ctx) return STATUS_CONTEXT_FULL;
+        std::vector<BitmapPtr> bitmaps;
+        if (!collect_bitmaps(env, image_pixels, image_sizes, image_ids, bitmaps)) {
+            set_last_error("invalid image data");
+            return STATUS_ERROR_IMAGE;
+        }
+        Prompt prompt;
+        const jint built = build_prompt(vocab, projector, to_std_string(env, prompt_bytes), bitmaps, prompt);
+        if (built != 0) return built;
+        const std::vector<CacheUnit> & units = prompt.units;
+        // Логиты берутся с последнего токена промпта — он должен быть текстовым.
+        if (units.back().is_image()) return STATUS_ERROR_TOKENIZE;
+        if (cells_of(units) >= n_ctx) return STATUS_CONTEXT_FULL;
 
-        // Переиспользуем общий префикс с тем, что уже лежит в кэше (история диалога).
+        // Переиспользуем общий префикс с тем, что уже лежит в кэше (история диалога и её изображения).
         size_t prefix = 0;
-        while (prefix < session->cached.size() && prefix < tokens.size() && session->cached[prefix] == tokens[prefix]) {
+        while (prefix < session->cached.size() && prefix < units.size() && session->cached[prefix] == units[prefix]) {
             ++prefix;
         }
-        if (prefix == tokens.size()) prefix = tokens.size() - 1;  // последний токен нужен для логитов
-        if (prefix == 0 || !llama_memory_seq_rm(memory, 0, static_cast<llama_pos>(prefix), -1)) {
+        if (prefix == units.size()) prefix = units.size() - 1;  // последний токен нужен для логитов
+        llama_pos n_past = positions_of(units, prefix);
+        if (prefix == 0 || !llama_memory_seq_rm(memory, 0, n_past, -1)) {
             llama_memory_clear(memory, true);
             prefix = 0;
+            n_past = 0;
         }
         session->cached.resize(prefix);
+        int64_t used = cells_of(session->cached);
 
-        // Префилл промпта порциями по n_batch.
-        const int32_t total = static_cast<int32_t>(tokens.size() - prefix);
+        // Ошибка префилла: частично обработанный промпт не переиспользуем.
+        auto prefill_failure = [&](int32_t ret) -> jint {
+            llama_memory_clear(memory, true);
+            session->cached.clear();
+            if (ret == 2 || session->cancel.load()) return STATUS_CANCELLED;
+            if (ret == 1) return STATUS_CONTEXT_FULL;
+            return STATUS_ERROR_DECODE;
+        };
+
+        // Префилл: текст порциями по n_batch, изображения — через проектор.
+        const int32_t total = static_cast<int32_t>(cells_of(units, prefix));
         int32_t done = 0;
-        while (done < total) {
-            const int32_t n = std::min(n_batch, total - done);
-            const bool last_chunk = done + n == total;
-            fill_batch(session->batch, tokens.data() + prefix + done, n,
-                       static_cast<llama_pos>(prefix + done), last_chunk);
-            const int32_t ret = llama_process(session->ctx, LLAMA_PROCESS_TYPE_DECODE, session->batch);
-            if (ret != 0) {
-                // Частично обработанный промпт не переиспользуем.
-                llama_memory_clear(memory, true);
-                session->cached.clear();
-                if (ret == 2 || session->cancel.load()) return STATUS_CANCELLED;
-                if (ret == 1) return STATUS_CONTEXT_FULL;
-                return STATUS_ERROR_DECODE;
+        size_t i = prefix;
+        while (i < units.size()) {
+            if (session->cancel.load()) return STATUS_CANCELLED;  // кэш согласован с тем, что уже обработано
+            if (!units[i].is_image()) {
+                size_t end = i;
+                std::vector<llama_token> tokens;
+                while (end < units.size() && !units[end].is_image() && static_cast<int32_t>(tokens.size()) < n_batch) {
+                    tokens.push_back(units[end].token);
+                    ++end;
+                }
+                const int32_t n = static_cast<int32_t>(tokens.size());
+                fill_batch(session->batch, tokens.data(), n, n_past, end == units.size());
+                const int32_t ret = llama_process(session->ctx, LLAMA_PROCESS_TYPE_DECODE, session->batch);
+                if (ret != 0) return prefill_failure(ret);
+                session->cached.insert(session->cached.end(), units.begin() + static_cast<std::ptrdiff_t>(i),
+                                       units.begin() + static_cast<std::ptrdiff_t>(end));
+                n_past += n;
+                used += n;
+                done += n;
+                i = end;
+            } else {
+                const mtmd_input_chunk * chunk = prompt.chunks[i];
+                if (projector == nullptr || chunk == nullptr) return STATUS_ERROR_IMAGE;
+                if (mtmd_encode_chunk(projector, chunk) != 0) {
+                    set_last_error("failed to encode image");
+                    return STATUS_ERROR_IMAGE;
+                }
+                llama_pos new_past = n_past;
+                const int32_t ret = mtmd_helper_decode_image_chunk(
+                    projector, session->ctx, chunk, mtmd_get_output_embd(projector), n_past, 0, n_batch, &new_past,
+                    nullptr, nullptr);
+                if (ret != 0) return prefill_failure(ret < 0 ? -1 : ret);
+                session->cached.push_back(units[i]);
+                n_past = new_past;
+                used += units[i].n_tokens;
+                done += units[i].n_tokens;
+                ++i;
             }
-            session->cached.insert(session->cached.end(), tokens.begin() + static_cast<std::ptrdiff_t>(prefix + done),
-                                   tokens.begin() + static_cast<std::ptrdiff_t>(prefix + done + n));
-            done += n;
             const jboolean keep = env->CallBooleanMethod(listener, on_prefill, done, total);
             if (env->ExceptionCheck()) return STATUS_ERROR_CALLBACK;
             if (keep != JNI_TRUE) return STATUS_CANCELLED;
@@ -427,23 +669,26 @@ Java_ai_prism_inference_llama_LlamaNative_generate(
                 }
             }
 
-            if (static_cast<int32_t>(session->cached.size()) + 1 >= n_ctx) { status = STATUS_CONTEXT_FULL; break; }
-            fill_batch(session->batch, &token, 1, static_cast<llama_pos>(session->cached.size()), true);
+            if (used + 1 >= n_ctx) { status = STATUS_CONTEXT_FULL; break; }
+            fill_batch(session->batch, &token, 1, n_past, true);
             const int32_t ret = llama_process(session->ctx, LLAMA_PROCESS_TYPE_DECODE, session->batch);
             if (ret != 0) {
                 if (ret == 2 || session->cancel.load()) { status = STATUS_CANCELLED; break; }
                 status = ret == 1 ? STATUS_CONTEXT_FULL : STATUS_ERROR_DECODE;
                 break;
             }
-            session->cached.push_back(token);
+            CacheUnit unit;
+            unit.token = token;
+            session->cached.push_back(unit);
+            ++n_past;
+            ++used;
         }
 
         llama_sampler_free(sampler);
         return status;
     } catch (const std::bad_alloc &) {
         if (sampler != nullptr) llama_sampler_free(sampler);
-        std::lock_guard<std::mutex> lock(g_log_mutex);
-        g_last_error = "out of memory";
+        set_last_error("out of memory");
         return STATUS_ERROR_OOM;
     } catch (...) {
         if (sampler != nullptr) llama_sampler_free(sampler);

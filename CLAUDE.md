@@ -28,7 +28,9 @@ Prism AI — полностью офлайн ИИ-ассистент для **Wi
   (https://ai.google.dev/gemma/terms). Лицензия каждой модели указана в каталоге и показывается в карточке модели
   и в «Настройки → Модели и лицензии».
 - Каталог: `shared/src/commonMain/composeResources/files/models.json` (репозитории ggml-org на Hugging Face, без авторизации).
-  Размер и SHA-256 каждого файла обязательны — загрузка проверяет их.
+  Размер и SHA-256 каждого файла обязательны — загрузка проверяет их. Поле `vision` — модуль зрения (mmproj, Q8_0)
+  из того же репозитория; модель с ним понимает изображения (все Gemma 4). Модель = основной файл + модуль зрения:
+  статус считается по обоим, но чат работает, как только скачан основной (`ModelEntry.chatReady`).
 - Лицензии моделей соблюдаются: в «О приложении» и в карточке модели указываются исходная модель и её лицензия
   (Apache 2.0 — Qwen/Mistral; Llama — «Built with Llama»; Gemma Terms of Use).
 
@@ -64,6 +66,12 @@ Prism AI — полностью офлайн ИИ-ассистент для **Wi
 - Слои **data / domain / presentation**, MVI с однонаправленным потоком данных.
 - Интерфейс `InferenceEngine`: `load`, `generate` (`Flow<String>`), `cancel`, `unload`, `modelInfo`.
   Позже через него можно подключить Ollama как второй бэкенд на Windows.
+- **Изображения (Этап 3):** libmtmd из llama.cpp. Модуль зрения загружается в память лениво — при первом запросе
+  с изображением. Фото сохраняются уменьшенными JPEG (до 1024 px, поворот по EXIF) в `images/` каталога приложения
+  (`ImageStore`; Android — ImageDecoder, Desktop — ImageIO), в БД — таблица `message_image` (миграция `1.sqm`).
+  В промпте изображение — метка `<__media__>` перед текстом сообщения; кэш промпта переиспользует уже закодированные
+  изображения по их id. Gemma 4: не больше 280 токенов на изображение (`MAX_IMAGE_TOKENS`, должно помещаться в батч).
+  Android: системный Photo Picker (без разрешений) и камера через `CameraOutputProvider` (снимок не попадает в галерею).
 
 ## Дизайн
 
@@ -84,7 +92,11 @@ Prism AI — полностью офлайн ИИ-ассистент для **Wi
   Android собирает его через `externalNativeBuild` (arm64-v8a), Desktop — модуль `:native` (cmake; `-Pprism.vulkan=true`
   для Vulkan). Бэкенды ggml — динамические (`GGML_BACKEND_DL`), CPU во всех вариантах набора инструкций.
   Локальная сборка Desktop требует cmake и компилятор C++; после клонирования: `git submodule update --init`.
-- Интеграционные тесты llama.cpp: `-Pprism.nativeTests=true` + переменные `PRISM_TEST_MODEL` / `PRISM_TEST_GEMMA`.
+- Интеграционные тесты llama.cpp: `-Pprism.nativeTests=true` + переменные `PRISM_TEST_MODEL` / `PRISM_TEST_GEMMA`,
+  для изображений — `PRISM_TEST_VLM` / `PRISM_TEST_VLM_MMPROJ` (SmolVLM 256M) и `PRISM_TEST_GEMMA4` /
+  `PRISM_TEST_GEMMA4_MMPROJ` (Gemma 4 E2B): модель должна назвать цвет однотонной картинки.
+- Облачная среда разработки не видит huggingface.co: метаданные файлов (размер, SHA-256) получаются разовым
+  workflow `model-catalog-report.yml`.
 - Предупреждения компилятора — ошибки (`allWarningsAsErrors`). Шаг диагностики CI при падении печатает
   их текст (`-Pprism.werror=false` используется только им).
 - Версия приложения задаётся в `gradle/libs.versions.toml` (`prism-versionName`) и попадает в код через сгенерированный `BuildInfo`.

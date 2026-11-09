@@ -24,14 +24,14 @@ import org.koin.dsl.module
 /**
  * Общие зависимости. Платформенный модуль обязан предоставить
  * `KeyValueStore`, `SqlDriver`, `PlatformCapabilities`, `DeviceInfo`,
- * `ModelStorage`, `ModelDownloader` и `InferenceEngine`.
+ * `ModelStorage`, `ModelDownloader`, `ImageStore` и `InferenceEngine`.
  */
 val sharedModule: Module = module {
     // Область приложения: загрузки моделей и генерация ответов живут дольше экранов.
     single<CoroutineScope> { CoroutineScope(SupervisorJob() + Dispatchers.Default) }
     single<SettingsRepository> { DefaultSettingsRepository(store = get()) }
     single { PrismDatabase(get()) }
-    single<ChatRepository> { SqlChatRepository(database = get()) }
+    single<ChatRepository> { SqlChatRepository(database = get(), imageStore = get()) }
     single { ModelCatalog() }
     single<ModelRepository> {
         DefaultModelRepository(
@@ -50,6 +50,7 @@ val sharedModule: Module = module {
             chats = get(),
             models = get(),
             personaProvider = get(),
+            images = get(),
             scope = get(),
         )
     }
@@ -60,6 +61,7 @@ val sharedModule: Module = module {
             settingsRepository = get(),
             generationService = get(),
             engine = get(),
+            imageStore = get(),
             capabilities = get(),
             deviceInfo = get(),
         )

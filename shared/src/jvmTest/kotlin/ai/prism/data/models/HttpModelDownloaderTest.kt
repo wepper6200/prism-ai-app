@@ -58,7 +58,7 @@ class HttpModelDownloaderTest {
         fileName = "model.gguf",
         sizeBytes = data.size.toLong(),
         sha256 = sha256,
-    )
+    ).mainFile
 
     @Test
     fun downloadsThroughRedirectAndVerifiesChecksum() = runBlocking {

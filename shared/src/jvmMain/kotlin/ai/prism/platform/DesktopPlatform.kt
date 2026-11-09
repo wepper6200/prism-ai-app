@@ -58,6 +58,6 @@ class DesktopNativeLibraryLoader : NativeLibraryLoader {
     }
 
     private companion object {
-        val REQUIRED = listOf("ggml-base", "ggml", "llama", "prism_llama")
+        val REQUIRED = listOf("ggml-base", "ggml", "llama", "mtmd", "prism_llama")
     }
 }

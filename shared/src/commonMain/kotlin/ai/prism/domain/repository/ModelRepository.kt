@@ -22,6 +22,9 @@ interface ModelRepository {
 
     fun catalogModel(modelId: String): CatalogModel?
 
-    /** Путь к полностью скачанному файлу модели или `null`. */
+    /** Путь к полностью скачанному основному файлу модели или `null`. */
     fun downloadedFilePath(modelId: String): String?
+
+    /** Путь к скачанному модулю зрения модели или `null` (нет в каталоге или не скачан). */
+    fun downloadedProjectorPath(modelId: String): String?
 }
