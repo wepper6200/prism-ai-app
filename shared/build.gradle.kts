@@ -131,6 +131,11 @@ sqldelight {
 val nativeTests = providers.gradleProperty("prism.nativeTests").map { it.toBoolean() }.orElse(false)
 
 tasks.withType<Test>().configureEach {
+    // В логе CI видно каждый тест (в том числе пропущенные) и ответы моделей из интеграционных тестов.
+    testLogging {
+        events("passed", "skipped", "failed")
+        showStandardStreams = true
+    }
     // Скриншоты экранов из UI-тестов складываются сюда и выгружаются в CI как артефакт.
     systemProperty("prism.screenshotDir", layout.buildDirectory.dir("screenshots").get().asFile.absolutePath)
     if (nativeTests.get()) {
