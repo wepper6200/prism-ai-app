@@ -88,6 +88,7 @@
     <string name="input_draw_placeholder">Опишите картинку</string>
     <string name="input_redraw_placeholder">Опишите, как изменить фото</string>
     <string name="draw_one_photo">Для перерисовки оставьте одно фото</string>
+    <string name="draw_needs_translator">Пишите по-английски или скачайте модель чата для перевода</string>
     <string name="draw_translating">Готовлю описание…</string>
     <string name="draw_loading">Загружаю модель рисования…</string>
     <string name="draw_step">Рисую… шаг %1$d из %2$d</string>
@@ -112,6 +113,8 @@
     <string name="error_image_generation_failed">Не удалось нарисовать изображение. Попробуйте ещё раз или измените описание.</string>
     <string name="error_gpu_driver_missing">Для рисования нужен драйвер видеокарты с поддержкой Vulkan. Установите драйвер NVIDIA, AMD или Intel.</string>
     <string name="error_blocked_by_safe_mode">Безопасный режим: такой запрос Prism AI не выполняет. Режим можно выключить в «Настройках».</string>
+    <string name="error_translator_required">Модели рисования понимают только английский. Напишите описание по-английски или скачайте на экране «Модели» модель чата (например, Gemma 3 1B) — она переведёт описание.</string>
+    <string name="error_translation_failed">Не получилось перевести описание на английский. Переформулируйте его или напишите по-английски.</string>
     <string name="error_unknown">Не удалось получить ответ. Попробуйте ещё раз.</string>
 
     <string name="models_device_ram">Память устройства: %1$s</string>

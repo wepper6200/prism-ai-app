@@ -150,13 +150,59 @@ class DrawingServiceTest {
     }
 
     @Test
-    fun refusedTranslationFallsBackToOriginalPrompt() = runBlocking {
+    fun refusedTranslationIsReportedInsteadOfDrawingRussianText() = runBlocking {
         val app = app(engine = FakeInferenceEngine(reply = listOf("I'm sorry, but I can't help with that.")))
         val chat = app.chats.createChat()
 
         app.generation.draw(chat.id, "старинный замок в тумане")
 
-        assertEquals("старинный замок в тумане", app.imageGenerator.lastRequest?.prompt)
+        // Генератор понимает только английский: русский текст дал бы картинку не по описанию.
+        assertNull(app.imageGenerator.lastRequest)
+        val reply = app.chats.messagesSnapshot(chat.id).last()
+        assertEquals(MessageStatus.FAILED, reply.status)
+        assertEquals(GenerationError.TRANSLATION_FAILED, reply.error)
+        assertIs<EngineState.Idle>(app.engine.state.value)
+    }
+
+    @Test
+    fun smallestDownloadedChatModelTranslatesWhenNoneIsActive() = runBlocking {
+        val small = testModel(id = "small", name = "Gemma 3 1B").copy(fileName = "small.gguf", sizeBytes = 800_000_000)
+        val large = testModel(id = "large", name = "Gemma 4 E4B").copy(fileName = "large.gguf", sizeBytes = 5_000_000_000)
+        val app = TestApp(
+            engine = FakeInferenceEngine(reply = listOf("An anime girl with blue hair")),
+            models = FakeModelRepository(
+                listOf(
+                    ModelEntry(large, ModelStatus.Downloaded, fitsInMemory = true),
+                    ModelEntry(small, ModelStatus.Downloaded, fitsInMemory = true),
+                    ModelEntry(testImageModel(), ModelStatus.Downloaded, fitsInMemory = true),
+                ),
+                activeId = null,
+            ),
+        )
+        val chat = app.chats.createChat()
+
+        app.generation.draw(chat.id, "аниме девушка с голубыми волосами")
+
+        assertEquals(listOf("/models/small.gguf"), app.engine.loadedPaths)
+        assertEquals("An anime girl with blue hair", app.imageGenerator.lastRequest?.prompt)
+        assertEquals(MessageStatus.COMPLETE, app.chats.messagesSnapshot(chat.id).last().status)
+    }
+
+    @Test
+    fun russianPromptWithoutChatModelAsksForTranslator() = runBlocking {
+        val app = TestApp(
+            models = FakeModelRepository(listOf(ModelEntry(testImageModel(), ModelStatus.Downloaded, fitsInMemory = true))),
+        )
+        val chat = app.chats.createChat()
+
+        app.generation.draw(chat.id, "аниме девушка")
+
+        assertNull(app.imageGenerator.lastRequest)
+        assertEquals(GenerationError.TRANSLATOR_REQUIRED, app.chats.messagesSnapshot(chat.id).last().error)
+
+        // Английское описание рисуется и без модели чата.
+        app.generation.draw(chat.id, "an anime girl")
+        assertEquals("an anime girl", app.imageGenerator.lastRequest?.prompt)
         assertEquals(MessageStatus.COMPLETE, app.chats.messagesSnapshot(chat.id).last().status)
     }
 

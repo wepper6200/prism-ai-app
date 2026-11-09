@@ -169,6 +169,9 @@ class FakeInferenceEngine(
     var lastRequest: GenerationRequest? = null
     var lastProjectorPath: String? = null
 
+    /** Файлы моделей, которые загружались, по порядку. */
+    val loadedPaths = mutableListOf<String>()
+
     /** Ответы на очередные запросы; когда закончатся — [reply]. */
     val queuedReplies = ArrayDeque<List<String>>()
     val requests = mutableListOf<GenerationRequest>()
@@ -176,6 +179,7 @@ class FakeInferenceEngine(
 
     override suspend fun load(model: CatalogModel, filePath: String, projectorPath: String?) {
         loadError?.let { throw it }
+        loadedPaths += filePath
         lastProjectorPath = projectorPath
         mutableState.value = EngineState.Ready(
             ModelInfo(model.id, model.name, "fake", 4096, "CPU", supportsImages = projectorPath != null),

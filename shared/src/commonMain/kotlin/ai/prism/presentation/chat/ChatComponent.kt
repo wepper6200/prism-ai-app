@@ -15,6 +15,7 @@ import ai.prism.domain.repository.ImageStore
 import ai.prism.domain.repository.ModelRepository
 import ai.prism.service.ChatGenerationService
 import ai.prism.service.DrawingProgress
+import ai.prism.service.ImagePromptPolicy
 import com.arkivanov.decompose.ComponentContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -95,6 +96,8 @@ data class ChatState(
     /** Модель изображений этой платформы (для подсказки о загрузке). */
     val imageModelName: String? = null,
     val imageModelBytes: Long = 0,
+    /** Скачана модель чата, которая переведёт русское описание картинки на английский. */
+    val canTranslateDrawing: Boolean = true,
     /** Размер модуля зрения активной модели (для подсказки о загрузке), байт. */
     val visionModuleBytes: Long = 0,
     /** Прогресс загрузки модели в память, пока ответ этого чата ждёт её. */
@@ -106,7 +109,8 @@ data class ChatState(
     val canSend: Boolean
         get() = when {
             isGenerating || busyInOtherChat -> false
-            drawMode -> draft.isNotBlank() && draw == DrawSupport.READY && !isAttaching && attachments.size <= 1
+            drawMode -> draft.isNotBlank() && draw == DrawSupport.READY && !isAttaching && attachments.size <= 1 &&
+                !drawNeedsTranslator
             else -> (draft.isNotBlank() || attachments.isNotEmpty()) && !isAttaching
         }
 
@@ -115,6 +119,10 @@ data class ChatState(
 
     /** В режиме рисования перерисовывается одно фото, а приложено несколько. */
     val tooManyPhotosToDraw: Boolean get() = drawMode && attachments.size > 1
+
+    /** Описание картинки по-русски, а переводить его на английский нечем: генератор нарисовал бы не то. */
+    val drawNeedsTranslator: Boolean
+        get() = drawMode && !canTranslateDrawing && ImagePromptPolicy.hasCyrillic(draft)
 
     companion object {
         const val MAX_ATTACHMENTS = 4
@@ -202,6 +210,7 @@ class DefaultChatComponent(
         val draw: DrawSupport,
         val imageModelName: String?,
         val imageModelBytes: Long,
+        val canTranslate: Boolean,
     )
 
     private val conversation = combine(
@@ -254,6 +263,7 @@ class DefaultChatComponent(
             },
             imageModelName = imageEntry?.model?.name,
             imageModelBytes = imageEntry?.model?.totalSizeBytes ?: 0L,
+            canTranslate = entries.any { it.model.kind == ModelKind.CHAT && it.chatReady },
         )
     }
 
@@ -280,6 +290,7 @@ class DefaultChatComponent(
             draw = model.draw,
             imageModelName = model.imageModelName,
             imageModelBytes = model.imageModelBytes,
+            canTranslateDrawing = model.canTranslate,
             modelLoadingProgress = model.loadingProgress?.takeIf { chat.isGenerating },
             isGenerating = chat.isGenerating,
             busyInOtherChat = chat.busyElsewhere,

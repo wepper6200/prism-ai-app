@@ -58,6 +58,13 @@ fun interface PersonaProvider {
     suspend fun persona(): AssistantPersona
 }
 
+/** Описание для генератора изображений: готово ([Ready]) или рисовать нельзя ([Rejected]). */
+private sealed interface PreparedPrompt {
+    data class Ready(val prompt: String) : PreparedPrompt
+
+    data class Rejected(val error: GenerationError) : PreparedPrompt
+}
+
 /** Этап создания изображения. */
 enum class DrawingStage { TRANSLATING, LOADING, DRAWING }
 
@@ -265,10 +272,14 @@ class ChatGenerationService(
             return
         }
         try {
-            val englishPrompt = prepareImagePrompt(prompt, safeMode)
-            if (englishPrompt == null) {
-                chats.updateMessage(reply.id, "", MessageStatus.FAILED, GenerationError.BLOCKED_BY_SAFE_MODE)
-                return
+            val englishPrompt = when (val prepared = prepareImagePrompt(prompt, safeMode)) {
+                is PreparedPrompt.Ready -> prepared.prompt
+                is PreparedPrompt.Rejected -> {
+                    engine.unload()
+                    val status = if (stopRequested) MessageStatus.STOPPED else MessageStatus.FAILED
+                    chats.updateMessage(reply.id, "", status, prepared.error.takeIf { !stopRequested })
+                    return
+                }
             }
             engine.unload()
             if (stopRequested) {
@@ -327,23 +338,30 @@ class ChatGenerationService(
     }
 
     /**
-     * Готовит описание для генератора: переводит на английский моделью чата (генераторы обучены на английских подписях),
-     * в безопасном режиме — заодно проверяет его. `null` — описание запрещено безопасным режимом.
+     * Готовит описание для генератора: переводит на английский моделью чата (генераторы понимают только английские
+     * подписи — русский текст дал бы картинку не по описанию), в безопасном режиме — заодно проверяет его.
      *
-     * Если модель чата не скачана, перевод не удался или модель вместо перевода отказалась отвечать,
-     * используется исходное описание (в безопасном режиме отказ модели означает запрет).
+     * Переводит активная модель чата, а если она не выбрана — самая лёгкая скачанная ([translatorModel]).
+     * Русское описание без перевода не рисуется: [GenerationError.TRANSLATOR_REQUIRED], если модели чата нет,
+     * и [GenerationError.TRANSLATION_FAILED], если перевод не получился. Английское описание без модели чата
+     * рисуется как есть (в безопасном режиме его уже проверил список запрещённых слов).
      */
-    private suspend fun prepareImagePrompt(prompt: String, safeMode: Boolean): String? {
-        if (!safeMode && !ImagePromptPolicy.hasCyrillic(prompt)) return prompt
-        val model = models.activeModelId.value?.let(models::catalogModel)?.takeIf { it.kind == ModelKind.CHAT } ?: return prompt
-        val path = models.downloadedFilePath(model.id) ?: return prompt
+    private suspend fun prepareImagePrompt(prompt: String, safeMode: Boolean): PreparedPrompt {
+        val russian = ImagePromptPolicy.hasCyrillic(prompt)
+        if (!safeMode && !russian) return PreparedPrompt.Ready(prompt)
+        val untranslated = if (russian) PreparedPrompt.Rejected(GenerationError.TRANSLATION_FAILED) else PreparedPrompt.Ready(prompt)
+        val model = translatorModel()
+        val path = model?.let { models.downloadedFilePath(it.id) }
+        if (model == null || path == null) {
+            return if (russian) PreparedPrompt.Rejected(GenerationError.TRANSLATOR_REQUIRED) else PreparedPrompt.Ready(prompt)
+        }
         val persona = personaProvider.persona()
         val instruction = (if (safeMode) persona.imageSafetyInstruction else persona.imagePromptInstruction)
-            .ifBlank { return prompt }
+            .ifBlank { return untranslated }
         val answer = try {
             imageGenerator.release()
             engine.load(model, path, null)
-            if (stopRequested) return prompt
+            if (stopRequested) return untranslated
             engine.generate(
                 GenerationRequest(
                     systemPrompt = instruction,
@@ -353,13 +371,32 @@ class ChatGenerationService(
                 ),
             ).toList().joinToString("").trim().trim('"', '«', '»').trim()
         } catch (e: InferenceException) {
-            return prompt
+            return if (russian && e.error == InferenceError.NOT_ENOUGH_MEMORY) {
+                PreparedPrompt.Rejected(GenerationError.NOT_ENOUGH_MEMORY)
+            } else {
+                untranslated
+            }
         }
         return when {
-            safeMode && (ImagePromptPolicy.isBlockedVerdict(answer) || ImagePromptPolicy.isRefusal(answer)) -> null
-            ImagePromptPolicy.isUsableTranslation(prompt, answer) -> answer
-            else -> prompt
+            safeMode && (ImagePromptPolicy.isBlockedVerdict(answer) || ImagePromptPolicy.isRefusal(answer)) ->
+                PreparedPrompt.Rejected(GenerationError.BLOCKED_BY_SAFE_MODE)
+            ImagePromptPolicy.isUsableTranslation(prompt, answer) -> PreparedPrompt.Ready(answer)
+            else -> untranslated
         }
+    }
+
+    /**
+     * Модель чата для перевода описаний: активная, а если она не выбрана или не скачана — самая лёгкая из скачанных
+     * (сначала среди тех, что помещаются в память устройства).
+     */
+    private fun translatorModel(): CatalogModel? {
+        val ready = models.models.value.filter { it.model.kind == ModelKind.CHAT && it.chatReady }
+        val activeId = models.activeModelId.value
+        return (
+            ready.firstOrNull { it.model.id == activeId }
+                ?: ready.filter { it.fitsInMemory }.minByOrNull { it.model.sizeBytes }
+                ?: ready.minByOrNull { it.model.sizeBytes }
+            )?.model
     }
 
     /**
@@ -433,7 +470,6 @@ class ChatGenerationService(
         private const val IMAGE_SIZE_STEP = 64
         private const val MIN_IMAGE_SIDE = 256
 
-        /** Заголовок диалога — начало первой строки сообщения. */
         /**
          * Размер для перерисовки фото: пропорции исходника, большая сторона — [maxSide],
          * обе стороны кратны 64 (так требуют модели) и не меньше 256.
@@ -445,6 +481,7 @@ class ChatGenerationService(
             return snap(width) to snap(height)
         }
 
+        /** Заголовок диалога — начало первой строки сообщения. */
         fun titleFrom(text: String): String {
             val line = text.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty()
                 .replace(Regex("\\s+"), " ").trim()

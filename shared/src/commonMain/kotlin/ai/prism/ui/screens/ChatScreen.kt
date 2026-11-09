@@ -18,6 +18,7 @@ import ai.prism.resources.attach_error_unreadable
 import ai.prism.resources.draw_dialog_text
 import ai.prism.resources.draw_dialog_title
 import ai.prism.resources.draw_loading
+import ai.prism.resources.draw_needs_translator
 import ai.prism.resources.draw_one_photo
 import ai.prism.resources.draw_step
 import ai.prism.resources.draw_translating
@@ -116,6 +117,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -199,6 +201,18 @@ fun ChatScreen(
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.error,
                 modifier = Modifier.align(Alignment.CenterHorizontally).testTag("draw_one_photo"),
+            )
+        }
+        if (state.drawNeedsTranslator) {
+            Text(
+                text = stringResource(Res.string.draw_needs_translator),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.error,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .padding(horizontal = 16.dp)
+                    .testTag("draw_needs_translator"),
             )
         }
         state.attachmentError?.let { error ->
