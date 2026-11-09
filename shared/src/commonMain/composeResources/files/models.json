@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "models": [
     {
       "id": "gemma-4-e2b-it-q4_0",
@@ -119,6 +119,96 @@
       "chatFormat": "gemma3",
       "license": { "name": "Gemma Terms of Use", "url": "https://ai.google.dev/gemma/terms" },
       "recommendedFor": []
+    },
+    {
+      "id": "flux1-schnell-q4_0",
+      "name": "FLUX.1 [schnell]",
+      "family": "FLUX.1",
+      "parameters": "12B",
+      "quantization": "Q4_0",
+      "description": {
+        "ru": "Рисует подробные изображения по описанию за 4 шага. Для компьютера с 16 ГБ памяти; с видеокартой — в разы быстрее."
+      },
+      "url": "https://huggingface.co/leejet/FLUX.1-schnell-gguf/resolve/main/flux1-schnell-q4_0.gguf",
+      "fileName": "flux1-schnell-q4_0.gguf",
+      "sizeBytes": 6884606880,
+      "sha256": "4f30741d2bfc786c92934ce925fcb0a43df3441e76504b797c3d5d5f0878fa6f",
+      "minRamMb": 16384,
+      "license": { "name": "Apache 2.0", "url": "https://www.apache.org/licenses/LICENSE-2.0" },
+      "recommendedFor": ["desktop"],
+      "kind": "image",
+      "platforms": ["desktop"],
+      "mainRole": "diffusion_model",
+      "components": [
+        {
+          "role": "t5xxl",
+          "url": "https://huggingface.co/second-state/FLUX.1-schnell-GGUF/resolve/main/t5xxl-Q4_0.gguf",
+          "fileName": "t5xxl-Q4_0.gguf",
+          "sizeBytes": 2752841312,
+          "sha256": "098daa07ac5a926ebf2814a8e02ef1221eee53b8268db0d965ecb608603682de"
+        },
+        {
+          "role": "clip_l",
+          "url": "https://huggingface.co/second-state/FLUX.1-schnell-GGUF/resolve/main/clip_l-Q8_0.gguf",
+          "fileName": "clip_l-Q8_0.gguf",
+          "sizeBytes": 130769600,
+          "sha256": "59cbe002c3e75d2b89d38787e81d12fb4e512fd76176884c470737ad87a1d309"
+        },
+        {
+          "role": "vae",
+          "url": "https://huggingface.co/second-state/FLUX.1-schnell-GGUF/resolve/main/ae.safetensors",
+          "fileName": "flux-ae.safetensors",
+          "sizeBytes": 335304388,
+          "sha256": "afc8e28272cd15db3919bacdb6918ce9c1ed22e96cb12c4d5ed0fba823529e38"
+        }
+      ],
+      "image": {
+        "width": 1024,
+        "height": 1024,
+        "steps": 4,
+        "cfg": 1.0,
+        "guidance": 3.5,
+        "sampler": "euler"
+      }
+    },
+    {
+      "id": "sdxl-lightning-4step-q4_0",
+      "name": "SDXL-Lightning",
+      "family": "SDXL",
+      "parameters": "3.5B",
+      "quantization": "Q4_0",
+      "description": {
+        "ru": "Быстрая модель рисования для телефона: картинка за 4 шага прямо на устройстве. Нужно 8 ГБ памяти."
+      },
+      "url": "https://huggingface.co/mzwing/SDXL-Lightning-GGUF/resolve/main/sdxl_lightning_4step.q4_0.gguf",
+      "fileName": "sdxl_lightning_4step.q4_0.gguf",
+      "sizeBytes": 2584858432,
+      "sha256": "33cc25b6f5dd121ecf3ad28e35eb38cb21427b7794c53527ceafe2dc3b109f4f",
+      "minRamMb": 8192,
+      "license": { "name": "CreativeML OpenRAIL++-M", "url": "https://huggingface.co/ByteDance/SDXL-Lightning" },
+      "recommendedFor": ["android"],
+      "kind": "image",
+      "platforms": ["android"],
+      "mainRole": "model",
+      "components": [
+        {
+          "role": "taesd",
+          "url": "https://huggingface.co/madebyollin/taesdxl/resolve/main/diffusion_pytorch_model.safetensors",
+          "fileName": "taesdxl.safetensors",
+          "sizeBytes": 9793292,
+          "sha256": "ff4824aca94dd6111e0340fa749347fb74101060d9712cb5ef1ca8f1cf17502f"
+        }
+      ],
+      "image": {
+        "width": 768,
+        "height": 768,
+        "steps": 4,
+        "cfg": 1.0,
+        "sampler": "euler",
+        "scheduler": "sgm_uniform",
+        "vaeTiling": true,
+        "mmap": true
+      }
     }
   ]
 }

@@ -6,12 +6,22 @@ import ai.prism.presentation.chat.ChatComponent
 import ai.prism.presentation.chat.ChatIntent
 import ai.prism.presentation.chat.AttachmentError
 import ai.prism.presentation.chat.ChatState
+import ai.prism.presentation.chat.DrawSupport
 import ai.prism.presentation.chat.MessageItem
 import ai.prism.presentation.chat.VisionSupport
+import ai.prism.service.DrawingProgress
+import ai.prism.service.DrawingStage
 import ai.prism.resources.Res
 import ai.prism.resources.action_cancel
 import ai.prism.resources.attach_error_too_many
 import ai.prism.resources.attach_error_unreadable
+import ai.prism.resources.draw_dialog_text
+import ai.prism.resources.draw_dialog_title
+import ai.prism.resources.draw_loading
+import ai.prism.resources.draw_step
+import ai.prism.resources.draw_translating
+import ai.prism.resources.image_save_failed
+import ai.prism.resources.image_saved
 import ai.prism.resources.image_close
 import ai.prism.resources.image_description
 import ai.prism.resources.image_open
@@ -40,11 +50,13 @@ import ai.prism.ui.components.EmptyState
 import ai.prism.ui.components.ImageBytesLoader
 import ai.prism.ui.components.ImageViewer
 import ai.prism.ui.components.InputAttachments
+import ai.prism.ui.components.InputDrawing
 import ai.prism.ui.components.PrismTopBar
 import ai.prism.ui.components.StoredImage
 import ai.prism.ui.components.formatBytes
 import ai.prism.ui.components.formatPercent
 import ai.prism.ui.components.message
+import ai.prism.ui.components.rememberImageExporter
 import ai.prism.ui.components.rememberImagePicker
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -77,6 +89,7 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Brush
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.AlertDialog
@@ -93,6 +106,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -102,6 +116,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 
@@ -114,7 +130,17 @@ fun ChatScreen(
     val expanded = LocalExpandedLayout.current
     val loadImage: ImageBytesLoader = component::imageBytes
     var visionDialog by remember { mutableStateOf(false) }
+    var drawDialog by remember { mutableStateOf(false) }
     var viewing by remember { mutableStateOf<String?>(null) }
+    var saveResult by remember { mutableStateOf<Boolean?>(null) }
+    val scope = rememberCoroutineScope()
+    val exporter = rememberImageExporter { ok -> saveResult = ok }
+    LaunchedEffect(saveResult) {
+        if (saveResult != null) {
+            delay(SAVE_MESSAGE_MS)
+            saveResult = null
+        }
+    }
     val picker = rememberImagePicker(
         onPicked = { component.onIntent(ChatIntent.AttachImages(it)) },
         onFailed = { component.onIntent(ChatIntent.AttachFailed) },
@@ -181,6 +207,20 @@ fun ChatScreen(
                 isGenerating = state.isGenerating,
                 onSend = { component.onIntent(ChatIntent.Send) },
                 onStop = { component.onIntent(ChatIntent.Stop) },
+                drawing = if (state.draw == DrawSupport.UNAVAILABLE) {
+                    null
+                } else {
+                    InputDrawing(
+                        active = state.drawMode,
+                        onToggle = {
+                            if (state.draw == DrawSupport.READY || state.drawMode) {
+                                component.onIntent(ChatIntent.ToggleDrawMode)
+                            } else {
+                                drawDialog = true
+                            }
+                        },
+                    )
+                },
                 attachments = InputAttachments(
                     items = state.attachments,
                     isAttaching = state.isAttaching,
@@ -206,15 +246,55 @@ fun ChatScreen(
             onDismiss = { visionDialog = false },
         )
     }
+    if (drawDialog) {
+        AlertDialog(
+            onDismissRequest = { drawDialog = false },
+            icon = { Icon(Icons.Outlined.Brush, contentDescription = null) },
+            title = { Text(stringResource(Res.string.draw_dialog_title)) },
+            text = {
+                Text(
+                    stringResource(
+                        Res.string.draw_dialog_text,
+                        state.imageModelName.orEmpty(),
+                        formatBytes(state.imageModelBytes),
+                    ),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        drawDialog = false
+                        component.onIntent(ChatIntent.OpenModels)
+                    },
+                    modifier = Modifier.testTag("draw_open_models"),
+                ) { Text(stringResource(Res.string.chat_open_models)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { drawDialog = false }) { Text(stringResource(Res.string.action_cancel)) }
+            },
+            modifier = Modifier.testTag("draw_dialog"),
+        )
+    }
     viewing?.let { fileName ->
         ImageViewer(
             fileName = fileName,
             load = loadImage,
             contentDescription = stringResource(Res.string.image_description),
             onDismiss = { viewing = null },
+            onSave = {
+                scope.launch {
+                    val bytes = component.imageBytes(fileName)
+                    if (bytes == null) saveResult = false else exporter.export(bytes, "prism-ai-$fileName")
+                }
+            },
+            message = saveResult?.let { ok ->
+                stringResource(if (ok) Res.string.image_saved else Res.string.image_save_failed)
+            },
         )
     }
 }
+
+private const val SAVE_MESSAGE_MS = 2_500L
 
 @Composable
 private fun VisionDialog(state: ChatState, onOpenModels: () -> Unit, onDismiss: () -> Unit) {
@@ -326,6 +406,8 @@ private fun MessageList(
                     MessageRole.USER -> UserMessage(message, loadImage, onOpenImage)
                     MessageRole.ASSISTANT -> AssistantMessage(
                         message = message,
+                        loadImage = loadImage,
+                        onOpenImage = onOpenImage,
                         loadingProgress = state.modelLoadingProgress.takeIf { message.isStreaming },
                         canRetry = message.id == lastId && !state.isGenerating && !state.busyInOtherChat,
                         onRetry = onRetry,
@@ -395,6 +477,8 @@ private fun UserBubble(message: MessageItem) {
 @Composable
 private fun AssistantMessage(
     message: MessageItem,
+    loadImage: ImageBytesLoader,
+    onOpenImage: (String) -> Unit,
     loadingProgress: Float?,
     canRetry: Boolean,
     onRetry: () -> Unit,
@@ -407,7 +491,22 @@ private fun AssistantMessage(
         )
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            message.images.forEach { image ->
+                val ratio = (image.width.toFloat() / image.height.coerceAtLeast(1)).coerceIn(0.5f, 2f)
+                StoredImage(
+                    fileName = image.fileName,
+                    load = loadImage,
+                    contentDescription = stringResource(Res.string.image_open),
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(width = 320.dp, height = 320.dp / ratio)
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable { onOpenImage(image.fileName) }
+                        .testTag("generated_image"),
+                )
+            }
             when {
+                message.drawing != null -> Drawing(message.drawing)
                 loadingProgress != null && message.text.isEmpty() -> ModelLoading(loadingProgress)
                 message.isStreaming && message.text.isEmpty() -> TypingIndicator()
                 message.text.isNotEmpty() -> SelectionContainer {
@@ -446,6 +545,28 @@ private fun ModelLoading(progress: Float) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         LinearProgressIndicator(progress = { progress }, modifier = Modifier.widthIn(max = 280.dp).fillMaxWidth())
+    }
+}
+
+/** Ход рисования: подготовка описания, загрузка модели, шаги. */
+@Composable
+private fun Drawing(progress: DrawingProgress) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.testTag("drawing_progress")) {
+        Text(
+            text = when (progress.stage) {
+                DrawingStage.TRANSLATING -> stringResource(Res.string.draw_translating)
+                DrawingStage.LOADING -> stringResource(Res.string.draw_loading)
+                DrawingStage.DRAWING -> stringResource(Res.string.draw_step, progress.step, progress.steps)
+            },
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        val modifier = Modifier.widthIn(max = 280.dp).fillMaxWidth()
+        if (progress.stage == DrawingStage.DRAWING && progress.steps > 0) {
+            LinearProgressIndicator(progress = { progress.step.toFloat() / progress.steps }, modifier = modifier)
+        } else {
+            LinearProgressIndicator(modifier = modifier)
+        }
     }
 }
 

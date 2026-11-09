@@ -3,6 +3,7 @@ package ai.prism.ui
 import ai.prism.domain.inference.PromptMessage
 import ai.prism.domain.model.MessageRole
 import ai.prism.resources.Res
+import ai.prism.resources.image_prompt_instruction
 import ai.prism.resources.persona_answer
 import ai.prism.resources.persona_question
 import ai.prism.resources.persona_reminder
@@ -20,5 +21,6 @@ class ResourcePersonaProvider : PersonaProvider {
             PromptMessage(MessageRole.ASSISTANT, getString(Res.string.persona_answer)),
         ),
         reminder = getString(Res.string.persona_reminder),
+        imagePromptInstruction = getString(Res.string.image_prompt_instruction),
     )
 }

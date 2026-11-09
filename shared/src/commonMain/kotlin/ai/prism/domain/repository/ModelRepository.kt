@@ -8,7 +8,7 @@ interface ModelRepository {
     /** Модели каталога с состоянием загрузки. */
     val models: StateFlow<List<ModelEntry>>
 
-    /** Модель, которой отвечает ассистент. */
+    /** Модель чата, которой отвечает ассистент (модели изображений не бывают активными). */
     val activeModelId: StateFlow<String?>
 
     fun download(modelId: String)
@@ -27,4 +27,7 @@ interface ModelRepository {
 
     /** Путь к скачанному модулю зрения модели или `null` (нет в каталоге или не скачан). */
     fun downloadedProjectorPath(modelId: String): String?
+
+    /** Файлы скачанной модели изображений по назначению (`model`, `t5xxl`, `vae`…) или `null`, если скачано не всё. */
+    fun imageModelFiles(modelId: String): Map<String, String>?
 }

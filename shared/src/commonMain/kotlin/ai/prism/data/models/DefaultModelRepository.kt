@@ -4,7 +4,9 @@ import ai.prism.data.catalog.ModelCatalog
 import ai.prism.data.settings.KeyValueStore
 import ai.prism.domain.model.CatalogModel
 import ai.prism.domain.model.DeviceInfo
+import ai.prism.domain.imagegen.resolveImageModelFiles
 import ai.prism.domain.model.DownloadError
+import ai.prism.domain.model.ModelKind
 import ai.prism.domain.model.ModelEntry
 import ai.prism.domain.model.ModelStatus
 import ai.prism.domain.repository.ModelRepository
@@ -32,6 +34,8 @@ class DefaultModelRepository(
     private val store: KeyValueStore,
     private val deviceInfo: DeviceInfo,
     private val scope: CoroutineScope,
+    /** `android` или `desktop`: модели других платформ скрываются. `null` — показывать все. */
+    private val platform: String? = null,
 ) : ModelRepository {
 
     private val catalogModels = MutableStateFlow<List<CatalogModel>>(emptyList())
@@ -63,9 +67,9 @@ class DefaultModelRepository(
                 println("Prism AI: каталог моделей повреждён: ${e.message}")
                 emptyList()
             }
-            catalogModels.value = list
-            statuses.value = list.associate { it.id to initialStatus(it) }
-            chatReady.value = list.filter { storage.isDownloaded(it.mainFile) }.map { it.id }.toSet()
+            catalogModels.value = list.filter { model -> platform == null || model.availableOn(platform) }
+            statuses.value = catalogModels.value.associate { it.id to initialStatus(it) }
+            chatReady.value = catalogModels.value.filter { storage.isDownloaded(it.mainFile) }.map { it.id }.toSet()
         }
     }
 
@@ -97,13 +101,13 @@ class DefaultModelRepository(
                 }
                 setStatus(modelId, ModelStatus.Downloaded)
                 val current = active.value
-                if (current == null || current !in chatReady.value) {
+                if (model.kind == ModelKind.CHAT && (current == null || current !in chatReady.value)) {
                     setActive(modelId)
                 }
             } catch (e: DownloadException) {
                 setStatus(modelId, ModelStatus.Paused(downloadedBytes(model), total, e.error))
                 // Основной файл мог докачаться раньше, чем оборвался модуль зрения.
-                if (current() == null && modelId in chatReady.value) setActive(modelId)
+                if (model.kind == ModelKind.CHAT && current() == null && modelId in chatReady.value) setActive(modelId)
             } catch (e: CancellationException) {
                 setStatus(modelId, ModelStatus.Paused(downloadedBytes(model), total, null))
                 throw e
@@ -135,6 +139,7 @@ class DefaultModelRepository(
     }
 
     override fun setActive(modelId: String) {
+        if (catalogModel(modelId)?.kind == ModelKind.IMAGE) return
         active.value = modelId
         store.putString(KEY_ACTIVE_MODEL, modelId)
     }
@@ -147,6 +152,11 @@ class DefaultModelRepository(
 
     override fun downloadedProjectorPath(modelId: String): String? =
         catalogModel(modelId)?.vision?.takeIf(storage::isDownloaded)?.let(storage::filePath)
+
+    override fun imageModelFiles(modelId: String): Map<String, String>? {
+        val model = catalogModel(modelId)?.takeIf { it.kind == ModelKind.IMAGE } ?: return null
+        return resolveImageModelFiles(model) { file -> file.takeIf(storage::isDownloaded)?.let(storage::filePath) }
+    }
 
     private fun current(): String? = active.value?.takeIf { it in chatReady.value }
 

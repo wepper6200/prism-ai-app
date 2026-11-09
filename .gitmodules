@@ -5,3 +5,4 @@
 [submodule "native/stable-diffusion.cpp"]
 	path = native/stable-diffusion.cpp
 	url = https://github.com/leejet/stable-diffusion.cpp
+	shallow = true

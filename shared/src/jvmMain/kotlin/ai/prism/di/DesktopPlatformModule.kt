@@ -11,10 +11,12 @@ import ai.prism.data.models.ModelStorage
 import ai.prism.data.settings.KeyValueStore
 import ai.prism.data.settings.PreferencesKeyValueStore
 import ai.prism.desktop.AppDirectories
+import ai.prism.domain.imagegen.ImageGenerator
 import ai.prism.domain.inference.InferenceEngine
 import ai.prism.domain.model.DeviceInfo
 import ai.prism.domain.model.PlatformCapabilities
 import ai.prism.domain.repository.ImageStore
+import ai.prism.imagegen.ProcessImageGenerator
 import ai.prism.inference.llama.LlamaInferenceEngine
 import ai.prism.platform.DesktopDeviceInfo
 import ai.prism.platform.DesktopNativeLibraryLoader
@@ -42,9 +44,17 @@ fun desktopPlatformModule(): Module = module {
     single<ModelDownloader> { HttpModelDownloader(get()) }
     single<ImageCodec> { DesktopImageCodec() }
     single<ImageStore> { FileImageStore(File(AppDirectories.dataDir(), IMAGES_DIR), get()) }
+    single<ImageGenerator> {
+        ProcessImageGenerator(
+            executable = { DesktopNativeLibraryLoader.findImageGenerator() },
+            workDir = File(AppDirectories.dataDir(), IMAGEGEN_DIR),
+            threads = get<DeviceInfo>().inferenceThreads,
+        )
+    }
     single<InferenceEngine> { LlamaInferenceEngine(DesktopNativeLibraryLoader(), get(), get()) }
 }
 
 private const val DATABASE_NAME = "prism.db"
 private const val MODELS_DIR = "models"
 private const val IMAGES_DIR = "images"
+private const val IMAGEGEN_DIR = "imagegen"

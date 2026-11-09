@@ -35,6 +35,9 @@ interface ChatRepository {
 
     suspend fun updateMessage(messageId: String, content: String, status: MessageStatus, error: GenerationError?)
 
+    /** Добавляет изображения к сообщению (созданные моделью изображений). */
+    suspend fun attachImages(chatId: String, messageId: String, images: List<ImageAttachment>)
+
     suspend fun deleteMessage(messageId: String)
 
     /** Имена файлов всех изображений, на которые ссылаются сообщения. */

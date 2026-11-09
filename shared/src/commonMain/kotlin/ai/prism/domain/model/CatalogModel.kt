@@ -32,6 +32,52 @@ data class ModelFile(
     val sha256: String,
 )
 
+/** Что делает модель. */
+@Serializable
+enum class ModelKind {
+    /** Языковая модель для чата. */
+    @SerialName("chat")
+    CHAT,
+
+    /** Генерация изображений по описанию (stable-diffusion.cpp). */
+    @SerialName("image")
+    IMAGE,
+}
+
+/**
+ * Дополнительный файл модели изображений. [role] — назначение для stable-diffusion.cpp:
+ * `t5xxl`, `clip_l`, `clip_g`, `vae`, `taesd`.
+ */
+@Serializable
+data class ModelComponent(
+    val role: String,
+    val url: String,
+    val fileName: String,
+    val sizeBytes: Long,
+    val sha256: String,
+) {
+    val file: ModelFile get() = ModelFile(url, fileName, sizeBytes, sha256)
+}
+
+/** Параметры генерации по умолчанию для модели изображений. */
+@Serializable
+data class ImageModelSettings(
+    val width: Int = 1024,
+    val height: Int = 1024,
+    val steps: Int = 4,
+    /** Сила следования описанию (CFG); 1 — без отрицательного описания, у дистиллированных моделей. */
+    val cfg: Float = 1.0f,
+    /** Встроенная подсказка для дистиллированных моделей FLUX. */
+    val guidance: Float = 3.5f,
+    /** Алгоритм и расписание шагов (`euler`, `sgm_uniform`…); пусто — по умолчанию модели. */
+    val sampler: String = "",
+    val scheduler: String = "",
+    /** Декодировать изображение по частям — меньше пиковой памяти (телефон). */
+    val vaeTiling: Boolean = false,
+    /** Отображать веса в память вместо копирования (меньше пиковой памяти). */
+    val mmap: Boolean = false,
+)
+
 /** Модель из каталога `files/models.json`. */
 @Serializable
 data class CatalogModel(
@@ -46,20 +92,31 @@ data class CatalogModel(
     val fileName: String,
     val sizeBytes: Long,
     val sha256: String,
-    val contextLength: Int,
+    /** Контекст языковой модели в токенах (у моделей изображений не используется). */
+    val contextLength: Int = 0,
     val minRamMb: Int,
-    val chatFormat: ChatFormat,
+    val chatFormat: ChatFormat = ChatFormat.RAW,
     val license: ModelLicense,
     /** `android` и/или `desktop` — где модель рекомендуется. */
     val recommendedFor: List<String> = emptyList(),
     /** Модуль зрения (проектор mmproj): с ним модель понимает изображения. `null` — только текст. */
     val vision: ModelFile? = null,
+    val kind: ModelKind = ModelKind.CHAT,
+    /** Платформы, где модель доступна: `android`, `desktop`. Пусто — везде. */
+    val platforms: List<String> = emptyList(),
+    /** Назначение основного файла модели изображений: `model` (целый чекпойнт) или `diffusion_model`. */
+    val mainRole: String = "model",
+    /** Остальные файлы модели изображений (текстовые энкодеры, VAE). */
+    val components: List<ModelComponent> = emptyList(),
+    val image: ImageModelSettings? = null,
 ) {
-    /** Основной файл с весами языковой модели. */
+    /** Основной файл с весами модели. */
     val mainFile: ModelFile get() = ModelFile(url, fileName, sizeBytes, sha256)
 
     /** Все файлы модели в порядке загрузки. */
-    val files: List<ModelFile> get() = listOfNotNull(mainFile, vision)
+    val files: List<ModelFile> get() = listOfNotNull(mainFile, vision) + components.map { it.file }
+
+    fun availableOn(platform: String): Boolean = platforms.isEmpty() || platform in platforms
 
     val totalSizeBytes: Long get() = files.sumOf { it.sizeBytes }
 

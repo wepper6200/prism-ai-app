@@ -10,12 +10,15 @@ import ai.prism.resources.download_error_server
 import ai.prism.resources.download_error_space
 import ai.prism.resources.download_error_storage
 import ai.prism.resources.error_context_full
+import ai.prism.resources.error_gpu_driver_missing
+import ai.prism.resources.error_image_generation_failed
 import ai.prism.resources.error_image_failed
 import ai.prism.resources.error_images_not_supported
 import ai.prism.resources.error_interrupted
 import ai.prism.resources.error_model_corrupted
 import ai.prism.resources.error_model_not_downloaded
 import ai.prism.resources.error_native_missing
+import ai.prism.resources.error_no_image_model
 import ai.prism.resources.error_no_model
 import ai.prism.resources.error_not_enough_memory
 import ai.prism.resources.error_unknown
@@ -58,6 +61,9 @@ fun GenerationError.message(): StringResource = when (this) {
     GenerationError.IMAGES_NOT_SUPPORTED -> Res.string.error_images_not_supported
     GenerationError.IMAGE_FAILED -> Res.string.error_image_failed
     GenerationError.VISION_MODULE_CORRUPTED -> Res.string.error_vision_module_corrupted
+    GenerationError.NO_IMAGE_MODEL -> Res.string.error_no_image_model
+    GenerationError.IMAGE_GENERATION_FAILED -> Res.string.error_image_generation_failed
+    GenerationError.GPU_DRIVER_MISSING -> Res.string.error_gpu_driver_missing
     GenerationError.UNKNOWN -> Res.string.error_unknown
 }
 

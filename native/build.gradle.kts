@@ -2,8 +2,9 @@
 // Нужны cmake и компилятор C++ (на Windows — Visual Studio Build Tools).
 // Android-вариант собирает сам Gradle в модуле :androidApp (externalNativeBuild).
 //
-//   -Pprism.vulkan=true  — добавить Vulkan-бэкенд (нужен Vulkan SDK);
-//   -Pprism.ccache=true  — кэшировать компиляцию через ccache.
+//   -Pprism.vulkan=true   — добавить Vulkan-бэкенд (нужен Vulkan SDK);
+//   -Pprism.imagegen=true — собрать программу генерации изображений (stable-diffusion.cpp, отдельная CMake-сборка);
+//   -Pprism.ccache=true   — кэшировать компиляцию через ccache.
 
 val osName = System.getProperty("os.name").lowercase()
 val isWindows = osName.contains("win")
@@ -16,7 +17,9 @@ val platformDir = when {
 
 val vulkan = providers.gradleProperty("prism.vulkan").map { it.toBoolean() }.orElse(false)
 val ccache = providers.gradleProperty("prism.ccache").map { it.toBoolean() }.orElse(false)
+val imagegen = providers.gradleProperty("prism.imagegen").map { it.toBoolean() }.orElse(false)
 val cmakeBuildDir = layout.buildDirectory.dir("cmake")
+val imagegenBuildDir = layout.buildDirectory.dir("cmake-imagegen")
 
 val configureNative = tasks.register<Exec>("configureNative") {
     group = "native"
@@ -43,6 +46,32 @@ val buildNative = tasks.register<Exec>("buildNative") {
     commandLine("cmake", "--build", cmakeBuildDir.get().asFile.absolutePath, "--config", "Release", "--parallel", jobs)
 }
 
+val configureImageGen = tasks.register<Exec>("configureImageGen") {
+    group = "native"
+    description = "Конфигурирует CMake-сборку программы генерации изображений (stable-diffusion.cpp)."
+    val buildDir = imagegenBuildDir.get().asFile
+    val args = mutableListOf(
+        "cmake", "-S", file("imagegen").absolutePath, "-B", buildDir.absolutePath,
+        "-DCMAKE_BUILD_TYPE=Release",
+        "-DPRISM_IMAGEGEN_VULKAN=${if (vulkan.get()) "ON" else "OFF"}",
+    )
+    if (ccache.get()) {
+        args += listOf("-DCMAKE_C_COMPILER_LAUNCHER=ccache", "-DCMAKE_CXX_COMPILER_LAUNCHER=ccache")
+    }
+    commandLine(args)
+}
+
+val buildImageGen = tasks.register<Exec>("buildImageGen") {
+    group = "native"
+    description = "Собирает программу генерации изображений."
+    dependsOn(configureImageGen)
+    val jobs = Runtime.getRuntime().availableProcessors().toString()
+    commandLine(
+        "cmake", "--build", imagegenBuildDir.get().asFile.absolutePath, "--config", "Release",
+        "--target", "prism_imagegen", "--parallel", jobs,
+    )
+}
+
 // Библиотеки для запуска и тестов: build/libs.
 val assembleNative = tasks.register<Sync>("assembleNative") {
     group = "native"
@@ -50,6 +79,12 @@ val assembleNative = tasks.register<Sync>("assembleNative") {
     dependsOn(buildNative)
     from(cmakeBuildDir.map { it.dir("bin") }) {
         include("*.dll", "*.so", "*.dylib")
+    }
+    if (imagegen.get()) {
+        dependsOn(buildImageGen)
+        from(imagegenBuildDir.map { it.dir("bin") }) {
+            include("prism_imagegen", "prism_imagegen.exe")
+        }
     }
     if (isWindows) {
         // Рантайм MSVC кладём рядом: на машине пользователя его может не быть.

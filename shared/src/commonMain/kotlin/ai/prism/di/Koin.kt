@@ -5,6 +5,7 @@ import ai.prism.data.chat.SqlChatRepository
 import ai.prism.data.db.PrismDatabase
 import ai.prism.data.models.DefaultModelRepository
 import ai.prism.data.settings.DefaultSettingsRepository
+import ai.prism.domain.model.PlatformCapabilities
 import ai.prism.domain.repository.ChatRepository
 import ai.prism.domain.repository.ModelRepository
 import ai.prism.domain.repository.SettingsRepository
@@ -24,7 +25,7 @@ import org.koin.dsl.module
 /**
  * Общие зависимости. Платформенный модуль обязан предоставить
  * `KeyValueStore`, `SqlDriver`, `PlatformCapabilities`, `DeviceInfo`,
- * `ModelStorage`, `ModelDownloader`, `ImageStore` и `InferenceEngine`.
+ * `ModelStorage`, `ModelDownloader`, `ImageStore`, `ImageGenerator` и `InferenceEngine`.
  */
 val sharedModule: Module = module {
     // Область приложения: загрузки моделей и генерация ответов живут дольше экранов.
@@ -41,6 +42,7 @@ val sharedModule: Module = module {
             store = get(),
             deviceInfo = get(),
             scope = get(),
+            platform = get<PlatformCapabilities>().platform,
         )
     }
     single<PersonaProvider> { ResourcePersonaProvider() }
@@ -51,6 +53,7 @@ val sharedModule: Module = module {
             models = get(),
             personaProvider = get(),
             images = get(),
+            imageGenerator = get(),
             scope = get(),
         )
     }

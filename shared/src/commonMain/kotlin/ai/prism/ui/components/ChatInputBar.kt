@@ -6,6 +6,8 @@ import ai.prism.resources.image_description
 import ai.prism.resources.input_attach_file
 import ai.prism.resources.input_attach_image
 import ai.prism.resources.input_attaching
+import ai.prism.resources.input_draw
+import ai.prism.resources.input_draw_placeholder
 import ai.prism.resources.input_microphone
 import ai.prism.resources.input_pick_gallery
 import ai.prism.resources.input_placeholder
@@ -34,6 +36,7 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.outlined.AttachFile
+import androidx.compose.material.icons.outlined.Brush
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.PhotoCamera
@@ -42,6 +45,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -80,6 +84,12 @@ class InputAttachments(
     val onRemove: (String) -> Unit,
 )
 
+/** Кнопка режима «Нарисовать»: [active] — сообщение станет описанием картинки. */
+class InputDrawing(
+    val active: Boolean,
+    val onToggle: () -> Unit,
+)
+
 /**
  * Поле ввода сообщения. Enter — отправить, Shift+Enter — новая строка.
  * Во время ответа кнопка отправки превращается в «Стоп».
@@ -95,7 +105,10 @@ fun ChatInputBar(
     onStop: () -> Unit,
     attachments: InputAttachments,
     modifier: Modifier = Modifier,
+    /** `null` — на этой платформе рисовать нельзя, кнопки нет. */
+    drawing: InputDrawing? = null,
 ) {
+    val drawActive = drawing?.active == true
     PrismPanel(modifier.fillMaxWidth(), shape = RoundedCornerShape(28.dp)) {
         Column {
             AnimatedVisibility(visible = attachments.items.isNotEmpty() || attachments.isAttaching) {
@@ -108,7 +121,8 @@ fun ChatInputBar(
                 IconButton(onClick = {}, enabled = false) {
                     Icon(Icons.Outlined.AttachFile, contentDescription = stringResource(Res.string.input_attach_file))
                 }
-                ImageButton(attachments, enabled = !isGenerating && attachments.canAttachMore)
+                if (drawing != null) DrawButton(drawing, enabled = !isGenerating)
+                ImageButton(attachments, enabled = !isGenerating && !drawActive && attachments.canAttachMore)
                 val textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface)
                 BasicTextField(
                     value = text,
@@ -134,7 +148,9 @@ fun ChatInputBar(
                         Box {
                             if (text.isEmpty()) {
                                 Text(
-                                    text = stringResource(Res.string.input_placeholder),
+                                    text = stringResource(
+                                        if (drawActive) Res.string.input_draw_placeholder else Res.string.input_placeholder,
+                                    ),
                                     style = textStyle,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -158,6 +174,20 @@ fun ChatInputBar(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun DrawButton(drawing: InputDrawing, enabled: Boolean) {
+    val description = stringResource(Res.string.input_draw)
+    if (drawing.active) {
+        FilledTonalIconButton(onClick = drawing.onToggle, enabled = enabled, modifier = Modifier.testTag("draw_toggle")) {
+            Icon(Icons.Outlined.Brush, contentDescription = description)
+        }
+    } else {
+        IconButton(onClick = drawing.onToggle, enabled = enabled, modifier = Modifier.testTag("draw_toggle")) {
+            Icon(Icons.Outlined.Brush, contentDescription = description)
         }
     }
 }

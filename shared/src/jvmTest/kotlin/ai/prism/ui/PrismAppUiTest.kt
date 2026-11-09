@@ -9,6 +9,7 @@ import ai.prism.presentation.root.DefaultRootComponent
 import ai.prism.presentation.root.RootComponent
 import ai.prism.testing.FakeModelRepository
 import ai.prism.testing.TestApp
+import ai.prism.testing.testImageModel
 import ai.prism.testing.testModel
 import ai.prism.testing.testVision
 import androidx.compose.ui.graphics.toAwtImage
@@ -71,6 +72,7 @@ class PrismAppUiTest {
                 ModelStatus.NotDownloaded,
                 fitsInMemory = false,
             ),
+            ModelEntry(testImageModel(), ModelStatus.Downloaded, fitsInMemory = true),
         ),
     )
 
@@ -220,5 +222,24 @@ class PrismAppUiTest {
         onNodeWithTag("vision_open_models").performClick()
         onNodeWithTag("models_screen").assertIsDisplayed()
         onNodeWithTag("download_vision_gemma-4-e2b-old").assertIsDisplayed()
+    }
+
+    /** Режим «Нарисовать»: описание отправляется модели изображений, ответ — картинка. */
+    @Test
+    fun compactChatDrawsPicture() = runDesktopComposeUiTest(width = 412, height = 892) {
+        val (app, root) = createApp()
+        app.imageGenerator.png = photo()
+        setContent { PrismApp(root) }
+
+        onNodeWithTag("new_chat").performClick()
+        onNodeWithTag("draw_toggle").performClick()
+        onNodeWithTag("message_input").performTextInput("a sunset over the sea")
+        screenshot("compact_10_draw_mode")
+        onNodeWithTag("send_button").performClick()
+        waitForIdle()
+
+        onNodeWithTag("generated_image").assertIsDisplayed()
+        assertEquals("a sunset over the sea", app.imageGenerator.lastRequest?.prompt)
+        screenshot("compact_11_drawn_picture")
     }
 }

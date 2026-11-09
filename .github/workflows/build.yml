@@ -28,6 +28,11 @@ env:
   GEMMA4_TEST_SHA256: 8e30dff3ac4c8434c49a7036fa15564bdbb6044e42bf04550bf1a096ad7e6a52
   GEMMA4_MMPROJ_URL: https://huggingface.co/ggml-org/gemma-4-E2B-it-GGUF/resolve/main/mmproj-gemma-4-E2B-it-Q8_0.gguf
   GEMMA4_MMPROJ_SHA256: 042cc2561806cd3b5cb5efb25cab76911e3100c43cc09d854904f921924b1429
+  # Генерация изображений: SDXL-Lightning (модель для телефона) и FLUX.1 [schnell] Q4 (модель для Windows).
+  SDXL_TEST_URL: https://huggingface.co/mzwing/SDXL-Lightning-GGUF/resolve/main/sdxl_lightning_4step.q4_0.gguf
+  SDXL_TEST_SHA256: 33cc25b6f5dd121ecf3ad28e35eb38cb21427b7794c53527ceafe2dc3b109f4f
+  TAESDXL_URL: https://huggingface.co/madebyollin/taesdxl/resolve/main/diffusion_pytorch_model.safetensors
+  TAESDXL_SHA256: ff4824aca94dd6111e0340fa749347fb74101060d9712cb5ef1ca8f1cf17502f
 
 jobs:
   android:
@@ -38,6 +43,9 @@ jobs:
       - uses: actions/checkout@v5
         with:
           submodules: true
+      - name: Fetch ggml for stable-diffusion.cpp
+        shell: bash
+        run: git -C native/stable-diffusion.cpp submodule update --init --depth 1 ggml
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -70,6 +78,7 @@ jobs:
           unzip -l "$apk" | grep -E "lib/arm64-v8a/.*\.so" | tee native-libs.txt
           grep -q "libprism_llama.so" native-libs.txt
           grep -q "libmtmd.so" native-libs.txt
+          grep -q "libprism_imagegen.so" native-libs.txt
           grep -q "libggml-cpu-android_armv8.0_1.so" native-libs.txt
       - name: Show compiler warnings (diagnostics on failure)
         if: failure()
@@ -91,6 +100,9 @@ jobs:
       - uses: actions/checkout@v5
         with:
           submodules: true
+      - name: Fetch ggml for stable-diffusion.cpp
+        shell: bash
+        run: git -C native/stable-diffusion.cpp submodule update --init --depth 1 ggml
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -104,7 +116,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/prism-test-models
-          key: test-models-${{ env.TINY_MODEL_SHA256 }}-${{ env.GEMMA_TEST_SHA256 }}-${{ env.VLM_TEST_SHA256 }}-${{ env.GEMMA4_TEST_SHA256 }}
+          key: test-models-${{ env.TINY_MODEL_SHA256 }}-${{ env.GEMMA_TEST_SHA256 }}-${{ env.VLM_TEST_SHA256 }}-${{ env.GEMMA4_TEST_SHA256 }}-${{ env.SDXL_TEST_SHA256 }}
       - name: Download test models
         shell: bash
         run: |
@@ -121,6 +133,12 @@ jobs:
           echo "$VLM_MMPROJ_SHA256  vlm-mmproj.gguf" | sha256sum -c -
           echo "$GEMMA4_TEST_SHA256  gemma4.gguf" | sha256sum -c -
           echo "$GEMMA4_MMPROJ_SHA256  gemma4-mmproj.gguf" | sha256sum -c -
+          [ -f sdxl.gguf ] || curl -fsSL --retry 5 -o sdxl.gguf "$SDXL_TEST_URL"
+          [ -f taesdxl.safetensors ] || curl -fsSL --retry 5 -o taesdxl.safetensors "$TAESDXL_URL"
+          echo "$SDXL_TEST_SHA256  sdxl.gguf" | sha256sum -c -
+          echo "$TAESDXL_SHA256  taesdxl.safetensors" | sha256sum -c -
+          echo "PRISM_TEST_SDXL=$HOME/prism-test-models/sdxl.gguf" >> "$GITHUB_ENV"
+          echo "PRISM_TEST_SDXL_TAESD=$HOME/prism-test-models/taesdxl.safetensors" >> "$GITHUB_ENV"
           echo "PRISM_TEST_MODEL=$HOME/prism-test-models/tiny.gguf" >> "$GITHUB_ENV"
           echo "PRISM_TEST_GEMMA=$HOME/prism-test-models/gemma.gguf" >> "$GITHUB_ENV"
           echo "PRISM_TEST_VLM=$HOME/prism-test-models/vlm.gguf" >> "$GITHUB_ENV"
@@ -136,7 +154,7 @@ jobs:
           done
           exit 1
       - name: Compile desktop app, build llama.cpp and run all tests (warnings are errors)
-        run: ./gradlew --stacktrace --warning-mode=all -Pprism.skipAndroid=true -Pprism.nativeTests=true -Pprism.ccache=true :desktopApp:compileKotlin :shared:jvmTest
+        run: ./gradlew --stacktrace --warning-mode=all -Pprism.skipAndroid=true -Pprism.nativeTests=true -Pprism.imagegen=true -Pprism.ccache=true :desktopApp:compileKotlin :shared:jvmTest
       - name: Show compiler warnings (diagnostics on failure)
         if: failure()
         run: |
@@ -166,6 +184,9 @@ jobs:
       - uses: actions/checkout@v5
         with:
           submodules: true
+      - name: Fetch ggml for stable-diffusion.cpp
+        shell: bash
+        run: git -C native/stable-diffusion.cpp submodule update --init --depth 1 ggml
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -175,7 +196,7 @@ jobs:
         uses: jakoch/install-vulkan-sdk-action@v1
         with:
           vulkan_version: latest
-          install_runtime: false
+          install_runtime: true
           cache: true
           stripdown: true
       - name: Provision Gradle (retries on network errors)
@@ -195,10 +216,13 @@ jobs:
           echo "PRISM_TEST_MODEL=$(cygpath -w "$HOME/prism-test-models/tiny.gguf")" >> "$GITHUB_ENV"
       - name: Build Windows app with llama.cpp (CPU + Vulkan)
         shell: bash
-        run: ./gradlew --stacktrace --warning-mode=all -Pprism.skipAndroid=true -Pprism.vulkan=true :desktopApp:createDistributable
-      - name: Check DLL loading on Windows (llama.cpp integration test)
+        run: ./gradlew --stacktrace --warning-mode=all -Pprism.skipAndroid=true -Pprism.vulkan=true -Pprism.imagegen=true :desktopApp:createDistributable
+      - name: Check DLL loading on Windows (llama.cpp and image generation integration tests)
         shell: bash
-        run: ./gradlew --stacktrace -Pprism.skipAndroid=true -Pprism.nativeTests=true -Pprism.vulkan=true :shared:jvmTest --tests "ai.prism.inference.llama.*"
+        run: ./gradlew --stacktrace -Pprism.skipAndroid=true -Pprism.nativeTests=true -Pprism.vulkan=true -Pprism.imagegen=true :shared:jvmTest --tests "ai.prism.inference.llama.*" --tests "ai.prism.imagegen.ImageGenerationIntegrationTest"
+      - name: Check image generator in the Windows app
+        shell: bash
+        run: test -f desktopApp/build/compose/binaries/main/app/PrismAI/app/resources/prism_imagegen.exe || (find desktopApp/build/compose/binaries -name "prism_imagegen*" ; exit 1)
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v6
@@ -211,3 +235,63 @@ jobs:
           name: PrismAI-windows
           path: desktopApp/build/compose/binaries/main/app/PrismAI/
           if-no-files-found: error
+
+  flux:
+    name: Image generation (FLUX.1 schnell)
+    # FLUX весит ~10 ГБ — не помещается в кэш Actions вместе с остальными моделями, качается каждый раз.
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      FLUX_DIR: /mnt/prism-flux
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+      - name: Fetch ggml for stable-diffusion.cpp
+        shell: bash
+        run: git -C native/stable-diffusion.cpp submodule update --init --depth 1 ggml
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v5
+      - uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: flux-linux
+          max-size: 1G
+      - name: Download FLUX.1 schnell Q4 (files and checksums from the catalog)
+        shell: bash
+        run: |
+          sudo mkdir -p "$FLUX_DIR" && sudo chown "$USER" "$FLUX_DIR"
+          python3 - <<'PY' > "$FLUX_DIR/files.txt"
+          import json
+          catalog = json.load(open("shared/src/commonMain/composeResources/files/models.json"))
+          flux = next(m for m in catalog["models"] if m["id"].startswith("flux1-schnell"))
+          files = [(flux["url"], flux["fileName"], flux["sha256"])] + [(c["url"], c["fileName"], c["sha256"]) for c in flux["components"]]
+          for url, name, sha in files:
+              print(url, name, sha)
+          PY
+          cd "$FLUX_DIR"
+          while read -r url name sha; do
+            curl -fsSL --retry 5 -o "$name" "$url"
+            echo "$sha  $name" | sha256sum -c -
+          done < files.txt
+          echo "PRISM_TEST_FLUX_DIR=$FLUX_DIR" >> "$GITHUB_ENV"
+      - name: Provision Gradle (retries on network errors)
+        shell: bash
+        run: |
+          for i in 1 2 3 4 5; do
+            ./gradlew --version && exit 0
+            echo "Gradle download failed, retry $i"; sleep $((i * 15))
+          done
+          exit 1
+      - name: Draw with FLUX.1 schnell on CPU
+        run: ./gradlew --stacktrace -Pprism.skipAndroid=true -Pprism.nativeTests=true -Pprism.imagegen=true -Pprism.ccache=true :shared:jvmTest --tests "ai.prism.imagegen.ImageGenerationIntegrationTest"
+      - name: Upload generated pictures
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: PrismAI-flux-pictures
+          path: shared/build/screenshots/
+          if-no-files-found: warn

@@ -131,6 +131,22 @@ class SqlChatRepository(
         Unit
     }
 
+    override suspend fun attachImages(chatId: String, messageId: String, images: List<ImageAttachment>) = withContext(ioContext) {
+        queries.transaction {
+            images.forEachIndexed { index, image ->
+                imageQueries.insertImage(
+                    id = image.id,
+                    message_id = messageId,
+                    chat_id = chatId,
+                    file_name = image.fileName,
+                    width = image.width.toLong(),
+                    height = image.height.toLong(),
+                    position = index.toLong(),
+                )
+            }
+        }
+    }
+
     override suspend fun deleteMessage(messageId: String) = withContext(ioContext) {
         queries.transaction {
             imageQueries.deleteImagesOfMessage(messageId)

@@ -10,10 +10,12 @@ import ai.prism.data.models.ModelDownloader
 import ai.prism.data.models.ModelStorage
 import ai.prism.data.settings.KeyValueStore
 import ai.prism.data.settings.SharedPreferencesKeyValueStore
+import ai.prism.domain.imagegen.ImageGenerator
 import ai.prism.domain.inference.InferenceEngine
 import ai.prism.domain.model.DeviceInfo
 import ai.prism.domain.model.PlatformCapabilities
 import ai.prism.domain.repository.ImageStore
+import ai.prism.imagegen.ProcessImageGenerator
 import ai.prism.inference.llama.LlamaInferenceEngine
 import ai.prism.platform.AndroidDeviceInfo
 import ai.prism.platform.AndroidNativeLibraryLoader
@@ -30,7 +32,7 @@ fun androidPlatformModule(context: Context): Module = module {
     single<KeyValueStore> { SharedPreferencesKeyValueStore(appContext) }
     single<SqlDriver> { AndroidSqliteDriver(schema = PrismDatabase.Schema, context = appContext, name = DATABASE_NAME) }
     single {
-        PlatformCapabilities(supportsDynamicColor = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
+        PlatformCapabilities(supportsDynamicColor = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S, platform = "android")
     }
     single<DeviceInfo> { AndroidDeviceInfo(appContext) }
     // Модели — во внутреннем хранилище приложения: не видны другим приложениям и удаляются вместе с ним.
@@ -39,9 +41,18 @@ fun androidPlatformModule(context: Context): Module = module {
     single<ModelDownloader> { HttpModelDownloader(get()) }
     single<ImageCodec> { AndroidImageCodec() }
     single<ImageStore> { FileImageStore(File(appContext.filesDir, IMAGES_DIR), get()) }
+    single<ImageGenerator> {
+        // Программа генерации упакована как lib*.so: только такие файлы Android разрешает запускать.
+        ProcessImageGenerator(
+            executable = { File(appContext.applicationInfo.nativeLibraryDir, "libprism_imagegen.so") },
+            workDir = File(appContext.cacheDir, IMAGEGEN_DIR),
+            threads = get<DeviceInfo>().inferenceThreads,
+        )
+    }
     single<InferenceEngine> { LlamaInferenceEngine(AndroidNativeLibraryLoader(appContext), get(), get()) }
 }
 
 private const val DATABASE_NAME = "prism.db"
 private const val MODELS_DIR = "models"
 private const val IMAGES_DIR = "images"
+private const val IMAGEGEN_DIR = "imagegen"

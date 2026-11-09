@@ -36,6 +36,15 @@ enum class GenerationError {
 
     /** Модуль зрения (mmproj) повреждён или не подходит к модели. */
     VISION_MODULE_CORRUPTED,
+
+    /** Нет скачанной модели изображений для этой платформы. */
+    NO_IMAGE_MODEL,
+
+    /** Не удалось создать изображение. */
+    IMAGE_GENERATION_FAILED,
+
+    /** Для генерации изображений на Windows нужен драйвер видеокарты с поддержкой Vulkan. */
+    GPU_DRIVER_MISSING,
     UNKNOWN,
 }
 

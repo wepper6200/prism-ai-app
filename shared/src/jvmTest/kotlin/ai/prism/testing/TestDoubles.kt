@@ -4,6 +4,13 @@ import ai.prism.data.chat.SqlChatRepository
 import ai.prism.data.db.PrismDatabase
 import ai.prism.data.settings.DefaultSettingsRepository
 import ai.prism.data.settings.MapKeyValueStore
+import ai.prism.domain.imagegen.GeneratedImage
+import ai.prism.domain.imagegen.ImageGenerationError
+import ai.prism.domain.imagegen.ImageGenerationException
+import ai.prism.domain.imagegen.ImageGenerationProgress
+import ai.prism.domain.imagegen.ImageGenerator
+import ai.prism.domain.imagegen.ImageRequest
+import ai.prism.domain.imagegen.resolveImageModelFiles
 import ai.prism.domain.inference.EngineState
 import ai.prism.domain.inference.GenerationRequest
 import ai.prism.domain.inference.InferenceEngine
@@ -14,7 +21,10 @@ import ai.prism.domain.model.ChatFormat
 import ai.prism.domain.model.DeviceInfo
 import ai.prism.domain.model.ImageAttachment
 import ai.prism.domain.model.ModelEntry
+import ai.prism.domain.model.ImageModelSettings
+import ai.prism.domain.model.ModelComponent
 import ai.prism.domain.model.ModelFile
+import ai.prism.domain.model.ModelKind
 import ai.prism.domain.model.ModelLicense
 import ai.prism.domain.model.ModelStatus
 import ai.prism.domain.model.PlatformCapabilities
@@ -66,6 +76,53 @@ fun testVision(id: String = "test-model") = ModelFile(
     sizeBytes = 557_368_096,
     sha256 = "1".repeat(64),
 )
+
+/** Модель рисования для тестов: основной файл и VAE. */
+fun testImageModel(id: String = "flux-test", name: String = "FLUX.1 [schnell]") = testModel(id = id, name = name).copy(
+    kind = ModelKind.IMAGE,
+    platforms = listOf("desktop"),
+    mainRole = "diffusion_model",
+    sizeBytes = 6_884_606_880,
+    components = listOf(ModelComponent("vae", "https://example.com/ae.safetensors", "$id-ae.safetensors", 335_304_388, "2".repeat(64))),
+    image = ImageModelSettings(width = 1024, height = 1024, steps = 4),
+)
+
+/** Генератор изображений, который «рисует» заданные байты и сообщает о шагах. */
+class FakeImageGenerator(var supported: Boolean = true) : ImageGenerator {
+    override val isSupported: Boolean get() = supported
+    var png: ByteArray = byteArrayOf(9, 9, 9)
+    var error: ImageGenerationException? = null
+    var lastRequest: ImageRequest? = null
+    var lastFiles: Map<String, String>? = null
+    var releases = 0
+    private var cancelled = false
+
+    override suspend fun generate(
+        model: CatalogModel,
+        files: Map<String, String>,
+        request: ImageRequest,
+        onProgress: (ImageGenerationProgress) -> Unit,
+    ): GeneratedImage {
+        lastRequest = request
+        lastFiles = files
+        cancelled = false
+        onProgress(ImageGenerationProgress.Loading)
+        for (step in 1..request.steps) {
+            if (cancelled) throw ImageGenerationException(ImageGenerationError.CANCELLED, "остановлено")
+            onProgress(ImageGenerationProgress.Step(step, request.steps))
+        }
+        error?.let { throw it }
+        return GeneratedImage(png, request.width, request.height, 42)
+    }
+
+    override fun cancel() {
+        cancelled = true
+    }
+
+    override suspend fun release() {
+        releases += 1
+    }
+}
 
 /** Изображения в памяти: сохраняет байты как есть, размер — из [size]. */
 class MemoryImageStore(var size: Pair<Int, Int> = 640 to 480) : ImageStore {
@@ -144,7 +201,7 @@ class FakeInferenceEngine(
 
 class FakeModelRepository(
     entries: List<ModelEntry> = listOf(ModelEntry(testModel(), ModelStatus.Downloaded, fitsInMemory = true)),
-    activeId: String? = entries.firstOrNull { it.status == ModelStatus.Downloaded }?.model?.id,
+    activeId: String? = entries.firstOrNull { it.status == ModelStatus.Downloaded && it.model.kind == ModelKind.CHAT }?.model?.id,
 ) : ModelRepository {
     override val models = MutableStateFlow(entries)
     override val activeModelId = MutableStateFlow(activeId)
@@ -169,6 +226,10 @@ class FakeModelRepository(
     override fun downloadedFilePath(modelId: String): String? =
         models.value.firstOrNull { it.model.id == modelId && it.chatReady }?.let { "/models/${it.model.fileName}" }
 
+    override fun imageModelFiles(modelId: String): Map<String, String>? =
+        models.value.firstOrNull { it.model.id == modelId && it.model.kind == ModelKind.IMAGE && it.status == ModelStatus.Downloaded }
+            ?.model?.let { model -> resolveImageModelFiles(model) { "/models/${it.fileName}" } }
+
     override fun downloadedProjectorPath(modelId: String): String? =
         models.value.firstOrNull { it.model.id == modelId && it.visionReady }?.model?.vision?.let { "/models/${it.fileName}" }
 }
@@ -183,6 +244,7 @@ fun inMemoryChatRepository(images: ImageStore = MemoryImageStore()): SqlChatRepo
 class TestApp(
     val engine: FakeInferenceEngine = FakeInferenceEngine(),
     val models: FakeModelRepository = FakeModelRepository(),
+    val imageGenerator: FakeImageGenerator = FakeImageGenerator(),
 ) {
     val settings = DefaultSettingsRepository(MapKeyValueStore())
     val images = MemoryImageStore()
@@ -199,9 +261,11 @@ class TestApp(
                     PromptMessage(MessageRole.USER, "Кто ты?"),
                     PromptMessage(MessageRole.ASSISTANT, "Я Prism AI."),
                 ),
+                imagePromptInstruction = "Переведи на английский.",
             )
         },
         images = images,
+        imageGenerator = imageGenerator,
         scope = scope,
     )
     val dependencies = AppDependencies(

@@ -57,7 +57,20 @@ class DesktopNativeLibraryLoader : NativeLibraryLoader {
         else -> "lib$name.so"
     }
 
-    private companion object {
-        val REQUIRED = listOf("ggml-base", "ggml", "llama", "mtmd", "prism_llama")
+    companion object {
+        private val REQUIRED = listOf("ggml-base", "ggml", "llama", "mtmd", "prism_llama")
+
+        /**
+         * Программа генерации изображений: в `-Dprism.imagegen.dir` (тесты), рядом с нативными библиотеками
+         * или в ресурсах приложения. `null` — не собрана для этой платформы.
+         */
+        fun findImageGenerator(): File? {
+            val windows = System.getProperty("os.name").orEmpty().lowercase().contains("win")
+            val name = if (windows) "prism_imagegen.exe" else "prism_imagegen"
+            return sequenceOf("prism.imagegen.dir", "prism.native.dir", "compose.application.resources.dir")
+                .mapNotNull { System.getProperty(it) }
+                .map { File(it, name) }
+                .firstOrNull { it.isFile }
+        }
     }
 }

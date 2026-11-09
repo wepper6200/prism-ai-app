@@ -7,11 +7,14 @@ import ai.prism.domain.model.GenerationError
 import ai.prism.domain.model.ImageAttachment
 import ai.prism.domain.model.MessageRole
 import ai.prism.domain.model.MessageStatus
+import ai.prism.domain.model.ModelKind
+import ai.prism.domain.model.ModelStatus
 import ai.prism.domain.repository.ChatRepository
 import ai.prism.domain.repository.ImageException
 import ai.prism.domain.repository.ImageStore
 import ai.prism.domain.repository.ModelRepository
 import ai.prism.service.ChatGenerationService
+import ai.prism.service.DrawingProgress
 import com.arkivanov.decompose.ComponentContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -33,9 +36,23 @@ data class MessageItem(
     val error: GenerationError?,
     /** Текст ещё дописывается моделью. */
     val isStreaming: Boolean,
-    /** Изображения сообщения пользователя. */
+    /** Изображения сообщения: приложенные пользователем или нарисованные моделью. */
     val images: List<ImageAttachment> = emptyList(),
+    /** Ход рисования, пока модель создаёт изображение для этого ответа. */
+    val drawing: DrawingProgress? = null,
 )
+
+/** Может ли приложение рисовать изображения. */
+enum class DrawSupport {
+    /** Модель изображений скачана — можно рисовать. */
+    READY,
+
+    /** Модель изображений есть в каталоге этой платформы, но не скачана полностью. */
+    NOT_DOWNLOADED,
+
+    /** На этой платформе генерации изображений нет. */
+    UNAVAILABLE,
+}
 
 /** Что умеет активная модель с изображениями. */
 enum class VisionSupport {
@@ -72,6 +89,12 @@ data class ChatState(
     val modelName: String? = null,
     val modelDownloaded: Boolean = false,
     val vision: VisionSupport = VisionSupport.UNSUPPORTED,
+    /** Режим «Нарисовать»: сообщение — описание картинки для модели изображений. */
+    val drawMode: Boolean = false,
+    val draw: DrawSupport = DrawSupport.UNAVAILABLE,
+    /** Модель изображений этой платформы (для подсказки о загрузке). */
+    val imageModelName: String? = null,
+    val imageModelBytes: Long = 0,
     /** Размер модуля зрения активной модели (для подсказки о загрузке), байт. */
     val visionModuleBytes: Long = 0,
     /** Прогресс загрузки модели в память, пока ответ этого чата ждёт её. */
@@ -81,7 +104,11 @@ data class ChatState(
     val busyInOtherChat: Boolean = false,
 ) {
     val canSend: Boolean
-        get() = (draft.isNotBlank() || attachments.isNotEmpty()) && !isAttaching && !isGenerating && !busyInOtherChat
+        get() = when {
+            isGenerating || busyInOtherChat -> false
+            drawMode -> draft.isNotBlank() && draw == DrawSupport.READY
+            else -> (draft.isNotBlank() || attachments.isNotEmpty()) && !isAttaching
+        }
 
     val canAttachMore: Boolean get() = attachments.size < MAX_ATTACHMENTS && !isAttaching
 
@@ -100,6 +127,9 @@ sealed interface ChatIntent {
     data object AttachFailed : ChatIntent
     data class RemoveAttachment(val id: String) : ChatIntent
     data object DismissAttachmentError : ChatIntent
+
+    /** Включает или выключает режим «Нарисовать». */
+    data object ToggleDrawMode : ChatIntent
     data object Send : ChatIntent
     data object Stop : ChatIntent
     data object Retry : ChatIntent
@@ -140,6 +170,8 @@ class DefaultChatComponent(
         val error: AttachmentError? = null,
     )
 
+    private val drawMode = MutableStateFlow(stateKeeper.consume(KEY_DRAW_MODE, Boolean.serializer()) ?: false)
+
     private val draftImages = MutableStateFlow(
         DraftImages(items = stateKeeper.consume(KEY_ATTACHMENTS, ATTACHMENTS_SERIALIZER).orEmpty()),
     )
@@ -147,6 +179,7 @@ class DefaultChatComponent(
     init {
         stateKeeper.register(KEY_DRAFT, String.serializer()) { draft.value }
         stateKeeper.register(KEY_ATTACHMENTS, ATTACHMENTS_SERIALIZER) { draftImages.value.items }
+        stateKeeper.register(KEY_DRAW_MODE, Boolean.serializer()) { drawMode.value }
     }
 
     private data class ConversationPart(
@@ -162,6 +195,9 @@ class DefaultChatComponent(
         val vision: VisionSupport,
         val visionBytes: Long,
         val loadingProgress: Float?,
+        val draw: DrawSupport,
+        val imageModelName: String?,
+        val imageModelBytes: Long,
     )
 
     private val conversation = combine(
@@ -182,6 +218,7 @@ class DefaultChatComponent(
                     error = message.error,
                     isStreaming = streaming != null,
                     images = message.images,
+                    drawing = streaming?.drawing,
                 )
             },
             isGenerating = active?.chatId == chatId,
@@ -195,6 +232,7 @@ class DefaultChatComponent(
         engine.state,
     ) { activeId, entries, engineState ->
         val entry = entries.firstOrNull { it.model.id == activeId }
+        val imageEntry = entries.firstOrNull { it.model.kind == ModelKind.IMAGE }
         ModelPart(
             name = entry?.model?.name,
             downloaded = entry?.chatReady == true,
@@ -205,10 +243,23 @@ class DefaultChatComponent(
             },
             visionBytes = entry?.model?.vision?.sizeBytes ?: 0L,
             loadingProgress = (engineState as? EngineState.Loading)?.takeIf { it.modelId == activeId }?.progress,
+            draw = when {
+                imageEntry == null || !generation.canGenerateImages -> DrawSupport.UNAVAILABLE
+                imageEntry.status == ModelStatus.Downloaded -> DrawSupport.READY
+                else -> DrawSupport.NOT_DOWNLOADED
+            },
+            imageModelName = imageEntry?.model?.name,
+            imageModelBytes = imageEntry?.model?.totalSizeBytes ?: 0L,
         )
     }
 
-    override val state: StateFlow<ChatState> = combine(conversation, modelPart, draft, draftImages) { chat, model, text, images ->
+    override val state: StateFlow<ChatState> = combine(
+        conversation,
+        modelPart,
+        draft,
+        draftImages,
+        drawMode,
+    ) { chat, model, text, images, drawing ->
         ChatState(
             chatId = chatId,
             title = chat.title,
@@ -221,6 +272,10 @@ class DefaultChatComponent(
             modelDownloaded = model.downloaded,
             vision = model.vision,
             visionModuleBytes = model.visionBytes,
+            drawMode = drawing && model.draw != DrawSupport.UNAVAILABLE,
+            draw = model.draw,
+            imageModelName = model.imageModelName,
+            imageModelBytes = model.imageModelBytes,
             modelLoadingProgress = model.loadingProgress?.takeIf { chat.isGenerating },
             isGenerating = chat.isGenerating,
             busyInOtherChat = chat.busyElsewhere,
@@ -238,6 +293,7 @@ class DefaultChatComponent(
             ChatIntent.AttachFailed -> draftImages.update { it.copy(error = AttachmentError.UNREADABLE) }
             is ChatIntent.RemoveAttachment -> remove(intent.id)
             ChatIntent.DismissAttachmentError -> draftImages.update { it.copy(error = null) }
+            ChatIntent.ToggleDrawMode -> drawMode.update { !it }
             ChatIntent.Send -> send()
             ChatIntent.Stop -> generation.stop()
             ChatIntent.Retry -> generation.retry(chatId)
@@ -249,8 +305,14 @@ class DefaultChatComponent(
     override suspend fun imageBytes(fileName: String): ByteArray? = imageStore.read(fileName)
 
     private fun send() {
+        val current = state.value
+        if (!current.canSend) return
+        if (current.drawMode) {
+            if (generation.draw(chatId, draft.value)) draft.value = ""
+            return
+        }
         val images = draftImages.value.items
-        if (state.value.canSend && generation.send(chatId, draft.value, images)) {
+        if (generation.send(chatId, draft.value, images)) {
             draft.value = ""
             // Файлы теперь принадлежат сообщению — удалять их нельзя.
             draftImages.update { it.copy(items = emptyList(), error = null) }
@@ -295,6 +357,7 @@ class DefaultChatComponent(
     private companion object {
         const val KEY_DRAFT = "chat_draft"
         const val KEY_ATTACHMENTS = "chat_attachments"
+        const val KEY_DRAW_MODE = "chat_draw_mode"
         val ATTACHMENTS_SERIALIZER = ListSerializer(ImageAttachment.serializer())
     }
 }

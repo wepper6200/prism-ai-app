@@ -4,4 +4,6 @@ package ai.prism.domain.model
 data class PlatformCapabilities(
     /** Доступны ли динамические цвета Material You (Android 12+). */
     val supportsDynamicColor: Boolean,
+    /** `android` или `desktop` — для выбора моделей каталога. */
+    val platform: String = "desktop",
 )

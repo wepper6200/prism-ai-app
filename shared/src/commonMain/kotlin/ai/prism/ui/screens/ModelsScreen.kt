@@ -2,6 +2,7 @@ package ai.prism.ui.screens
 
 import ai.prism.domain.inference.EngineState
 import ai.prism.domain.model.ModelEntry
+import ai.prism.domain.model.ModelKind
 import ai.prism.domain.model.ModelStatus
 import ai.prism.presentation.models.ModelsComponent
 import ai.prism.presentation.models.ModelsIntent
@@ -13,6 +14,8 @@ import ai.prism.resources.models_active
 import ai.prism.resources.models_delete_text
 import ai.prism.resources.models_delete_title
 import ai.prism.resources.models_details
+import ai.prism.resources.models_details_image
+import ai.prism.resources.models_draws
 import ai.prism.resources.models_device_ram
 import ai.prism.resources.models_download
 import ai.prism.resources.models_downloading
@@ -232,14 +235,26 @@ private fun ModelCard(
                 if ("android" in model.recommendedFor) Tag(stringResource(Res.string.models_for_phone))
                 if ("desktop" in model.recommendedFor) Tag(stringResource(Res.string.models_for_desktop))
                 if (model.supportsImages) Tag(stringResource(Res.string.models_vision))
+                if (model.kind == ModelKind.IMAGE) Tag(stringResource(Res.string.models_draws))
             }
+            val image = model.image
             Text(
-                text = stringResource(
-                    Res.string.models_details,
-                    model.quantization,
-                    formatBytes(model.totalSizeBytes),
-                    formatContext(model.contextLength),
-                ),
+                text = if (model.kind == ModelKind.IMAGE && image != null) {
+                    stringResource(
+                        Res.string.models_details_image,
+                        model.quantization,
+                        formatBytes(model.totalSizeBytes),
+                        image.width,
+                        image.height,
+                    )
+                } else {
+                    stringResource(
+                        Res.string.models_details,
+                        model.quantization,
+                        formatBytes(model.totalSizeBytes),
+                        formatContext(model.contextLength),
+                    )
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -344,7 +359,7 @@ private fun ModelStatusSection(
             }
         }
         ModelStatus.Downloaded -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (!isActive) {
+            if (!isActive && entry.model.kind == ModelKind.CHAT) {
                 FilledTonalButton(onClick = { onIntent(ModelsIntent.Activate(id)) }, modifier = Modifier.testTag("use_$id")) {
                     Text(stringResource(Res.string.models_use))
                 }

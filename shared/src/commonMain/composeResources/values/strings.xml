@@ -46,6 +46,7 @@
     <!-- Образец диалога перед историей: маленькие модели лучше следуют примеру, чем правилу. -->
     <string name="persona_question">Кто ты? Скажи честно, какая ты модель?</string>
     <string name="persona_reminder">(Напоминание для ассистента: ты — Prism AI и представляешься только так.)</string>
+    <string name="image_prompt_instruction">Переведи описание картинки на английский язык для генератора изображений. Ответь только переводом одной строкой, без пояснений, кавычек и вступлений. Сохрани все детали описания.</string>
     <string name="persona_answer">Я Prism AI — офлайн-ассистент. Я работаю на открытой языковой модели прямо на этом устройстве, без интернета, и ваши данные никуда не уходят. Какая именно модель сейчас используется, можно посмотреть в разделе «Настройки → Модели и лицензии». Чем могу помочь?</string>
 
     <string name="action_delete">Удалить</string>
@@ -78,6 +79,16 @@
     <string name="vision_unsupported_text">«%1$s» работает только с текстом. Чтобы задавать вопросы по фото, выберите модель Gemma 4 на экране «Модели».</string>
     <string name="vision_no_model_text">Сначала выберите модель, которая понимает изображения, — например, Gemma 4 на экране «Модели».</string>
     <string name="vision_not_downloaded_text">Чтобы «%1$s» понимала фото, скачайте её модуль зрения (%2$s) на экране «Модели».</string>
+    <string name="input_draw">Нарисовать</string>
+    <string name="input_draw_placeholder">Опишите картинку</string>
+    <string name="draw_translating">Готовлю описание…</string>
+    <string name="draw_loading">Загружаю модель рисования…</string>
+    <string name="draw_step">Рисую… шаг %1$d из %2$d</string>
+    <string name="draw_dialog_title">Модель для рисования не скачана</string>
+    <string name="draw_dialog_text">Чтобы рисовать, скачайте «%1$s» (%2$s) на экране «Модели». Она работает без интернета.</string>
+    <string name="image_save">Сохранить</string>
+    <string name="image_saved">Изображение сохранено</string>
+    <string name="image_save_failed">Не удалось сохранить изображение</string>
     <string name="input_stop">Остановить ответ</string>
 
     <string name="error_no_model">Модель не выбрана. Откройте «Модели» и скачайте любую.</string>
@@ -90,6 +101,9 @@
     <string name="error_images_not_supported">Активная модель не понимает изображения. Выберите Gemma 4 и скачайте её модуль зрения на экране «Модели».</string>
     <string name="error_image_failed">Не удалось обработать изображение. Попробуйте другое фото.</string>
     <string name="error_vision_module_corrupted">Модуль зрения повреждён. Удалите модель и скачайте её снова.</string>
+    <string name="error_no_image_model">Модель для рисования не скачана. Откройте «Модели» и скачайте её.</string>
+    <string name="error_image_generation_failed">Не удалось нарисовать изображение. Попробуйте ещё раз или измените описание.</string>
+    <string name="error_gpu_driver_missing">Для рисования нужен драйвер видеокарты с поддержкой Vulkan. Установите драйвер NVIDIA, AMD или Intel.</string>
     <string name="error_unknown">Не удалось получить ответ. Попробуйте ещё раз.</string>
 
     <string name="models_device_ram">Память устройства: %1$s</string>
@@ -110,6 +124,8 @@
     <string name="models_vision">Понимает изображения</string>
     <string name="models_vision_missing">Модель уже отвечает на текст. Чтобы она понимала фото, докачайте модуль зрения (%1$s).</string>
     <string name="models_vision_download">Скачать модуль зрения</string>
+    <string name="models_draws">Рисует изображения</string>
+    <string name="models_details_image">%1$s · %2$s · %3$d×%4$d</string>
     <string name="models_details">%1$s · %2$s · контекст %3$s</string>
     <string name="models_license">Лицензия: %1$s</string>
     <string name="models_delete_title">Удалить модель?</string>
