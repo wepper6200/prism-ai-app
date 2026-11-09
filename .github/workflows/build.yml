@@ -1,0 +1,81 @@
+name: Build
+
+on:
+  push:
+    branches: [main, "claude/**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    name: Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Build debug APK (warnings are errors)
+        run: ./gradlew --stacktrace --warning-mode=all :androidApp:assembleDebug
+      - uses: actions/upload-artifact@v5
+        with:
+          name: PrismAI-android-debug-apk
+          path: androidApp/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+  desktop:
+    name: Desktop build, tests and screenshots
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Compile desktop app and run tests (warnings are errors)
+        run: ./gradlew --stacktrace --warning-mode=all :desktopApp:compileKotlin :shared:jvmTest
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: PrismAI-screenshots
+          path: shared/build/screenshots/
+          if-no-files-found: warn
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: test-reports
+          path: shared/build/reports/tests/
+
+  windows:
+    name: Windows app
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Build Windows app image
+        run: ./gradlew --stacktrace --warning-mode=all :desktopApp:createDistributable
+        shell: bash
+      - uses: actions/upload-artifact@v5
+        with:
+          name: PrismAI-windows
+          path: desktopApp/build/compose/binaries/main/app/PrismAI/
+          if-no-files-found: error

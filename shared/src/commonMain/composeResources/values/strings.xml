@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Prism AI</string>
+    <string name="logo_description">Логотип Prism AI</string>
+
+    <string name="nav_chats">Чаты</string>
+    <string name="nav_models">Модели</string>
+    <string name="nav_settings">Настройки</string>
+    <string name="action_back">Назад</string>
+    <string name="action_new_chat">Новый чат</string>
+
+    <string name="chat_untitled">Новый чат</string>
+    <string name="chats_empty_title">Пока нет чатов</string>
+    <string name="chats_empty_text">Создайте первый чат — переписка хранится только на этом устройстве.</string>
+
+    <string name="welcome_title">Добро пожаловать в Prism AI</string>
+    <string name="welcome_text">Офлайн ИИ-ассистент: модели работают локально, данные не покидают устройство. Выберите чат слева или создайте новый.</string>
+
+    <string name="chat_no_model">Модель не выбрана</string>
+    <string name="chat_empty_title">Начните разговор</string>
+    <string name="chat_empty_text">Чтобы Prism AI смог отвечать, загрузите модель. Она будет работать полностью офлайн.</string>
+    <string name="chat_open_models">Открыть модели</string>
+
+    <string name="input_placeholder">Сообщение</string>
+    <string name="input_attach_file">Прикрепить файл</string>
+    <string name="input_attach_image">Прикрепить изображение</string>
+    <string name="input_microphone">Голосовой ввод</string>
+    <string name="input_send">Отправить</string>
+
+    <string name="models_empty_title">Моделей пока нет</string>
+    <string name="models_empty_text">Здесь появятся модели в формате GGUF. Скачивание начнётся только по вашей команде, а работать модели будут прямо на устройстве.</string>
+
+    <string name="settings_appearance">Оформление</string>
+    <string name="settings_theme_style">Стиль интерфейса</string>
+    <string name="theme_expressive">Material 3 Expressive</string>
+    <string name="theme_expressive_desc">Выразительные цвета и формы</string>
+    <string name="theme_glass">Liquid Glass</string>
+    <string name="theme_glass_desc">Стеклянные панели и размытие</string>
+    <string name="settings_dark_mode">Тема</string>
+    <string name="dark_mode_system">Системная</string>
+    <string name="dark_mode_light">Светлая</string>
+    <string name="dark_mode_dark">Тёмная</string>
+    <string name="settings_dynamic_color">Цвета обоев</string>
+    <string name="settings_dynamic_color_desc">Палитра Material You из обоев устройства. Работает со стилем Material 3 Expressive.</string>
+    <string name="settings_privacy">Конфиденциальность</string>
+    <string name="settings_privacy_text">Все модели работают на устройстве. Сеть нужна только для скачивания моделей по вашей команде. Никакой телеметрии и аналитики.</string>
+    <string name="settings_about">О приложении</string>
+    <string name="settings_version">Версия %1$s</string>
+</resources>

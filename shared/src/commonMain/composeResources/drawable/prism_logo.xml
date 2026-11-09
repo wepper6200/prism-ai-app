@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Логотип Prism AI: луч света проходит через призму и раскладывается в спектр. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Входящий луч -->
+    <path
+        android:pathData="M3,27.5 L17.5,23.2"
+        android:strokeWidth="2.4"
+        android:strokeColor="#FF94A3B8"
+        android:strokeLineCap="round" />
+    <!-- Спектр -->
+    <path
+        android:pathData="M30.5,22.6 L45,15.5"
+        android:strokeWidth="2.6"
+        android:strokeColor="#FFEC4899"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M31,24 L45,22.5"
+        android:strokeWidth="2.6"
+        android:strokeColor="#FFF59E0B"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M31.3,25.4 L45,29.5"
+        android:strokeWidth="2.6"
+        android:strokeColor="#FF22D3EE"
+        android:strokeLineCap="round" />
+    <!-- Призма -->
+    <path
+        android:pathData="M24,7 L39,35 L9,35 Z"
+        android:fillColor="#FF7C3AED" />
+    <path
+        android:pathData="M24,14.5 L33,31.5 L15,31.5 Z"
+        android:fillColor="#FFB79CFF" />
+    <path
+        android:pathData="M24,14.5 L33,31.5 L24,31.5 Z"
+        android:fillColor="#FFDDD0FF" />
+</vector>
