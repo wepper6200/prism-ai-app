@@ -38,8 +38,9 @@ Prism AI — полностью офлайн ИИ-ассистент для **Wi
 
 1. **Чат с историей:** несколько диалогов, потоковый ответ.
 2. **Картинки:** понимание изображений vision-моделями.
-3. **Файлы:** вопросы по PDF, TXT, MD, DOCX через RAG.
-4. **Голос:** распознавание речи, озвучка ответов, режим разговора.
+3. **Рисование:** генерация изображений по описанию (Windows — FLUX.1 [schnell] Q4, Android — SDXL-Lightning).
+4. **Файлы:** вопросы по PDF, TXT, MD, DOCX через RAG.
+5. **Голос:** распознавание речи, озвучка ответов, режим разговора.
 
 ## Стек
 
@@ -72,6 +73,15 @@ Prism AI — полностью офлайн ИИ-ассистент для **Wi
   В промпте изображение — метка `<__media__>` перед текстом сообщения; кэш промпта переиспользует уже закодированные
   изображения по их id. Gemma 4: не больше 280 токенов на изображение (`MAX_IMAGE_TOKENS`, должно помещаться в батч).
   Android: системный Photo Picker (без разрешений) и камера через `CameraOutputProvider` (снимок не попадает в галерею).
+- **Рисование:** stable-diffusion.cpp (подмодуль `native/stable-diffusion.cpp`, закреплён на теге `master-…`) в отдельном
+  процессе `prism_imagegen` (`native/imagegen`): его изменённая ggml несовместима с ggml из llama.cpp в одном процессе,
+  а нехватка памяти при рисовании не должна ронять приложение. Протокол — строки JSON через stdin/stdout
+  (load/generate/cancel/quit → started/loaded/progress/done/error); пути только через stdin (UTF-8, кириллица на Windows).
+  Kotlin: `ProcessImageGenerator`. Windows — сборка с Vulkan (без драйвера Vulkan программа не стартует →
+  `GPU_DRIVER_MISSING`), Android — `libprism_imagegen.so` в jniLibs (запускать можно только lib*.so из каталога
+  нативных библиотек). Модели изображений в каталоге: `kind: image`, `platforms`, `mainRole`, `components`
+  (t5xxl/clip_l/clip_g/vae/taesd), `image` (размер, шаги, сэмплер). Перед рисованием русское описание переводит
+  модель чата, затем она выгружается; перед ответом чата выгружается модель рисования — в памяти всегда одна.
 
 ## Дизайн
 
@@ -95,6 +105,10 @@ Prism AI — полностью офлайн ИИ-ассистент для **Wi
 - Интеграционные тесты llama.cpp: `-Pprism.nativeTests=true` + переменные `PRISM_TEST_MODEL` / `PRISM_TEST_GEMMA`,
   для изображений — `PRISM_TEST_VLM` / `PRISM_TEST_VLM_MMPROJ` (SmolVLM 256M) и `PRISM_TEST_GEMMA4` /
   `PRISM_TEST_GEMMA4_MMPROJ` (Gemma 4 E2B): модель должна назвать цвет однотонной картинки.
+- Рисование: `-Pprism.imagegen=true` собирает `prism_imagegen` (на Windows с `-Pprism.vulkan=true` — с Vulkan);
+  после клонирования ещё `git -C native/stable-diffusion.cpp submodule update --init --depth 1 ggml`.
+  Тесты: `PRISM_TEST_SDXL` / `PRISM_TEST_SDXL_TAESD` (в задании Desktop) и `PRISM_TEST_FLUX_DIR` (отдельное задание
+  «Image generation (FLUX.1 schnell)»: ~10 ГБ не помещаются в кэш Actions) — модель рисует красный фон, проверяется цвет.
 - Облачная среда разработки не видит huggingface.co: метаданные файлов (размер, SHA-256) получаются разовым
   workflow `model-catalog-report.yml`.
 - Предупреждения компилятора — ошибки (`allWarningsAsErrors`). Шаг диагностики CI при падении печатает
