@@ -6,18 +6,27 @@ import ai.prism.domain.model.AppSettings
 import ai.prism.domain.model.DarkMode
 import ai.prism.domain.model.PlatformCapabilities
 import ai.prism.domain.model.ThemeStyle
+import ai.prism.domain.repository.ModelRepository
 import ai.prism.domain.repository.SettingsRepository
 import com.arkivanov.decompose.ComponentContext
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlin.coroutines.CoroutineContext
+
+/** Семейство моделей и его лицензия — для раздела «О приложении». */
+data class ModelLicenseInfo(
+    val family: String,
+    val licenseName: String,
+    val licenseUrl: String,
+)
 
 data class SettingsState(
     val settings: AppSettings,
     val supportsDynamicColor: Boolean,
     val versionName: String,
+    val modelLicenses: List<ModelLicenseInfo> = emptyList(),
 )
 
 sealed interface SettingsIntent {
@@ -36,6 +45,7 @@ interface SettingsComponent {
 class DefaultSettingsComponent(
     componentContext: ComponentContext,
     private val settingsRepository: SettingsRepository,
+    modelRepository: ModelRepository,
     capabilities: PlatformCapabilities,
     mainContext: CoroutineContext,
     private val onBack: () -> Unit,
@@ -49,9 +59,14 @@ class DefaultSettingsComponent(
         versionName = BuildInfo.VERSION_NAME,
     )
 
-    override val state: StateFlow<SettingsState> = settingsRepository.settings
-        .map { toState(it, capabilities.supportsDynamicColor) }
-        .stateIn(
+    override val state: StateFlow<SettingsState> =
+        combine(settingsRepository.settings, modelRepository.models) { settings, models ->
+            toState(settings, capabilities.supportsDynamicColor).copy(
+                modelLicenses = models
+                    .map { ModelLicenseInfo(it.model.family, it.model.license.name, it.model.license.url) }
+                    .distinctBy { it.family },
+            )
+        }.stateIn(
             scope = scope,
             started = SharingStarted.Eagerly,
             initialValue = toState(settingsRepository.settings.value, capabilities.supportsDynamicColor),

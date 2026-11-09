@@ -1,15 +1,25 @@
 package ai.prism.di
 
 import ai.prism.data.db.PrismDatabase
+import ai.prism.data.models.FileModelStorage
+import ai.prism.data.models.HttpModelDownloader
+import ai.prism.data.models.ModelDownloader
+import ai.prism.data.models.ModelStorage
 import ai.prism.data.settings.KeyValueStore
 import ai.prism.data.settings.SharedPreferencesKeyValueStore
+import ai.prism.domain.inference.InferenceEngine
+import ai.prism.domain.model.DeviceInfo
 import ai.prism.domain.model.PlatformCapabilities
+import ai.prism.inference.llama.LlamaInferenceEngine
+import ai.prism.platform.AndroidDeviceInfo
+import ai.prism.platform.AndroidNativeLibraryLoader
 import android.content.Context
 import android.os.Build
 import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.driver.android.AndroidSqliteDriver
 import org.koin.core.module.Module
 import org.koin.dsl.module
+import java.io.File
 
 fun androidPlatformModule(context: Context): Module = module {
     val appContext = context.applicationContext
@@ -18,6 +28,13 @@ fun androidPlatformModule(context: Context): Module = module {
     single {
         PlatformCapabilities(supportsDynamicColor = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
     }
+    single<DeviceInfo> { AndroidDeviceInfo(appContext) }
+    // Модели — во внутреннем хранилище приложения: не видны другим приложениям и удаляются вместе с ним.
+    single { FileModelStorage(File(appContext.filesDir, MODELS_DIR)) }
+    single<ModelStorage> { get<FileModelStorage>() }
+    single<ModelDownloader> { HttpModelDownloader(get()) }
+    single<InferenceEngine> { LlamaInferenceEngine(AndroidNativeLibraryLoader(appContext), get()) }
 }
 
 private const val DATABASE_NAME = "prism.db"
+private const val MODELS_DIR = "models"

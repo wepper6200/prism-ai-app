@@ -4,6 +4,22 @@ import ai.prism.domain.model.ChatSummary
 import ai.prism.presentation.chats.ChatListComponent
 import ai.prism.presentation.chats.ChatListIntent
 import ai.prism.resources.Res
+import ai.prism.resources.action_cancel
+import ai.prism.resources.action_delete
+import ai.prism.resources.chat_delete_text
+import ai.prism.resources.chat_delete_title
+import ai.prism.resources.chat_generating
+import ai.prism.resources.chat_more
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import ai.prism.resources.action_new_chat
 import ai.prism.resources.app_name
 import ai.prism.resources.chat_untitled
@@ -51,6 +67,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.painterResource
@@ -63,10 +81,13 @@ enum class SidebarDestination { Models, Settings }
 fun ChatList(
     chats: List<ChatSummary>,
     selectedChatId: String?,
+    generatingChatId: String?,
     onOpenChat: (String) -> Unit,
+    onDeleteChat: (String) -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(vertical = 4.dp),
 ) {
+    var pendingDelete by remember { mutableStateOf<String?>(null) }
     LazyColumn(
         modifier = modifier,
         contentPadding = contentPadding,
@@ -84,9 +105,60 @@ fun ChatList(
                 selected = chat.id == selectedChatId,
                 onClick = { onOpenChat(chat.id) },
                 icon = { Icon(Icons.Outlined.ChatBubbleOutline, contentDescription = null) },
+                badge = {
+                    if (chat.id == generatingChatId) {
+                        val description = stringResource(Res.string.chat_generating)
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp).semantics { contentDescription = description },
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        ChatItemMenu(onDelete = { pendingDelete = chat.id })
+                    }
+                },
                 modifier = Modifier
                     .animateItem()
                     .testTag("chat_item_${chat.id}"),
+            )
+        }
+    }
+    pendingDelete?.let { chatId ->
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text(stringResource(Res.string.chat_delete_title)) },
+            text = { Text(stringResource(Res.string.chat_delete_text)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDeleteChat(chatId)
+                        pendingDelete = null
+                    },
+                    modifier = Modifier.testTag("confirm_delete"),
+                ) { Text(stringResource(Res.string.action_delete)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDelete = null }) { Text(stringResource(Res.string.action_cancel)) }
+            },
+        )
+    }
+}
+
+@Composable
+private fun ChatItemMenu(onDelete: () -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { expanded = true }, modifier = Modifier.size(32.dp).testTag("chat_menu")) {
+            Icon(Icons.Outlined.MoreVert, contentDescription = stringResource(Res.string.chat_more), modifier = Modifier.size(18.dp))
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(
+                text = { Text(stringResource(Res.string.action_delete)) },
+                leadingIcon = { Icon(Icons.Outlined.Delete, contentDescription = null) },
+                onClick = {
+                    expanded = false
+                    onDelete()
+                },
+                modifier = Modifier.testTag("chat_delete"),
             )
         }
     }
@@ -143,7 +215,9 @@ fun ChatListScreen(
                     ChatList(
                         chats = state.chats,
                         selectedChatId = null,
+                        generatingChatId = state.generatingChatId,
                         onOpenChat = { component.onIntent(ChatListIntent.OpenChat(it)) },
+                        onDeleteChat = { component.onIntent(ChatListIntent.DeleteChat(it)) },
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(start = 8.dp, top = 8.dp, end = 8.dp, bottom = 88.dp),
                     )
@@ -220,7 +294,9 @@ fun Sidebar(
                     ChatList(
                         chats = state.chats,
                         selectedChatId = selectedChatId,
+                        generatingChatId = state.generatingChatId,
                         onOpenChat = { component.onIntent(ChatListIntent.OpenChat(it)) },
+                        onDeleteChat = { component.onIntent(ChatListIntent.DeleteChat(it)) },
                         modifier = Modifier.fillMaxSize(),
                     )
                 }

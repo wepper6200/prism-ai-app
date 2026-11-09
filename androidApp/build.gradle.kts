@@ -8,6 +8,7 @@ plugins {
 android {
     namespace = "ai.prism.android"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
+    ndkVersion = libs.versions.android.ndk.get()
 
     defaultConfig {
         applicationId = "ai.prism.app"
@@ -20,6 +21,22 @@ android {
             // Целевая платформа продукта — только arm64-v8a.
             abiFilters += "arm64-v8a"
         }
+        externalNativeBuild {
+            cmake {
+                // llama.cpp всегда собирается с оптимизациями, даже в debug-сборке приложения.
+                arguments += "-DCMAKE_BUILD_TYPE=Release"
+                if (providers.gradleProperty("prism.ccache").map { it.toBoolean() }.getOrElse(false)) {
+                    arguments += listOf("-DCMAKE_C_COMPILER_LAUNCHER=ccache", "-DCMAKE_CXX_COMPILER_LAUNCHER=ccache")
+                }
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("../native/CMakeLists.txt")
+            version = libs.versions.android.cmake.get()
+        }
     }
 
     compileOptions {
@@ -30,6 +47,10 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
+        jniLibs {
+            // Бэкенды ggml загружаются по пути из nativeLibraryDir, поэтому .so распаковываются при установке.
+            useLegacyPackaging = true
         }
     }
 }

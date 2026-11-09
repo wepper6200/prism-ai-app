@@ -1,8 +1,11 @@
 package ai.prism.presentation.root
 
+import ai.prism.domain.inference.InferenceEngine
 import ai.prism.domain.model.AppSettings
+import ai.prism.domain.model.DeviceInfo
 import ai.prism.domain.model.PlatformCapabilities
 import ai.prism.domain.repository.ChatRepository
+import ai.prism.domain.repository.ModelRepository
 import ai.prism.domain.repository.SettingsRepository
 import ai.prism.presentation.chat.ChatComponent
 import ai.prism.presentation.chat.DefaultChatComponent
@@ -12,6 +15,7 @@ import ai.prism.presentation.models.DefaultModelsComponent
 import ai.prism.presentation.models.ModelsComponent
 import ai.prism.presentation.settings.DefaultSettingsComponent
 import ai.prism.presentation.settings.SettingsComponent
+import ai.prism.service.ChatGenerationService
 import com.arkivanov.decompose.ComponentContext
 import com.arkivanov.decompose.childContext
 import com.arkivanov.decompose.router.stack.ChildStack
@@ -48,23 +52,34 @@ interface RootComponent {
     }
 }
 
+/** Зависимости уровня приложения, которые получают экраны. */
+class AppDependencies(
+    val chatRepository: ChatRepository,
+    val modelRepository: ModelRepository,
+    val settingsRepository: SettingsRepository,
+    val generationService: ChatGenerationService,
+    val engine: InferenceEngine,
+    val capabilities: PlatformCapabilities,
+    val deviceInfo: DeviceInfo,
+)
+
 class DefaultRootComponent(
     componentContext: ComponentContext,
-    private val chatRepository: ChatRepository,
-    private val settingsRepository: SettingsRepository,
-    private val capabilities: PlatformCapabilities,
+    private val deps: AppDependencies,
     private val mainContext: CoroutineContext = Dispatchers.Main.immediate,
 ) : RootComponent, ComponentContext by componentContext {
 
     private val navigation = StackNavigation<Config>()
 
-    override val settings: StateFlow<AppSettings> = settingsRepository.settings
+    override val settings: StateFlow<AppSettings> = deps.settingsRepository.settings
 
     override val chatList: ChatListComponent = DefaultChatListComponent(
         componentContext = childContext(key = "chatList"),
-        chatRepository = chatRepository,
+        chatRepository = deps.chatRepository,
+        generation = deps.generationService,
         mainContext = mainContext,
         onOpenChat = { chatId -> openScreen(Config.Chat(chatId)) },
+        onChatDeleted = ::onChatDeleted,
         onOpenModels = { openScreen(Config.Models) },
         onOpenSettings = { openScreen(Config.Settings) },
     )
@@ -85,6 +100,12 @@ class DefaultRootComponent(
         navigation.replaceAll(Config.Home, config)
     }
 
+    private fun onChatDeleted(chatId: String) {
+        if (stack.value.active.configuration == Config.Chat(chatId)) {
+            navigation.replaceAll(Config.Home)
+        }
+    }
+
     private fun createChild(config: Config, componentContext: ComponentContext): RootComponent.Child =
         when (config) {
             Config.Home -> RootComponent.Child.Home
@@ -92,20 +113,32 @@ class DefaultRootComponent(
                 DefaultChatComponent(
                     componentContext = componentContext,
                     chatId = config.chatId,
-                    chatRepository = chatRepository,
+                    chatRepository = deps.chatRepository,
+                    modelRepository = deps.modelRepository,
+                    engine = deps.engine,
+                    generation = deps.generationService,
                     mainContext = mainContext,
                     onOpenModels = { openScreen(Config.Models) },
                     onBack = ::onBack,
                 ),
             )
             Config.Models -> RootComponent.Child.Models(
-                DefaultModelsComponent(componentContext = componentContext, onBack = ::onBack),
+                DefaultModelsComponent(
+                    componentContext = componentContext,
+                    modelRepository = deps.modelRepository,
+                    engine = deps.engine,
+                    generation = deps.generationService,
+                    deviceInfo = deps.deviceInfo,
+                    mainContext = mainContext,
+                    onBack = ::onBack,
+                ),
             )
             Config.Settings -> RootComponent.Child.Settings(
                 DefaultSettingsComponent(
                     componentContext = componentContext,
-                    settingsRepository = settingsRepository,
-                    capabilities = capabilities,
+                    settingsRepository = deps.settingsRepository,
+                    modelRepository = deps.modelRepository,
+                    capabilities = deps.capabilities,
                     mainContext = mainContext,
                     onBack = ::onBack,
                 ),
@@ -130,14 +163,8 @@ class DefaultRootComponent(
 
 /** Создаёт корневой компонент с зависимостями из Koin. */
 class RootComponentFactory(
-    private val chatRepository: ChatRepository,
-    private val settingsRepository: SettingsRepository,
-    private val capabilities: PlatformCapabilities,
+    private val dependencies: AppDependencies,
 ) {
-    fun create(componentContext: ComponentContext): RootComponent = DefaultRootComponent(
-        componentContext = componentContext,
-        chatRepository = chatRepository,
-        settingsRepository = settingsRepository,
-        capabilities = capabilities,
-    )
+    fun create(componentContext: ComponentContext): RootComponent =
+        DefaultRootComponent(componentContext = componentContext, deps = dependencies)
 }

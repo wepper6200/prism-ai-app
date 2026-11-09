@@ -1,11 +1,14 @@
 [versions]
 # Версия приложения Prism AI (единый источник для Android, Desktop и экрана «О приложении»).
-prism-versionName = "0.1.0"
-prism-versionCode = "1"
+prism-versionName = "0.2.0"
+prism-versionCode = "2"
 
 android-compileSdk = "37"
 android-targetSdk = "37"
 android-minSdk = "29"
+# NDK и CMake для сборки llama.cpp под Android (как в официальном примере llama.android).
+android-ndk = "29.0.13113456"
+android-cmake = "3.31.6"
 
 # Все версии сверены с последними стабильными релизами (ноябрь 2026).
 kotlin = "2.4.21"
@@ -36,12 +39,14 @@ kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-c
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinx-coroutines" }
 kotlinx-coroutines-swing = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-swing", version.ref = "kotlinx-coroutines" }
 kotlinx-serialization-core = { module = "org.jetbrains.kotlinx:kotlinx-serialization-core", version.ref = "kotlinx-serialization" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
 
 koin-core = { module = "io.insert-koin:koin-core", version.ref = "koin" }
 
 sqldelight-runtime = { module = "app.cash.sqldelight:runtime", version.ref = "sqldelight" }
 sqldelight-android-driver = { module = "app.cash.sqldelight:android-driver", version.ref = "sqldelight" }
 sqldelight-sqlite-driver = { module = "app.cash.sqldelight:sqlite-driver", version.ref = "sqldelight" }
+sqldelight-coroutines = { module = "app.cash.sqldelight:coroutines-extensions", version.ref = "sqldelight" }
 
 decompose = { module = "com.arkivanov.decompose:decompose", version.ref = "decompose" }
 decompose-extensions-compose = { module = "com.arkivanov.decompose:extensions-compose", version.ref = "decompose" }

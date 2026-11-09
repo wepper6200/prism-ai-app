@@ -28,12 +28,18 @@ compose.desktop {
             packageVersion = libs.versions.prism.versionName.get()
             description = "Prism AI — офлайн ИИ-ассистент"
             vendor = "Prism AI"
-            // java.sql — для SQLite (SQLDelight), java.prefs — для сохранения настроек.
-            modules("java.sql", "java.prefs")
+            // java.sql — SQLite (SQLDelight), java.prefs — настройки, jdk.management — объём памяти устройства.
+            modules("java.sql", "java.prefs", "jdk.management")
+            // Нативные библиотеки llama.cpp (собираются модулем :native).
+            appResourcesRootDir.set(project(":native").layout.buildDirectory.dir("app-resources"))
 
             windows {
                 iconFile.set(project.file("icons/prism.ico"))
             }
         }
     }
+}
+
+tasks.matching { it.name == "prepareAppResources" }.configureEach {
+    dependsOn(":native:assembleAppResources")
 }

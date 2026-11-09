@@ -13,18 +13,31 @@ concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # Маленькие модели для интеграционных тестов llama.cpp (проверяются по SHA-256).
+  TINY_MODEL_URL: https://huggingface.co/ggml-org/models/resolve/main/tinyllamas/stories260K.gguf
+  TINY_MODEL_SHA256: 270cba1bd5109f42d03350f60406024560464db173c0e387d91f0426d3bd256d
+  GEMMA_TEST_URL: https://huggingface.co/ggml-org/gemma-3-270m-it-GGUF/resolve/main/gemma-3-270m-it-Q8_0.gguf
+  GEMMA_TEST_SHA256: 0ef57d2c838458a1952664260dcba38e5bdda37494f3af732f06e4add24068e3
+
 jobs:
   android:
     name: Android APK
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
+        with:
+          submodules: true
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 21
       - uses: gradle/actions/setup-gradle@v5
+      - uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: android-arm64
+          max-size: 1G
       - name: Provision Gradle (retries on network errors)
         shell: bash
         run: |
@@ -33,8 +46,14 @@ jobs:
             echo "Gradle download failed, retry $i"; sleep $((i * 15))
           done
           exit 1
-      - name: Build debug APK (warnings are errors)
-        run: ./gradlew --stacktrace --warning-mode=all :androidApp:assembleDebug
+      - name: Build debug APK with llama.cpp (warnings are errors)
+        run: ./gradlew --stacktrace --warning-mode=all -Pprism.ccache=true :androidApp:assembleDebug
+      - name: Check native libraries in APK
+        run: |
+          apk=$(ls androidApp/build/outputs/apk/debug/*.apk)
+          unzip -l "$apk" | grep -E "lib/arm64-v8a/.*\.so" | tee native-libs.txt
+          grep -q "libprism_llama.so" native-libs.txt
+          grep -q "libggml-cpu-android_armv8.0_1.so" native-libs.txt
       - name: Show compiler warnings (diagnostics on failure)
         if: failure()
         run: |
@@ -50,14 +69,35 @@ jobs:
   desktop:
     name: Desktop build, tests and screenshots
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
+        with:
+          submodules: true
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 21
       - uses: gradle/actions/setup-gradle@v5
+      - uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: desktop-linux
+          max-size: 1G
+      - name: Cache test models
+        uses: actions/cache@v4
+        with:
+          path: ~/prism-test-models
+          key: test-models-${{ env.TINY_MODEL_SHA256 }}-${{ env.GEMMA_TEST_SHA256 }}
+      - name: Download test models
+        shell: bash
+        run: |
+          mkdir -p ~/prism-test-models && cd ~/prism-test-models
+          [ -f tiny.gguf ] || curl -fsSL --retry 5 -o tiny.gguf "$TINY_MODEL_URL"
+          [ -f gemma.gguf ] || curl -fsSL --retry 5 -o gemma.gguf "$GEMMA_TEST_URL"
+          echo "$TINY_MODEL_SHA256  tiny.gguf" | sha256sum -c -
+          echo "$GEMMA_TEST_SHA256  gemma.gguf" | sha256sum -c -
+          echo "PRISM_TEST_MODEL=$HOME/prism-test-models/tiny.gguf" >> "$GITHUB_ENV"
+          echo "PRISM_TEST_GEMMA=$HOME/prism-test-models/gemma.gguf" >> "$GITHUB_ENV"
       - name: Provision Gradle (retries on network errors)
         shell: bash
         run: |
@@ -66,8 +106,8 @@ jobs:
             echo "Gradle download failed, retry $i"; sleep $((i * 15))
           done
           exit 1
-      - name: Compile desktop app and run tests (warnings are errors)
-        run: ./gradlew --stacktrace --warning-mode=all :desktopApp:compileKotlin :shared:jvmTest
+      - name: Compile desktop app, build llama.cpp and run all tests (warnings are errors)
+        run: ./gradlew --stacktrace --warning-mode=all -Pprism.nativeTests=true -Pprism.ccache=true :desktopApp:compileKotlin :shared:jvmTest
       - name: Show compiler warnings (diagnostics on failure)
         if: failure()
         run: |
@@ -82,23 +122,33 @@ jobs:
           path: shared/build/screenshots/
           if-no-files-found: warn
       - name: Upload test reports
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v6
         with:
           name: test-reports
           path: shared/build/reports/tests/
+          if-no-files-found: ignore
 
   windows:
     name: Windows app
     runs-on: windows-latest
-    timeout-minutes: 40
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v5
+        with:
+          submodules: true
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 21
       - uses: gradle/actions/setup-gradle@v5
+      - name: Install Vulkan SDK
+        uses: jakoch/install-vulkan-sdk-action@v1
+        with:
+          vulkan_version: latest
+          install_runtime: false
+          cache: true
+          stripdown: true
       - name: Provision Gradle (retries on network errors)
         shell: bash
         run: |
@@ -107,15 +157,26 @@ jobs:
             echo "Gradle download failed, retry $i"; sleep $((i * 15))
           done
           exit 1
-      - name: Build Windows app image
-        # WiX скачивается с GitHub Releases, который иногда отвечает 504 — повторяем.
+      - name: Download tiny test model
         shell: bash
         run: |
-          for i in 1 2 3; do
-            ./gradlew --stacktrace --warning-mode=all :desktopApp:createDistributable && exit 0
-            echo "Build failed, retry $i"; sleep $((i * 20))
-          done
-          exit 1
+          mkdir -p "$HOME/prism-test-models" && cd "$HOME/prism-test-models"
+          curl -fsSL --retry 5 -o tiny.gguf "$TINY_MODEL_URL"
+          echo "$TINY_MODEL_SHA256  tiny.gguf" | sha256sum -c -
+          echo "PRISM_TEST_MODEL=$(cygpath -w "$HOME/prism-test-models/tiny.gguf")" >> "$GITHUB_ENV"
+      - name: Build Windows app with llama.cpp (CPU + Vulkan)
+        shell: bash
+        run: ./gradlew --stacktrace --warning-mode=all -Pprism.vulkan=true :desktopApp:createDistributable
+      - name: Check DLL loading on Windows (llama.cpp integration test)
+        shell: bash
+        run: ./gradlew --stacktrace -Pprism.nativeTests=true -Pprism.vulkan=true :shared:jvmTest --tests "ai.prism.inference.llama.*"
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: windows-test-reports
+          path: shared/build/reports/tests/
+          if-no-files-found: ignore
       - uses: actions/upload-artifact@v6
         with:
           name: PrismAI-windows

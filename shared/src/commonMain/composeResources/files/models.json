@@ -1,0 +1,100 @@
+{
+  "version": 1,
+  "models": [
+    {
+      "id": "gemma-4-e2b-it-q4_0",
+      "name": "Gemma 4 E2B",
+      "family": "Gemma 4",
+      "parameters": "E2B",
+      "quantization": "Q4_0",
+      "description": {
+        "ru": "Быстрая модель для телефона: хорошо понимает русский, отвечает за секунды."
+      },
+      "url": "https://huggingface.co/ggml-org/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q4_0.gguf",
+      "fileName": "gemma-4-E2B-it-Q4_0.gguf",
+      "sizeBytes": 2841481184,
+      "sha256": "8e30dff3ac4c8434c49a7036fa15564bdbb6044e42bf04550bf1a096ad7e6a52",
+      "contextLength": 8192,
+      "minRamMb": 6144,
+      "chatFormat": "gemma4",
+      "license": { "name": "Apache 2.0", "url": "https://www.apache.org/licenses/LICENSE-2.0" },
+      "recommendedFor": ["android"]
+    },
+    {
+      "id": "gemma-4-e4b-it-q4_0",
+      "name": "Gemma 4 E4B",
+      "family": "Gemma 4",
+      "parameters": "E4B",
+      "quantization": "Q4_0",
+      "description": {
+        "ru": "Умнее E2B и всё ещё помещается в мощный телефон. Хороший выбор для ноутбука."
+      },
+      "url": "https://huggingface.co/ggml-org/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q4_0.gguf",
+      "fileName": "gemma-4-E4B-it-Q4_0.gguf",
+      "sizeBytes": 4590807392,
+      "sha256": "a555b900214b477d8880e7832e0b8925e139b0159640036b09fe472b6f2097f2",
+      "contextLength": 8192,
+      "minRamMb": 8192,
+      "chatFormat": "gemma4",
+      "license": { "name": "Apache 2.0", "url": "https://www.apache.org/licenses/LICENSE-2.0" },
+      "recommendedFor": ["desktop"]
+    },
+    {
+      "id": "gemma-4-12b-it-q4_0",
+      "name": "Gemma 4 12B",
+      "family": "Gemma 4",
+      "parameters": "12B",
+      "quantization": "Q4_0",
+      "description": {
+        "ru": "Подробные и точные ответы для компьютера с 16 ГБ памяти; с видеокартой работает заметно быстрее."
+      },
+      "url": "https://huggingface.co/ggml-org/gemma-4-12B-it-GGUF/resolve/main/gemma-4-12B-it-Q4_0.gguf",
+      "fileName": "gemma-4-12B-it-Q4_0.gguf",
+      "sizeBytes": 7219673216,
+      "sha256": "3712b9bd32cae83a22f67ee7a4466d8d7a4f21646ac8a07d19bf9418e8767a70",
+      "contextLength": 16384,
+      "minRamMb": 16384,
+      "chatFormat": "gemma4",
+      "license": { "name": "Apache 2.0", "url": "https://www.apache.org/licenses/LICENSE-2.0" },
+      "recommendedFor": ["desktop"]
+    },
+    {
+      "id": "gemma-4-26b-a4b-it-q4_0",
+      "name": "Gemma 4 26B A4B",
+      "family": "Gemma 4",
+      "parameters": "26B-A4B",
+      "quantization": "Q4_0",
+      "description": {
+        "ru": "Самая сильная модель каталога для мощного компьютера: смесь экспертов, работает со скоростью модели 4B."
+      },
+      "url": "https://huggingface.co/ggml-org/gemma-4-26B-A4B-it-GGUF/resolve/main/gemma-4-26B-A4B-it-Q4_0.gguf",
+      "fileName": "gemma-4-26B-A4B-it-Q4_0.gguf",
+      "sizeBytes": 14618145824,
+      "sha256": "d208665ab1cd3a69f7a9a4bc59430e8448c8093d9b06334f566ac59d6d504a03",
+      "contextLength": 16384,
+      "minRamMb": 24576,
+      "chatFormat": "gemma4",
+      "license": { "name": "Apache 2.0", "url": "https://www.apache.org/licenses/LICENSE-2.0" },
+      "recommendedFor": []
+    },
+    {
+      "id": "gemma-3-1b-it-q4_k_m",
+      "name": "Gemma 3 1B",
+      "family": "Gemma 3",
+      "parameters": "1B",
+      "quantization": "Q4_K_M",
+      "description": {
+        "ru": "Самая лёгкая модель для телефонов с 3–4 ГБ памяти. Простые ответы, высокая скорость."
+      },
+      "url": "https://huggingface.co/ggml-org/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_K_M.gguf",
+      "fileName": "gemma-3-1b-it-Q4_K_M.gguf",
+      "sizeBytes": 806058240,
+      "sha256": "8ccc5cd1f1b3602548715ae25a66ed73fd5dc68a210412eea643eb20eb75a135",
+      "contextLength": 8192,
+      "minRamMb": 3072,
+      "chatFormat": "gemma3",
+      "license": { "name": "Gemma Terms of Use", "url": "https://ai.google.dev/gemma/terms" },
+      "recommendedFor": []
+    }
+  ]
+}

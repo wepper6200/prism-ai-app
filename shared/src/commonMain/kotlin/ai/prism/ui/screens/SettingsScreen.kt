@@ -15,6 +15,9 @@ import ai.prism.resources.settings_appearance
 import ai.prism.resources.settings_dark_mode
 import ai.prism.resources.settings_dynamic_color
 import ai.prism.resources.settings_dynamic_color_desc
+import ai.prism.resources.settings_identity_note
+import ai.prism.resources.settings_model_license
+import ai.prism.resources.settings_models
 import ai.prism.resources.settings_privacy
 import ai.prism.resources.settings_privacy_text
 import ai.prism.resources.settings_theme_style
@@ -33,6 +36,7 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -72,7 +76,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.StringResource
@@ -182,6 +188,22 @@ fun SettingsScreen(
                     Text(
                         text = stringResource(Res.string.settings_privacy_text),
                         style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
+
+            SettingsSection(title = stringResource(Res.string.settings_models), modifier = sectionModifier) {
+                val uriHandler = LocalUriHandler.current
+                Text(
+                    text = stringResource(Res.string.settings_identity_note),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                state.modelLicenses.forEach { license ->
+                    Text(
+                        text = stringResource(Res.string.settings_model_license, license.family, license.licenseName),
+                        style = MaterialTheme.typography.bodyMedium.copy(textDecoration = TextDecoration.Underline),
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.clickable { uriHandler.openUri(license.licenseUrl) },
                     )
                 }
             }

@@ -74,9 +74,11 @@ kotlin {
 
                 api(libs.kotlinx.coroutines.core)
                 implementation(libs.kotlinx.serialization.core)
+                implementation(libs.kotlinx.serialization.json)
 
                 api(libs.koin.core)
                 api(libs.sqldelight.runtime)
+                implementation(libs.sqldelight.coroutines)
 
                 api(libs.decompose)
                 implementation(libs.decompose.extensions.compose)
@@ -85,6 +87,14 @@ kotlin {
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
+        }
+        // Код, общий для Android и Desktop JVM (JNI llama.cpp, загрузчик моделей, файлы):
+        // один каталог компилируется в обе JVM-цели.
+        androidMain {
+            kotlin.srcDir("src/jvmCommonMain/kotlin")
+        }
+        jvmMain {
+            kotlin.srcDir("src/jvmCommonMain/kotlin")
         }
         androidMain.dependencies {
             implementation(libs.androidx.activity.compose)
@@ -116,7 +126,15 @@ sqldelight {
     }
 }
 
+// Интеграционные тесты llama.cpp: -Pprism.nativeTests=true собирает нативную библиотеку для текущей ОС
+// и передаёт тестам путь к ней. Путь к тестовой модели задаётся переменными PRISM_TEST_MODEL / PRISM_TEST_GEMMA.
+val nativeTests = providers.gradleProperty("prism.nativeTests").map { it.toBoolean() }.orElse(false)
+
 tasks.withType<Test>().configureEach {
     // Скриншоты экранов из UI-тестов складываются сюда и выгружаются в CI как артефакт.
     systemProperty("prism.screenshotDir", layout.buildDirectory.dir("screenshots").get().asFile.absolutePath)
+    if (nativeTests.get()) {
+        dependsOn(":native:assembleNative")
+        systemProperty("prism.native.dir", project(":native").layout.buildDirectory.dir("libs").get().asFile.absolutePath)
+    }
 }

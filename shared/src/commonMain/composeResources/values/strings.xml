@@ -17,18 +17,12 @@
     <string name="welcome_text">Офлайн ИИ-ассистент: модели работают локально, данные не покидают устройство. Выберите чат слева или создайте новый.</string>
 
     <string name="chat_no_model">Модель не выбрана</string>
-    <string name="chat_empty_title">Начните разговор</string>
-    <string name="chat_empty_text">Чтобы Prism AI смог отвечать, загрузите модель. Она будет работать полностью офлайн.</string>
-    <string name="chat_open_models">Открыть модели</string>
 
     <string name="input_placeholder">Сообщение</string>
     <string name="input_attach_file">Прикрепить файл</string>
     <string name="input_attach_image">Прикрепить изображение</string>
     <string name="input_microphone">Голосовой ввод</string>
     <string name="input_send">Отправить</string>
-
-    <string name="models_empty_title">Моделей пока нет</string>
-    <string name="models_empty_text">Здесь появятся модели в формате GGUF. Скачивание начнётся только по вашей команде, а работать модели будут прямо на устройстве.</string>
 
     <string name="settings_appearance">Оформление</string>
     <string name="settings_theme_style">Стиль интерфейса</string>
@@ -46,4 +40,68 @@
     <string name="settings_privacy_text">Все модели работают на устройстве. Сеть нужна только для скачивания моделей по вашей команде. Никакой телеметрии и аналитики.</string>
     <string name="settings_about">О приложении</string>
     <string name="settings_version">Версия %1$s</string>
+
+    <!-- Личность ассистента: добавляется в начало каждого диалога. -->
+    <string name="system_prompt">Ты — Prism AI, офлайн ИИ-ассистент. Ты работаешь полностью на устройстве пользователя, без интернета, и никуда не отправляешь его данные. Если тебя спрашивают, кто ты, как тебя зовут или какая ты модель, отвечай, что ты Prism AI. Отвечай на языке пользователя, понятно и по делу.</string>
+
+    <string name="action_delete">Удалить</string>
+    <string name="action_cancel">Отмена</string>
+    <string name="chat_more">Действия с чатом</string>
+    <string name="chat_delete_title">Удалить чат?</string>
+    <string name="chat_delete_text">История этого диалога будет удалена с устройства.</string>
+    <string name="chat_generating">Отвечает</string>
+
+    <string name="chat_open_models">Открыть модели</string>
+    <string name="chat_greeting_title">Чем могу помочь?</string>
+    <string name="chat_greeting_text">Я Prism AI. Всё, что вы пишете, остаётся на этом устройстве.</string>
+    <string name="chat_need_model_title">Сначала выберите модель</string>
+    <string name="chat_need_model_text">Скачайте модель на экране «Модели» — после этого Prism AI будет отвечать без интернета.</string>
+    <string name="chat_model_loading">Загрузка модели в память… %1$s</string>
+    <string name="chat_thinking">Prism AI думает…</string>
+    <string name="chat_stopped">Ответ остановлен</string>
+    <string name="chat_retry">Повторить</string>
+    <string name="chat_busy_other">Prism AI сейчас отвечает в другом чате</string>
+    <string name="input_stop">Остановить ответ</string>
+
+    <string name="error_no_model">Модель не выбрана. Откройте «Модели» и скачайте любую.</string>
+    <string name="error_model_not_downloaded">Файл модели не найден. Скачайте её заново на экране «Модели».</string>
+    <string name="error_not_enough_memory">Не хватает оперативной памяти для этой модели. Закройте другие приложения или выберите модель поменьше.</string>
+    <string name="error_model_corrupted">Файл модели повреждён. Удалите модель и скачайте её снова.</string>
+    <string name="error_native_missing">Не найден модуль llama.cpp. Переустановите приложение.</string>
+    <string name="error_context_full">Диалог стал слишком длинным для модели. Начните новый чат.</string>
+    <string name="error_interrupted">Ответ прервался: приложение было закрыто.</string>
+    <string name="error_unknown">Не удалось получить ответ. Попробуйте ещё раз.</string>
+
+    <string name="models_device_ram">Память устройства: %1$s</string>
+    <string name="models_engine_ready">В памяти: %1$s · %2$s</string>
+    <string name="models_engine_loading">Загрузка в память: %1$s</string>
+    <string name="models_privacy_note">Модели скачиваются с Hugging Face только по вашей команде и затем работают без интернета.</string>
+    <string name="models_for_phone">Для телефона</string>
+    <string name="models_for_desktop">Для компьютера</string>
+    <string name="models_active">Активная</string>
+    <string name="models_use">Использовать</string>
+    <string name="models_download">Скачать</string>
+    <string name="models_resume">Продолжить</string>
+    <string name="models_pause">Пауза</string>
+    <string name="models_downloading">%1$s из %2$s</string>
+    <string name="models_verifying">Проверка файла…</string>
+    <string name="models_paused">Загрузка приостановлена: %1$s из %2$s</string>
+    <string name="models_low_ram">Нужно не меньше %1$s ОЗУ — на этом устройстве может не хватить памяти.</string>
+    <string name="models_details">%1$s · %2$s · контекст %3$s</string>
+    <string name="models_license">Лицензия: %1$s</string>
+    <string name="models_delete_title">Удалить модель?</string>
+    <string name="models_delete_text">Файл «%1$s» будет удалён с устройства. Скачать его можно снова.</string>
+    <string name="download_error_network">Связь прервалась. Нажмите «Продолжить» — загрузка пойдёт с того же места.</string>
+    <string name="download_error_space">Недостаточно места на устройстве.</string>
+    <string name="download_error_checksum">Файл повредился при загрузке. Скачайте его заново.</string>
+    <string name="download_error_storage">Не удалось записать файл модели.</string>
+    <string name="download_error_server">Сервер не отдал файл. Попробуйте позже.</string>
+
+    <string name="size_gb">%1$s ГБ</string>
+    <string name="size_mb">%1$s МБ</string>
+    <string name="decimal_separator">,</string>
+
+    <string name="settings_models">Модели и лицензии</string>
+    <string name="settings_identity_note">Ассистент называет себя Prism AI. Ответы создают открытые модели, перечисленные ниже; они работают только на этом устройстве.</string>
+    <string name="settings_model_license">%1$s — %2$s</string>
 </resources>

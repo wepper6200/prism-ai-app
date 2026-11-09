@@ -1,10 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!--
-        Разрешения на сеть нет: на этом этапе приложение полностью офлайн.
-        Оно появится только вместе со скачиванием моделей по явному действию пользователя.
-    -->
+    <!-- Сеть нужна только для скачивания моделей по явному действию пользователя. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:name=".PrismApplication"
         android:allowBackup="false"

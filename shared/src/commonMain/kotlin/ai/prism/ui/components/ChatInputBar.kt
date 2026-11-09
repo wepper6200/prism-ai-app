@@ -6,6 +6,8 @@ import ai.prism.resources.input_attach_image
 import ai.prism.resources.input_microphone
 import ai.prism.resources.input_placeholder
 import ai.prism.resources.input_send
+import ai.prism.resources.input_stop
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.outlined.AttachFile
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Mic
@@ -27,18 +30,29 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.stringResource
 
 /**
- * Поле ввода сообщения. Кнопки вложений, микрофона и отправки пока неактивны:
- * они заработают вместе с инференсом, файлами и голосом.
+ * Поле ввода сообщения. Enter — отправить, Shift+Enter — новая строка.
+ * Во время ответа кнопка отправки превращается в «Стоп».
+ * Вложения и микрофон пока неактивны: они появятся вместе с картинками, файлами и голосом.
  */
 @Composable
 fun ChatInputBar(
     text: String,
     onTextChange: (String) -> Unit,
+    canSend: Boolean,
+    isGenerating: Boolean,
+    onSend: () -> Unit,
+    onStop: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     PrismPanel(modifier.fillMaxWidth(), shape = RoundedCornerShape(28.dp)) {
@@ -63,6 +77,15 @@ fun ChatInputBar(
                     .weight(1f)
                     .heightIn(min = 48.dp)
                     .padding(horizontal = 8.dp, vertical = 13.dp)
+                    .onPreviewKeyEvent { event ->
+                        val isEnter = event.key == Key.Enter || event.key == Key.NumPadEnter
+                        if (isEnter && event.type == KeyEventType.KeyDown && !event.isShiftPressed) {
+                            if (canSend) onSend()
+                            true
+                        } else {
+                            false
+                        }
+                    }
                     .testTag("message_input"),
                 decorationBox = { innerTextField ->
                     Box {
@@ -80,8 +103,16 @@ fun ChatInputBar(
             IconButton(onClick = {}, enabled = false) {
                 Icon(Icons.Outlined.Mic, contentDescription = stringResource(Res.string.input_microphone))
             }
-            FilledIconButton(onClick = {}, enabled = false) {
-                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(Res.string.input_send))
+            AnimatedContent(targetState = isGenerating, label = "sendOrStop") { generating ->
+                if (generating) {
+                    FilledIconButton(onClick = onStop, modifier = Modifier.testTag("stop_button")) {
+                        Icon(Icons.Filled.Stop, contentDescription = stringResource(Res.string.input_stop))
+                    }
+                } else {
+                    FilledIconButton(onClick = onSend, enabled = canSend, modifier = Modifier.testTag("send_button")) {
+                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(Res.string.input_send))
+                    }
+                }
             }
         }
     }

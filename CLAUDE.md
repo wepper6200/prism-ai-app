@@ -19,8 +19,11 @@ Prism AI — полностью офлайн ИИ-ассистент для **Wi
   размерах, лицензия позволяет назвать дообученную модель Prism AI. Llama — только как дополнительная модель в каталоге
   (в русском слабее, vision только от 11B, дообученная модель обязана называться «Llama…»).
   Конкретные версии и размеры Gemma проверяются по актуальным релизам при сборке каталога моделей.
-- Для Gemma в «О приложении» и карточке модели: «Работает на Gemma» + ссылка на Gemma Terms of Use
-  (https://ai.google.dev/gemma/terms) и Prohibited Use Policy.
+- Лицензии: **Gemma 4 — Apache 2.0** (https://www.apache.org/licenses/LICENSE-2.0); Gemma 3 — Gemma Terms of Use
+  (https://ai.google.dev/gemma/terms). Лицензия каждой модели указана в каталоге и показывается в карточке модели
+  и в «Настройки → Модели и лицензии».
+- Каталог: `shared/src/commonMain/composeResources/files/models.json` (репозитории ggml-org на Hugging Face, без авторизации).
+  Размер и SHA-256 каждого файла обязательны — загрузка проверяет их.
 - Лицензии моделей соблюдаются: в «О приложении» и в карточке модели указываются исходная модель и её лицензия
   (Apache 2.0 — Qwen/Mistral; Llama — «Built with Llama»; Gemma Terms of Use).
 
@@ -72,6 +75,11 @@ Prism AI — полностью офлайн ИИ-ассистент для **Wi
   - **Android APK** — `:androidApp:assembleDebug`, артефакт `PrismAI-android-debug-apk`;
   - **Desktop** — `:desktopApp:compileKotlin :shared:jvmTest`, UI-тесты сохраняют скриншоты (артефакт `PrismAI-screenshots`);
   - **Windows** — `:desktopApp:createDistributable` на `windows-latest`, артефакт `PrismAI-windows`.
+- llama.cpp — git-подмодуль `native/llama.cpp` (закреплён на релизном теге), JNI-мост — `native/prism_llama.cpp`.
+  Android собирает его через `externalNativeBuild` (arm64-v8a), Desktop — модуль `:native` (cmake; `-Pprism.vulkan=true`
+  для Vulkan). Бэкенды ggml — динамические (`GGML_BACKEND_DL`), CPU во всех вариантах набора инструкций.
+  Локальная сборка Desktop требует cmake и компилятор C++; после клонирования: `git submodule update --init`.
+- Интеграционные тесты llama.cpp: `-Pprism.nativeTests=true` + переменные `PRISM_TEST_MODEL` / `PRISM_TEST_GEMMA`.
 - Предупреждения компилятора — ошибки (`allWarningsAsErrors`). Шаг диагностики CI при падении печатает
   их текст (`-Pprism.werror=false` используется только им).
 - Версия приложения задаётся в `gradle/libs.versions.toml` (`prism-versionName`) и попадает в код через сгенерированный `BuildInfo`.
@@ -79,7 +87,11 @@ Prism AI — полностью офлайн ИИ-ассистент для **Wi
   - в стабильном material3 API Expressive (`MaterialExpressiveTheme`, `MotionScheme`) внутренние — стиль собран из публичных API;
   - AGP 9: модуль `shared` использует плагин `com.android.kotlin.multiplatform.library` и блок `kotlin { android { } }`;
   - в UI-тестах Desktop — `androidx.compose.ui.test.v2.runDesktopComposeUiTest` (v1 устарел);
-  - главный поток Decompose на Desktop — поток Swing (`runOnUiThread`).
+  - главный поток Decompose на Desktop — поток Swing (`runOnUiThread`);
+  - API llama.cpp меняется между релизами (`llama_batch_ext`, `llama_process`, `llama_memory_*`): перед обновлением
+    подмодуля сверяйся с `include/llama.h`;
+  - Gemma 4 использует формат `<|turn>…<turn|>`, который не понимает `llama_chat_apply_template` — промпт собирает
+    `ChatPromptFormatter` по полю `chatFormat` из каталога.
 
 ## Правила работы
 
