@@ -214,6 +214,18 @@ class LlamaInferenceEngineIntegrationTest {
         val model = withVision(modelFor(file, ChatFormat.GEMMA4).copy(contextLength = 4096), projector)
         engine.load(model, file.absolutePath, projector.absolutePath)
 
+        // Формат диалога Gemma 4 на тексте (для сравнения в логе CI).
+        val text = engine.generate(
+            GenerationRequest(
+                systemPrompt = "You are a helpful assistant.",
+                messages = listOf(PromptMessage(MessageRole.USER, "What is the capital of France? Answer with one word.")),
+                maxTokens = 64,
+                sampling = SamplingParams(temperature = 0f),
+            ),
+        ).toList().joinToString("")
+        println("Gemma 4 E2B (text): $text")
+        assertTrue("Paris" in text, "ожидался ответ «Paris», получено: $text")
+
         val photo = solidImage(Color.RED)
         val answer = engine.generate(
             GenerationRequest(
@@ -221,7 +233,7 @@ class LlamaInferenceEngineIntegrationTest {
                 messages = listOf(
                     PromptMessage(MessageRole.USER, "What is the color of this picture? Answer with one word.", images = listOf(photo)),
                 ),
-                maxTokens = 16,
+                maxTokens = 96,
                 sampling = SamplingParams(temperature = 0f),
             ),
         ).toList().joinToString("")
@@ -235,7 +247,7 @@ class LlamaInferenceEngineIntegrationTest {
                 messages = listOf(
                     PromptMessage(MessageRole.USER, "Что на этой картинке? Ответь одним предложением.", images = listOf(photo)),
                 ),
-                maxTokens = 48,
+                maxTokens = 96,
                 sampling = SamplingParams(temperature = 0f),
             ),
         ).toList().joinToString("")

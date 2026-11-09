@@ -99,9 +99,11 @@ class PrismAppUiTest {
         return ByteArrayOutputStream().also { ImageIO.write(image, "png", it) }.toByteArray()
     }
 
-    private fun ComposeUiTest.screenshot(name: String) {
+    /** Скриншот всего окна или одного узла [tag] (диалоги — отдельный корень сцены). */
+    private fun ComposeUiTest.screenshot(name: String, tag: String? = null) {
         waitForIdle()
-        val image = onRoot().captureToImage().toAwtImage()
+        val node = if (tag == null) onRoot() else onNodeWithTag(tag)
+        val image = node.captureToImage().toAwtImage()
         ImageIO.write(image, "png", File(screenshotDir, "$name.png"))
     }
 
@@ -213,7 +215,7 @@ class PrismAppUiTest {
         onNodeWithTag("new_chat").performClick()
         onNodeWithTag("attach_image").performClick()
         onNodeWithTag("vision_dialog").assertIsDisplayed()
-        screenshot("compact_9_vision_dialog")
+        screenshot("compact_9_vision_dialog", tag = "vision_dialog")
 
         onNodeWithTag("vision_open_models").performClick()
         onNodeWithTag("models_screen").assertIsDisplayed()
