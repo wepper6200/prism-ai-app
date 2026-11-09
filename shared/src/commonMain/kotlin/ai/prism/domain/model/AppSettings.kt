@@ -21,4 +21,9 @@ data class AppSettings(
     val themeStyle: ThemeStyle = ThemeStyle.EXPRESSIVE,
     val darkMode: DarkMode = DarkMode.SYSTEM,
     val dynamicColor: Boolean = true,
+    /**
+     * Безопасный режим: Prism AI не рисует и не пишет откровенный, жестокий и подобный контент.
+     * Проверка идёт на устройстве и не даёт полной гарантии. По умолчанию выключен.
+     */
+    val safeMode: Boolean = false,
 )

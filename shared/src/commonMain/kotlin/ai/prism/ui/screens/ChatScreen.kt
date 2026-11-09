@@ -18,6 +18,7 @@ import ai.prism.resources.attach_error_unreadable
 import ai.prism.resources.draw_dialog_text
 import ai.prism.resources.draw_dialog_title
 import ai.prism.resources.draw_loading
+import ai.prism.resources.draw_one_photo
 import ai.prism.resources.draw_step
 import ai.prism.resources.draw_translating
 import ai.prism.resources.image_save_failed
@@ -145,9 +146,9 @@ fun ChatScreen(
         onPicked = { component.onIntent(ChatIntent.AttachImages(it)) },
         onFailed = { component.onIntent(ChatIntent.AttachFailed) },
     )
-    // Без модуля зрения вместо выбора фото объясняем, что нужно сделать.
+    // Без модуля зрения вместо выбора фото объясняем, что нужно сделать. Для перерисовки фото зрение не нужно.
     fun whenVisionReady(action: () -> Unit) {
-        if (state.vision == VisionSupport.READY) action() else visionDialog = true
+        if (state.drawMode || state.vision == VisionSupport.READY) action() else visionDialog = true
     }
     Column(
         modifier = modifier
@@ -190,6 +191,14 @@ fun ChatScreen(
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.align(Alignment.CenterHorizontally),
+            )
+        }
+        if (state.tooManyPhotosToDraw) {
+            Text(
+                text = stringResource(Res.string.draw_one_photo),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.align(Alignment.CenterHorizontally).testTag("draw_one_photo"),
             )
         }
         state.attachmentError?.let { error ->

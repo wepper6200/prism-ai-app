@@ -76,6 +76,8 @@ data class ImageModelSettings(
     val vaeTiling: Boolean = false,
     /** Отображать веса в память вместо копирования (меньше пиковой памяти). */
     val mmap: Boolean = false,
+    /** Насколько сильно перерисовывать приложенное фото (0–1). */
+    val strength: Float = 0.7f,
 )
 
 /** Модель из каталога `files/models.json`. */

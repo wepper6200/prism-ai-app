@@ -54,6 +54,7 @@ val sharedModule: Module = module {
             personaProvider = get(),
             images = get(),
             imageGenerator = get(),
+            settings = get(),
             scope = get(),
         )
     }

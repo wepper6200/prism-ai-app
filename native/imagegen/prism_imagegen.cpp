@@ -8,7 +8,9 @@
 //   {"cmd":"load","diffusion_model":"…","model":"…","t5xxl":"…","clip_l":"…","clip_g":"…","vae":"…","taesd":"…",
 //    "threads":4,"vae_tiling":false,"mmap":false}
 //   {"cmd":"generate","prompt":"…","negative":"","width":1024,"height":1024,"steps":4,"cfg":1.0,
-//    "guidance":3.5,"seed":-1,"sampler":"euler","scheduler":"","output":"…/image.png"}
+//    "guidance":3.5,"seed":-1,"sampler":"euler","scheduler":"","output":"…/image.png",
+//    "init_image":"…/photo.jpg","strength":0.7}   — init_image необязателен: перерисовка фото по описанию,
+//                                                  strength — насколько сильно менять (0 — не менять, 1 — рисовать заново)
 //   {"cmd":"cancel"}   — остановить текущую генерацию
 //   {"cmd":"quit"}
 // События:
@@ -25,6 +27,7 @@
 #include <exception>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <iostream>
 #include <mutex>
 #include <new>
@@ -40,6 +43,14 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_STATIC
 #include "stb_image_write.h"
+
+#define STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_STATIC
+#include "stb_image.h"
+
+#define STB_IMAGE_RESIZE_IMPLEMENTATION
+#define STB_IMAGE_RESIZE_STATIC
+#include "stb_image_resize.h"
 
 #ifdef _WIN32
 #include <fcntl.h>
@@ -157,6 +168,22 @@ bool write_png(const std::string & path, const sd_image_t & image) {
     return ok;
 }
 
+// Исходное фото для перерисовки: читается по UTF-8 пути и приводится к размеру генерации (RGB).
+bool load_init_image(const std::string & path, int width, int height, std::vector<unsigned char> & out) {
+    std::ifstream in(std::filesystem::u8path(path), std::ios::binary);
+    if (!in) return false;
+    const std::vector<unsigned char> bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    int w = 0;
+    int h = 0;
+    int channels = 0;
+    unsigned char * pixels = stbi_load_from_memory(bytes.data(), static_cast<int>(bytes.size()), &w, &h, &channels, 3);
+    if (pixels == nullptr) return false;
+    out.resize(static_cast<size_t>(width) * static_cast<size_t>(height) * 3);
+    const int ok = stbir_resize_uint8(pixels, w, h, 0, out.data(), width, height, 0, 3);
+    stbi_image_free(pixels);
+    return ok != 0;
+}
+
 class Worker {
 public:
     ~Worker() {
@@ -256,6 +283,17 @@ private:
             params.sample_params.scheduler = sd_get_default_scheduler(ctx_, params.sample_params.sample_method);
         }
         params.vae_tiling_params.enabled = vae_tiling_;
+
+        std::vector<unsigned char> init_pixels;
+        const std::string init_path = str(request, "init_image");
+        if (!init_path.empty()) {
+            if (!load_init_image(init_path, params.width, params.height, init_pixels)) {
+                return emit_error("bad_request", "cannot read init image");
+            }
+            params.init_image = sd_image_t{static_cast<uint32_t>(params.width), static_cast<uint32_t>(params.height), 3,
+                                           init_pixels.data()};
+            params.strength = request.value("strength", 0.7f);
+        }
 
         g_expected_steps.store(params.sample_params.sample_steps);
         g_sampling_done.store(false);

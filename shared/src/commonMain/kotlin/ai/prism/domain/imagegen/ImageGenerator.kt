@@ -43,6 +43,10 @@ data class ImageRequest(
     val mmap: Boolean,
     /** −1 — случайное зерно. */
     val seed: Long = -1,
+    /** Фото, которое нужно перерисовать по описанию (`null` — рисовать с нуля). */
+    val initImagePath: String? = null,
+    /** Насколько сильно менять фото: 0 — оставить как есть, 1 — нарисовать заново. */
+    val strength: Float = 0.7f,
 )
 
 sealed interface ImageGenerationProgress {

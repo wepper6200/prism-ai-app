@@ -146,6 +146,10 @@ class ProcessImageGenerator(
                     put("sampler", request.sampler)
                     put("scheduler", request.scheduler)
                     put("output", output.absolutePath)
+                    request.initImagePath?.let {
+                        put("init_image", it)
+                        put("strength", request.strength)
+                    }
                 },
             )
             onProgress(ImageGenerationProgress.Step(0, request.steps))

@@ -27,6 +27,8 @@ class DefaultSettingsRepository(
 
     override fun setDynamicColor(enabled: Boolean) = update { it.copy(dynamicColor = enabled) }
 
+    override fun setSafeMode(enabled: Boolean) = update { it.copy(safeMode = enabled) }
+
     private fun update(transform: (AppSettings) -> AppSettings) {
         save(state.updateAndGet(transform))
     }
@@ -37,6 +39,7 @@ class DefaultSettingsRepository(
             themeStyle = parseEnum(store.getString(KEY_THEME_STYLE), defaults.themeStyle),
             darkMode = parseEnum(store.getString(KEY_DARK_MODE), defaults.darkMode),
             dynamicColor = store.getString(KEY_DYNAMIC_COLOR)?.toBooleanStrictOrNull() ?: defaults.dynamicColor,
+            safeMode = store.getString(KEY_SAFE_MODE)?.toBooleanStrictOrNull() ?: defaults.safeMode,
         )
     }
 
@@ -44,6 +47,7 @@ class DefaultSettingsRepository(
         store.putString(KEY_THEME_STYLE, settings.themeStyle.name)
         store.putString(KEY_DARK_MODE, settings.darkMode.name)
         store.putString(KEY_DYNAMIC_COLOR, settings.dynamicColor.toString())
+        store.putString(KEY_SAFE_MODE, settings.safeMode.toString())
     }
 
     private inline fun <reified E : Enum<E>> parseEnum(raw: String?, default: E): E =
@@ -53,5 +57,6 @@ class DefaultSettingsRepository(
         const val KEY_THEME_STYLE = "theme_style"
         const val KEY_DARK_MODE = "dark_mode"
         const val KEY_DYNAMIC_COLOR = "dynamic_color"
+        const val KEY_SAFE_MODE = "safe_mode"
     }
 }

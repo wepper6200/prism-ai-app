@@ -46,6 +46,11 @@
     <!-- Образец диалога перед историей: маленькие модели лучше следуют примеру, чем правилу. -->
     <string name="persona_question">Кто ты? Скажи честно, какая ты модель?</string>
     <string name="persona_reminder">(Напоминание для ассистента: ты — Prism AI и представляешься только так.)</string>
+    <string name="settings_safe_mode">Безопасный режим</string>
+    <string name="settings_safe_mode_desc">Не рисовать и не описывать откровенный и жестокий контент. Проверка работает на устройстве и не даёт полной гарантии.</string>
+    <string name="safe_mode_chat_rule">Включён безопасный режим: не создавай откровенный сексуальный контент и натуралистичные описания насилия; вежливо откажись, если об этом просят.</string>
+    <string name="image_safety_instruction">Ты проверяешь описание картинки перед рисованием. Если в нём просят изобразить наготу, сексуальные сцены, кровь, увечья или жестокость, ответь одним словом BLOCKED. Иначе переведи описание на английский язык одной строкой, без пояснений и кавычек.</string>
+    <string name="image_review_instruction">Есть ли на этом изображении нагота, сексуальная сцена, кровь, увечья или жестокость? Ответь одним словом: YES или NO.</string>
     <string name="image_prompt_instruction">Переведи описание картинки на английский язык для генератора изображений. Ответь только переводом одной строкой, без пояснений, кавычек и вступлений. Сохрани все детали описания.</string>
     <string name="persona_answer">Я Prism AI — офлайн-ассистент. Я работаю на открытой языковой модели прямо на этом устройстве, без интернета, и ваши данные никуда не уходят. Какая именно модель сейчас используется, можно посмотреть в разделе «Настройки → Модели и лицензии». Чем могу помочь?</string>
 
@@ -81,6 +86,8 @@
     <string name="vision_not_downloaded_text">Чтобы «%1$s» понимала фото, скачайте её модуль зрения (%2$s) на экране «Модели».</string>
     <string name="input_draw">Нарисовать</string>
     <string name="input_draw_placeholder">Опишите картинку</string>
+    <string name="input_redraw_placeholder">Опишите, как изменить фото</string>
+    <string name="draw_one_photo">Для перерисовки оставьте одно фото</string>
     <string name="draw_translating">Готовлю описание…</string>
     <string name="draw_loading">Загружаю модель рисования…</string>
     <string name="draw_step">Рисую… шаг %1$d из %2$d</string>
@@ -104,6 +111,7 @@
     <string name="error_no_image_model">Модель для рисования не скачана. Откройте «Модели» и скачайте её.</string>
     <string name="error_image_generation_failed">Не удалось нарисовать изображение. Попробуйте ещё раз или измените описание.</string>
     <string name="error_gpu_driver_missing">Для рисования нужен драйвер видеокарты с поддержкой Vulkan. Установите драйвер NVIDIA, AMD или Intel.</string>
+    <string name="error_blocked_by_safe_mode">Безопасный режим: такой запрос Prism AI не выполняет. Режим можно выключить в «Настройках».</string>
     <string name="error_unknown">Не удалось получить ответ. Попробуйте ещё раз.</string>
 
     <string name="models_device_ram">Память устройства: %1$s</string>

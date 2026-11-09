@@ -24,6 +24,7 @@ import ai.prism.domain.repository.ChatRepository
 import ai.prism.domain.repository.ImageException
 import ai.prism.domain.repository.ImageStore
 import ai.prism.domain.repository.ModelRepository
+import ai.prism.domain.repository.SettingsRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.NonCancellable
@@ -34,6 +35,7 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.concurrent.Volatile
+import kotlin.math.roundToInt
 
 /** Личность ассистента: системный промпт и образец ответа на вопрос «кто ты?». */
 data class AssistantPersona(
@@ -43,6 +45,12 @@ data class AssistantPersona(
     val reminder: String = "",
     /** Инструкция для перевода описания картинки на английский (генераторы лучше понимают английский). */
     val imagePromptInstruction: String = "",
+    /** Безопасный режим: правило для модели чата (добавляется к системному промпту). */
+    val safeModeRule: String = "",
+    /** Безопасный режим: проверить описание картинки и перевести его (или ответить BLOCKED). */
+    val imageSafetyInstruction: String = "",
+    /** Безопасный режим: вопрос к модели с модулем зрения о готовой картинке (ответ YES/NO). */
+    val imageReviewInstruction: String = "",
 )
 
 /** Личность Prism AI на языке интерфейса. */
@@ -82,6 +90,7 @@ class ChatGenerationService(
     private val personaProvider: PersonaProvider,
     private val images: ImageStore,
     private val imageGenerator: ImageGenerator,
+    private val settings: SettingsRepository,
     private val scope: CoroutineScope,
 ) {
     private val mutableActive = MutableStateFlow<ActiveGeneration?>(null)
@@ -118,17 +127,17 @@ class ChatGenerationService(
     }
 
     /**
-     * Просит модель изображений нарисовать картинку по описанию [text].
+     * Просит модель изображений нарисовать картинку по описанию [text]; с [source] — перерисовать это фото.
      * `false` — уже идёт другая генерация или описание пустое.
      */
-    fun draw(chatId: String, text: String): Boolean {
+    fun draw(chatId: String, text: String, source: ImageAttachment? = null): Boolean {
         val prompt = text.trim()
         if (prompt.isEmpty() || !reserve(chatId)) return false
         scope.launch {
             try {
-                chats.addMessage(chatId, MessageRole.USER, prompt, MessageStatus.COMPLETE, modelId = null)
+                chats.addMessage(chatId, MessageRole.USER, prompt, MessageStatus.COMPLETE, modelId = null, images = listOfNotNull(source))
                 chats.setTitleIfEmpty(chatId, titleFrom(prompt))
-                drawReply(chatId, prompt)
+                drawReply(chatId, prompt, source)
             } finally {
                 mutableActive.value = null
             }
@@ -148,8 +157,12 @@ class ChatGenerationService(
                 if (last != null && last.role == MessageRole.ASSISTANT && last.status != MessageStatus.COMPLETE) {
                     chats.deleteMessage(last.id)
                 }
-                val prompt = messages.lastOrNull { it.role == MessageRole.USER }?.content
-                if (wasDrawing && !prompt.isNullOrBlank()) drawReply(chatId, prompt) else generateReply(chatId)
+                val request = messages.lastOrNull { it.role == MessageRole.USER }
+                if (wasDrawing && request != null && request.content.isNotBlank()) {
+                    drawReply(chatId, request.content, request.images.firstOrNull())
+                } else {
+                    generateReply(chatId)
+                }
             } finally {
                 mutableActive.value = null
             }
@@ -209,8 +222,9 @@ class ChatGenerationService(
             engine.load(model, path, projectorPath)
             if (!stopRequested) {
                 val persona = personaProvider.persona()
+                val safeRule = persona.safeModeRule.takeIf { settings.settings.value.safeMode && it.isNotBlank() }
                 val request = GenerationRequest(
-                    systemPrompt = persona.systemPrompt,
+                    systemPrompt = listOfNotNull(persona.systemPrompt, safeRule).joinToString("\n\n"),
                     messages = history,
                     primer = persona.primer,
                     reminder = persona.reminder,
@@ -232,7 +246,7 @@ class ChatGenerationService(
         }
     }
 
-    private suspend fun drawReply(chatId: String, prompt: String) {
+    private suspend fun drawReply(chatId: String, prompt: String, source: ImageAttachment?) {
         val model = imageModel()
         val reply = chats.addMessage(chatId, MessageRole.ASSISTANT, "", MessageStatus.GENERATING, model?.id)
         fun progress(drawing: DrawingProgress) {
@@ -240,32 +254,48 @@ class ChatGenerationService(
         }
         progress(DrawingProgress(DrawingStage.TRANSLATING))
         val files = model?.let { models.imageModelFiles(it.id) }
-        val settings = model?.image
-        if (model == null || files == null || settings == null || !imageGenerator.isSupported) {
+        val imageSettings = model?.image
+        if (model == null || files == null || imageSettings == null || !imageGenerator.isSupported) {
             chats.updateMessage(reply.id, "", MessageStatus.FAILED, GenerationError.NO_IMAGE_MODEL)
             return
         }
+        val safeMode = settings.settings.value.safeMode
+        if (safeMode && ImagePromptPolicy.containsBlockedWords(prompt)) {
+            chats.updateMessage(reply.id, "", MessageStatus.FAILED, GenerationError.BLOCKED_BY_SAFE_MODE)
+            return
+        }
         try {
-            val englishPrompt = translateForImage(prompt)
+            val englishPrompt = prepareImagePrompt(prompt, safeMode)
+            if (englishPrompt == null) {
+                chats.updateMessage(reply.id, "", MessageStatus.FAILED, GenerationError.BLOCKED_BY_SAFE_MODE)
+                return
+            }
             engine.unload()
             if (stopRequested) {
                 chats.updateMessage(reply.id, "", MessageStatus.STOPPED, null)
                 return
+            }
+            val (width, height) = if (source != null) {
+                fitImageSize(source.width, source.height, maxOf(imageSettings.width, imageSettings.height))
+            } else {
+                imageSettings.width to imageSettings.height
             }
             val image = imageGenerator.generate(
                 model = model,
                 files = files,
                 request = ImageRequest(
                     prompt = englishPrompt,
-                    width = settings.width,
-                    height = settings.height,
-                    steps = settings.steps,
-                    cfg = settings.cfg,
-                    guidance = settings.guidance,
-                    sampler = settings.sampler,
-                    scheduler = settings.scheduler,
-                    vaeTiling = settings.vaeTiling,
-                    mmap = settings.mmap,
+                    width = width,
+                    height = height,
+                    steps = imageSettings.steps,
+                    cfg = imageSettings.cfg,
+                    guidance = imageSettings.guidance,
+                    sampler = imageSettings.sampler,
+                    scheduler = imageSettings.scheduler,
+                    vaeTiling = imageSettings.vaeTiling,
+                    mmap = imageSettings.mmap,
+                    initImagePath = source?.let { images.path(it.fileName) },
+                    strength = imageSettings.strength,
                 ),
                 onProgress = { event ->
                     when (event) {
@@ -275,6 +305,11 @@ class ChatGenerationService(
                 },
             )
             val attachment = images.save(image.png)
+            if (safeMode && isUnsafePicture(attachment)) {
+                images.delete(listOf(attachment.fileName))
+                chats.updateMessage(reply.id, "", MessageStatus.FAILED, GenerationError.BLOCKED_BY_SAFE_MODE)
+                return
+            }
             chats.attachImages(chatId, reply.id, listOf(attachment))
             chats.updateMessage(reply.id, "", MessageStatus.COMPLETE, null)
         } catch (e: ImageGenerationException) {
@@ -292,18 +327,24 @@ class ChatGenerationService(
     }
 
     /**
-     * Переводит описание на английский активной моделью чата: генераторы изображений обучены на английских подписях.
-     * Описание без кириллицы, без скачанной модели чата или при ошибке перевода передаётся как есть.
+     * Готовит описание для генератора: переводит на английский моделью чата (генераторы обучены на английских подписях),
+     * в безопасном режиме — заодно проверяет его. `null` — описание запрещено безопасным режимом.
+     *
+     * Если модель чата не скачана, перевод не удался или модель вместо перевода отказалась отвечать,
+     * используется исходное описание (в безопасном режиме отказ модели означает запрет).
      */
-    private suspend fun translateForImage(prompt: String): String {
-        if (prompt.none { it in '\u0400'..'\u04FF' }) return prompt
+    private suspend fun prepareImagePrompt(prompt: String, safeMode: Boolean): String? {
+        if (!safeMode && !ImagePromptPolicy.hasCyrillic(prompt)) return prompt
         val model = models.activeModelId.value?.let(models::catalogModel)?.takeIf { it.kind == ModelKind.CHAT } ?: return prompt
         val path = models.downloadedFilePath(model.id) ?: return prompt
-        val instruction = personaProvider.persona().imagePromptInstruction.ifBlank { return prompt }
-        return try {
+        val persona = personaProvider.persona()
+        val instruction = (if (safeMode) persona.imageSafetyInstruction else persona.imagePromptInstruction)
+            .ifBlank { return prompt }
+        val answer = try {
+            imageGenerator.release()
             engine.load(model, path, null)
             if (stopRequested) return prompt
-            val translated = engine.generate(
+            engine.generate(
                 GenerationRequest(
                     systemPrompt = instruction,
                     messages = listOf(PromptMessage(MessageRole.USER, prompt)),
@@ -311,9 +352,45 @@ class ChatGenerationService(
                     sampling = SamplingParams(temperature = 0f),
                 ),
             ).toList().joinToString("").trim().trim('"', '«', '»').trim()
-            translated.ifBlank { prompt }
         } catch (e: InferenceException) {
-            prompt
+            return prompt
+        }
+        return when {
+            safeMode && (ImagePromptPolicy.isBlockedVerdict(answer) || ImagePromptPolicy.isRefusal(answer)) -> null
+            ImagePromptPolicy.isUsableTranslation(prompt, answer) -> answer
+            else -> prompt
+        }
+    }
+
+    /**
+     * Безопасный режим: модель чата с модулем зрения смотрит на готовую картинку.
+     * Без такой модели проверка пропускается (остаются проверки описания).
+     */
+    private suspend fun isUnsafePicture(picture: ImageAttachment): Boolean {
+        val model = models.activeModelId.value?.let(models::catalogModel)?.takeIf { it.kind == ModelKind.CHAT } ?: return false
+        val path = models.downloadedFilePath(model.id) ?: return false
+        val projector = models.downloadedProjectorPath(model.id) ?: return false
+        val question = personaProvider.persona().imageReviewInstruction.ifBlank { return false }
+        return try {
+            imageGenerator.release()
+            engine.load(model, path, projector)
+            val answer = engine.generate(
+                GenerationRequest(
+                    systemPrompt = "",
+                    messages = listOf(
+                        PromptMessage(
+                            MessageRole.USER,
+                            question,
+                            images = listOf(PromptImage(id = picture.id, path = images.path(picture.fileName))),
+                        ),
+                    ),
+                    maxTokens = TRANSLATION_MAX_TOKENS,
+                    sampling = SamplingParams(temperature = 0f),
+                ),
+            ).toList().joinToString("")
+            ImagePromptPolicy.isUnsafeReview(answer)
+        } catch (e: InferenceException) {
+            false
         }
     }
 
@@ -353,6 +430,8 @@ class ChatGenerationService(
         private const val TITLE_LENGTH = 48
         private const val ORPHAN_IMAGE_AGE_MS = 7L * 24 * 60 * 60 * 1000
         private const val TRANSLATION_MAX_TOKENS = 400
+        private const val IMAGE_SIZE_STEP = 64
+        private const val MIN_IMAGE_SIDE = 256
 
         /** Заголовок диалога — начало первой строки сообщения. */
         fun titleFrom(text: String): String {

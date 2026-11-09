@@ -13,4 +13,6 @@ interface SettingsRepository {
     fun setDarkMode(mode: DarkMode)
 
     fun setDynamicColor(enabled: Boolean)
+
+    fun setSafeMode(enabled: Boolean)
 }

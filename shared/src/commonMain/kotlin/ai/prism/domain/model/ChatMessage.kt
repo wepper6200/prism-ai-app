@@ -45,6 +45,9 @@ enum class GenerationError {
 
     /** Для генерации изображений на Windows нужен драйвер видеокарты с поддержкой Vulkan. */
     GPU_DRIVER_MISSING,
+
+    /** Запрос отклонён безопасным режимом. */
+    BLOCKED_BY_SAFE_MODE,
     UNKNOWN,
 }
 

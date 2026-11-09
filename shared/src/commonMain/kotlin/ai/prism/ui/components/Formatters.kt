@@ -9,6 +9,7 @@ import ai.prism.resources.download_error_network
 import ai.prism.resources.download_error_server
 import ai.prism.resources.download_error_space
 import ai.prism.resources.download_error_storage
+import ai.prism.resources.error_blocked_by_safe_mode
 import ai.prism.resources.error_context_full
 import ai.prism.resources.error_gpu_driver_missing
 import ai.prism.resources.error_image_generation_failed
@@ -64,6 +65,7 @@ fun GenerationError.message(): StringResource = when (this) {
     GenerationError.NO_IMAGE_MODEL -> Res.string.error_no_image_model
     GenerationError.IMAGE_GENERATION_FAILED -> Res.string.error_image_generation_failed
     GenerationError.GPU_DRIVER_MISSING -> Res.string.error_gpu_driver_missing
+    GenerationError.BLOCKED_BY_SAFE_MODE -> Res.string.error_blocked_by_safe_mode
     GenerationError.UNKNOWN -> Res.string.error_unknown
 }
 

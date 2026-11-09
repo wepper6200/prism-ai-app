@@ -106,11 +106,15 @@ data class ChatState(
     val canSend: Boolean
         get() = when {
             isGenerating || busyInOtherChat -> false
-            drawMode -> draft.isNotBlank() && draw == DrawSupport.READY
+            drawMode -> draft.isNotBlank() && draw == DrawSupport.READY && !isAttaching && attachments.size <= 1
             else -> (draft.isNotBlank() || attachments.isNotEmpty()) && !isAttaching
         }
 
-    val canAttachMore: Boolean get() = attachments.size < MAX_ATTACHMENTS && !isAttaching
+    val canAttachMore: Boolean
+        get() = attachments.size < (if (drawMode) 1 else MAX_ATTACHMENTS) && !isAttaching
+
+    /** В режиме рисования перерисовывается одно фото, а приложено несколько. */
+    val tooManyPhotosToDraw: Boolean get() = drawMode && attachments.size > 1
 
     companion object {
         const val MAX_ATTACHMENTS = 4
@@ -308,7 +312,10 @@ class DefaultChatComponent(
         val current = state.value
         if (!current.canSend) return
         if (current.drawMode) {
-            if (generation.draw(chatId, draft.value)) draft.value = ""
+            if (generation.draw(chatId, draft.value, current.attachments.firstOrNull())) {
+                draft.value = ""
+                draftImages.update { it.copy(items = emptyList(), error = null) }
+            }
             return
         }
         val images = draftImages.value.items

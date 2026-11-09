@@ -33,6 +33,7 @@ sealed interface SettingsIntent {
     data class SelectThemeStyle(val style: ThemeStyle) : SettingsIntent
     data class SelectDarkMode(val mode: DarkMode) : SettingsIntent
     data class SetDynamicColor(val enabled: Boolean) : SettingsIntent
+    data class SetSafeMode(val enabled: Boolean) : SettingsIntent
     data object Back : SettingsIntent
 }
 
@@ -77,6 +78,7 @@ class DefaultSettingsComponent(
             is SettingsIntent.SelectThemeStyle -> settingsRepository.setThemeStyle(intent.style)
             is SettingsIntent.SelectDarkMode -> settingsRepository.setDarkMode(intent.mode)
             is SettingsIntent.SetDynamicColor -> settingsRepository.setDynamicColor(intent.enabled)
+            is SettingsIntent.SetSafeMode -> settingsRepository.setSafeMode(intent.enabled)
             SettingsIntent.Back -> onBack()
         }
     }

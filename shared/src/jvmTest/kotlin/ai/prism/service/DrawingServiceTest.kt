@@ -29,11 +29,12 @@ class DrawingServiceTest {
         imageDownloaded: Boolean = true,
         engine: FakeInferenceEngine = FakeInferenceEngine(reply = listOf("A ginger ", "cat on a sofa")),
         generator: FakeImageGenerator = FakeImageGenerator(),
+        chatModel: ai.prism.domain.model.CatalogModel = testModel(),
     ) = TestApp(
         engine = engine,
         models = FakeModelRepository(
             listOf(
-                ModelEntry(testModel(), ModelStatus.Downloaded, fitsInMemory = true),
+                ModelEntry(chatModel, ModelStatus.Downloaded, fitsInMemory = true),
                 ModelEntry(
                     testImageModel(),
                     if (imageDownloaded) ModelStatus.Downloaded else ModelStatus.NotDownloaded,
@@ -146,5 +147,96 @@ class DrawingServiceTest {
         val history = checkNotNull(app.engine.lastRequest).messages
         assertEquals(listOf("a lighthouse", "Нравится?"), history.map { it.content })
         assertFalse(history.any { it.images.isNotEmpty() })
+    }
+
+    @Test
+    fun refusedTranslationFallsBackToOriginalPrompt() = runBlocking {
+        val app = app(engine = FakeInferenceEngine(reply = listOf("I'm sorry, but I can't help with that.")))
+        val chat = app.chats.createChat()
+
+        app.generation.draw(chat.id, "старинный замок в тумане")
+
+        assertEquals("старинный замок в тумане", app.imageGenerator.lastRequest?.prompt)
+        assertEquals(MessageStatus.COMPLETE, app.chats.messagesSnapshot(chat.id).last().status)
+    }
+
+    @Test
+    fun photoIsRedrawnWithItsProportions() = runBlocking {
+        val app = app()
+        val chat = app.chats.createChat()
+        val photo = app.images.save(byteArrayOf(1, 2, 3))
+
+        app.generation.draw(chat.id, "make it winter", photo)
+
+        val request = checkNotNull(app.imageGenerator.lastRequest)
+        assertEquals("/images/${photo.fileName}", request.initImagePath)
+        assertEquals(1024 to 768, request.width to request.height)
+        assertEquals(0.7f, request.strength)
+        assertEquals(listOf(photo), app.chats.messagesSnapshot(chat.id).first().images)
+
+        // Повтор перерисовывает то же фото.
+        app.imageGenerator.lastRequest = null
+        app.imageGenerator.error = null
+        app.chats.messagesSnapshot(chat.id).last().let { app.chats.updateMessage(it.id, "", MessageStatus.STOPPED, null) }
+        app.generation.retry(chat.id)
+        assertEquals("/images/${photo.fileName}", app.imageGenerator.lastRequest?.initImagePath)
+    }
+
+    @Test
+    fun safeModeBlocksExplicitWordsWithoutDrawing() = runBlocking {
+        val app = app()
+        app.settings.setSafeMode(true)
+        val chat = app.chats.createChat()
+
+        app.generation.draw(chat.id, "голая девушка на пляже")
+
+        assertEquals(GenerationError.BLOCKED_BY_SAFE_MODE, app.chats.messagesSnapshot(chat.id).last().error)
+        assertNull(app.imageGenerator.lastRequest)
+    }
+
+    @Test
+    fun safeModeAsksChatModelAndRespectsVerdict() = runBlocking {
+        val app = app(engine = FakeInferenceEngine(reply = listOf("BLOCKED")))
+        app.settings.setSafeMode(true)
+        val chat = app.chats.createChat()
+
+        app.generation.draw(chat.id, "a scary scene")
+
+        assertEquals("Проверь и переведи.", app.engine.lastRequest?.systemPrompt)
+        assertEquals(GenerationError.BLOCKED_BY_SAFE_MODE, app.chats.messagesSnapshot(chat.id).last().error)
+        assertNull(app.imageGenerator.lastRequest)
+    }
+
+    @Test
+    fun safeModeReviewsPictureWithVisionModel() = runBlocking {
+        val engine = FakeInferenceEngine().apply {
+            queuedReplies += listOf("A cat in a garden")
+            queuedReplies += listOf("YES")
+        }
+        val app = app(engine = engine, chatModel = testModel(vision = ai.prism.testing.testVision()))
+        app.settings.setSafeMode(true)
+        val chat = app.chats.createChat()
+
+        app.generation.draw(chat.id, "кот в саду")
+
+        assertEquals("A cat in a garden", app.imageGenerator.lastRequest?.prompt)
+        val review = engine.requests.last().messages.single()
+        assertEquals("Есть недопустимое?", review.content)
+        assertEquals(1, review.images.size)
+        val reply = app.chats.messagesSnapshot(chat.id).last()
+        assertEquals(GenerationError.BLOCKED_BY_SAFE_MODE, reply.error)
+        assertTrue(reply.images.isEmpty())
+        assertTrue(app.images.files.isEmpty(), "запрещённая картинка удалена")
+    }
+
+    @Test
+    fun safeModeAddsRuleToChat() = runBlocking {
+        val app = app()
+        app.settings.setSafeMode(true)
+        val chat = app.chats.createChat()
+
+        app.generation.send(chat.id, "Привет")
+
+        assertTrue(checkNotNull(app.engine.lastRequest).systemPrompt.endsWith("Безопасный режим."))
     }
 }

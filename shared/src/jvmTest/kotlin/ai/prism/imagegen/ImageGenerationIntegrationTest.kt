@@ -97,6 +97,37 @@ class ImageGenerationIntegrationTest {
         generator.release()
     }
 
+    /** Перерисовка: при слабой силе изменения синий исходник остаётся синим, хотя описание просит красный фон. */
+    @Test
+    fun sdxlLightningKeepsSourcePhotoAtLowStrength(): Unit = runBlocking {
+        val generator = generator()
+        val model = env("PRISM_TEST_SDXL")
+        val taesd = env("PRISM_TEST_SDXL_TAESD")
+        assumeTrue("нет SDXL-Lightning", model != null && taesd != null)
+        val source = File(dir, "blue.png")
+        val blue = java.awt.image.BufferedImage(640, 480, java.awt.image.BufferedImage.TYPE_INT_RGB)
+        blue.createGraphics().apply {
+            color = java.awt.Color(30, 60, 220)
+            fillRect(0, 0, 640, 480)
+            dispose()
+        }
+        ImageIO.write(blue, "png", source)
+
+        val image = generator.generate(
+            testImageModel().copy(mainRole = "model"),
+            mapOf("model" to model!!.absolutePath, "taesd" to taesd!!.absolutePath),
+            request(width = 512, steps = 4, scheduler = "sgm_uniform", vaeTiling = true)
+                .copy(width = 512, height = 384, initImagePath = source.absolutePath, strength = 0.35f),
+        ) {}
+
+        File(screenshots, "generated_sdxl_img2img.png").writeBytes(image.png)
+        val (r, g, b) = meanRgb(image.png)
+        println("SDXL-Lightning перерисовка 512×384: средний цвет R=%.0f G=%.0f B=%.0f".format(r, g, b))
+        assertEquals(384, image.height)
+        assertTrue(b > r + 40, "исходное синее фото не учтено: R=$r G=$g B=$b")
+        generator.release()
+    }
+
     @Test
     fun fluxSchnellDrawsRedPicture(): Unit = runBlocking {
         val generator = generator()

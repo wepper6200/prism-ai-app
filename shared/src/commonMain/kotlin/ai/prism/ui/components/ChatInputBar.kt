@@ -8,6 +8,7 @@ import ai.prism.resources.input_attach_image
 import ai.prism.resources.input_attaching
 import ai.prism.resources.input_draw
 import ai.prism.resources.input_draw_placeholder
+import ai.prism.resources.input_redraw_placeholder
 import ai.prism.resources.input_microphone
 import ai.prism.resources.input_pick_gallery
 import ai.prism.resources.input_placeholder
@@ -122,7 +123,7 @@ fun ChatInputBar(
                     Icon(Icons.Outlined.AttachFile, contentDescription = stringResource(Res.string.input_attach_file))
                 }
                 if (drawing != null) DrawButton(drawing, enabled = !isGenerating)
-                ImageButton(attachments, enabled = !isGenerating && !drawActive && attachments.canAttachMore)
+                ImageButton(attachments, enabled = !isGenerating && attachments.canAttachMore)
                 val textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface)
                 BasicTextField(
                     value = text,
@@ -149,7 +150,11 @@ fun ChatInputBar(
                             if (text.isEmpty()) {
                                 Text(
                                     text = stringResource(
-                                        if (drawActive) Res.string.input_draw_placeholder else Res.string.input_placeholder,
+                                        when {
+                                            drawActive && attachments.items.isNotEmpty() -> Res.string.input_redraw_placeholder
+                                            drawActive -> Res.string.input_draw_placeholder
+                                            else -> Res.string.input_placeholder
+                                        },
                                     ),
                                     style = textStyle,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,

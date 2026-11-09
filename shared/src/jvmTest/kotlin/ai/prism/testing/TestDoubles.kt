@@ -168,6 +168,10 @@ class FakeInferenceEngine(
     var generateError: InferenceException? = null
     var lastRequest: GenerationRequest? = null
     var lastProjectorPath: String? = null
+
+    /** Ответы на очередные запросы; когда закончатся — [reply]. */
+    val queuedReplies = ArrayDeque<List<String>>()
+    val requests = mutableListOf<GenerationRequest>()
     private val cancelled = AtomicBoolean(false)
 
     override suspend fun load(model: CatalogModel, filePath: String, projectorPath: String?) {
@@ -180,8 +184,9 @@ class FakeInferenceEngine(
 
     override fun generate(request: GenerationRequest): Flow<String> = flow {
         lastRequest = request
+        requests += request
         cancelled.set(false)
-        for (piece in reply) {
+        for (piece in queuedReplies.removeFirstOrNull() ?: reply) {
             if (cancelled.get()) break
             emit(piece)
         }
@@ -262,10 +267,14 @@ class TestApp(
                     PromptMessage(MessageRole.ASSISTANT, "Я Prism AI."),
                 ),
                 imagePromptInstruction = "Переведи на английский.",
+                safeModeRule = "Безопасный режим.",
+                imageSafetyInstruction = "Проверь и переведи.",
+                imageReviewInstruction = "Есть недопустимое?",
             )
         },
         images = images,
         imageGenerator = imageGenerator,
+        settings = settings,
         scope = scope,
     )
     val dependencies = AppDependencies(

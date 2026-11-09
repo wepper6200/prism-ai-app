@@ -31,12 +31,13 @@ class DefaultSettingsRepositoryTest {
             setThemeStyle(ThemeStyle.LIQUID_GLASS)
             setDarkMode(DarkMode.DARK)
             setDynamicColor(false)
+            setSafeMode(true)
         }
 
         val restarted = DefaultSettingsRepository(store)
 
         assertEquals(
-            AppSettings(themeStyle = ThemeStyle.LIQUID_GLASS, darkMode = DarkMode.DARK, dynamicColor = false),
+            AppSettings(themeStyle = ThemeStyle.LIQUID_GLASS, darkMode = DarkMode.DARK, dynamicColor = false, safeMode = true),
             restarted.settings.value,
         )
     }

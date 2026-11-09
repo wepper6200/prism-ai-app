@@ -15,6 +15,8 @@ import ai.prism.resources.settings_appearance
 import ai.prism.resources.settings_dark_mode
 import ai.prism.resources.settings_dynamic_color
 import ai.prism.resources.settings_dynamic_color_desc
+import ai.prism.resources.settings_safe_mode
+import ai.prism.resources.settings_safe_mode_desc
 import ai.prism.resources.settings_identity_note
 import ai.prism.resources.settings_model_license
 import ai.prism.resources.settings_models
@@ -189,6 +191,30 @@ fun SettingsScreen(
                         text = stringResource(Res.string.settings_privacy_text),
                         style = MaterialTheme.typography.bodyMedium,
                     )
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(MaterialTheme.shapes.medium)
+                        .toggleable(
+                            value = state.settings.safeMode,
+                            role = Role.Switch,
+                            onValueChange = { component.onIntent(SettingsIntent.SetSafeMode(it)) },
+                        )
+                        .padding(vertical = 8.dp)
+                        .testTag("safe_mode"),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(Res.string.settings_safe_mode), style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            text = stringResource(Res.string.settings_safe_mode_desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Spacer(Modifier.width(16.dp))
+                    Switch(checked = state.settings.safeMode, onCheckedChange = null)
                 }
             }
 
