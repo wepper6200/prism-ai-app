@@ -5,6 +5,7 @@ import ai.prism.domain.model.MessageRole
 import ai.prism.resources.Res
 import ai.prism.resources.persona_answer
 import ai.prism.resources.persona_question
+import ai.prism.resources.persona_reminder
 import ai.prism.resources.system_prompt
 import ai.prism.service.AssistantPersona
 import ai.prism.service.PersonaProvider
@@ -18,5 +19,6 @@ class ResourcePersonaProvider : PersonaProvider {
             PromptMessage(MessageRole.USER, getString(Res.string.persona_question)),
             PromptMessage(MessageRole.ASSISTANT, getString(Res.string.persona_answer)),
         ),
+        reminder = getString(Res.string.persona_reminder),
     )
 }

@@ -24,6 +24,8 @@ import kotlin.concurrent.Volatile
 data class AssistantPersona(
     val systemPrompt: String,
     val primer: List<PromptMessage>,
+    /** Короткое напоминание о личности в конце последнего сообщения пользователя. */
+    val reminder: String = "",
 )
 
 /** Личность Prism AI на языке интерфейса. */
@@ -131,6 +133,7 @@ class ChatGenerationService(
                     systemPrompt = persona.systemPrompt,
                     messages = history,
                     primer = persona.primer,
+                    reminder = persona.reminder,
                 )
                 engine.generate(request).collect { piece ->
                     text.append(piece)

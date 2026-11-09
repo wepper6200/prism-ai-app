@@ -70,6 +70,8 @@ data class GenerationRequest(
      * (например, ответ на «Кто ты?» — маленькие модели лучше следуют примеру, чем правилу).
      */
     val primer: List<PromptMessage> = emptyList(),
+    /** Скрытое напоминание, которое дописывается к последнему сообщению пользователя только в промпте. */
+    val reminder: String = "",
     val maxTokens: Int = 2048,
     val sampling: SamplingParams = SamplingParams(),
 )

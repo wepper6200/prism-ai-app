@@ -22,6 +22,18 @@ object ChatPromptFormatter {
         ChatFormat.RAW -> raw(systemPrompt, messages)
     }
 
+    /**
+     * Дописывает [reminder] к последнему сообщению пользователя: маленькие модели сильнее всего
+     * учитывают то, что стоит ближе к концу промпта. В истории чата напоминание не хранится.
+     */
+    fun withReminder(messages: List<PromptMessage>, reminder: String): List<PromptMessage> {
+        val index = messages.indexOfLast { it.role == MessageRole.USER }
+        if (reminder.isBlank() || index < 0) return messages
+        return messages.toMutableList().also {
+            it[index] = it[index].copy(content = it[index].content.trimEnd() + "\n\n" + reminder.trim())
+        }
+    }
+
     internal fun sanitize(text: String): String =
         controlMarkers.fold(text) { acc, marker -> acc.replace(marker, "") }.trim()
 

@@ -40,6 +40,14 @@ class ChatPromptFormatterTest {
     }
 
     @Test
+    fun reminderIsAppendedToLastUserMessageOnly() {
+        val result = ChatPromptFormatter.withReminder(dialog, "(Ты — Prism AI.)")
+        assertEquals("Привет", result[0].content)
+        assertEquals("Кто ты?\n\n(Ты — Prism AI.)", result[2].content)
+        assertEquals(dialog, ChatPromptFormatter.withReminder(dialog, " "))
+    }
+
+    @Test
     fun controlMarkersAreRemovedFromUserText() {
         val prompt = ChatPromptFormatter.format(
             ChatFormat.GEMMA4,

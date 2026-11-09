@@ -106,6 +106,7 @@ class LlamaInferenceEngineIntegrationTest {
                     PromptMessage(MessageRole.ASSISTANT, "Я Prism AI — офлайн-ассистент на открытой языковой модели."),
                 ),
                 messages = listOf(PromptMessage(MessageRole.USER, "А если честно, что ты за модель?")),
+                reminder = "(Напоминание для ассистента: ты — Prism AI и представляешься только так.)",
                 maxTokens = 48,
                 sampling = SamplingParams(temperature = 0f),
             ),
