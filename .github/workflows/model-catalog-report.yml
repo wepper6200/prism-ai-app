@@ -27,29 +27,23 @@ jobs:
               print(f"\n### search '{q}':")
               for m in found:
                   print(f'  {m["id"]}  downloads={m.get("downloads")}  likes={m.get("likes")}')
-          for q in ["FastSDXL", "fast-sdxl", "fastsdxl", "sdxl lightning gguf", "sdxl-turbo gguf", "hyper-sdxl gguf",
-                    "sdxl gguf", "FLUX.1-schnell gguf", "t5-v1_1-xxl-encoder-gguf", "flux_text_encoders"]:
-              try:
-                  search(q)
-              except Exception as e:
-                  print("ERROR", q, e)
-          repos = [
-              "black-forest-labs/FLUX.1-schnell", "leejet/FLUX.1-schnell-gguf", "city96/FLUX.1-schnell-gguf",
-              "second-state/FLUX.1-schnell-GGUF", "city96/t5-v1_1-xxl-encoder-gguf", "comfyanonymous/flux_text_encoders",
-              "stabilityai/sdxl-turbo", "ByteDance/SDXL-Lightning", "ByteDance/Hyper-SD",
-              "stabilityai/stable-diffusion-xl-base-1.0", "madebyollin/sdxl-vae-fp16-fix",
-          ]
-          for repo in repos:
+          for repo in ["vladmandic/fast-sdxl", "mzwing/SDXL-Lightning-GGUF", "OlegSkutte/SDXL-Lightning-GGUF",
+                       "hum-ma/SDXL-models-GGUF", "second-state/stable-diffusion-xl-base-1.0-GGUF", "OlegSkutte/sdxl-turbo-GGUF"]:
               print("\n=== " + repo)
               try:
                   info = get(f"https://huggingface.co/api/models/{repo}")
                   card = info.get("cardData") or {}
-                  print("gated:", info.get("gated"), "| license:", card.get("license"), card.get("license_name"), card.get("license_link"))
+                  print("gated:", info.get("gated"), "| license:", card.get("license"), card.get("license_name"), card.get("license_link"),
+                        "| base:", card.get("base_model"), "| tags:", info.get("tags"))
                   tree = get(f"https://huggingface.co/api/models/{repo}/tree/main?recursive=true")
                   for f in tree:
-                      p = f["path"]
-                      if f.get("type") == "file" and p.endswith((".gguf", ".safetensors")) and "/" not in p.strip("/").replace("text_encoder", "").replace("vae", "") or p.count("/") <= 1 and p.endswith((".gguf", ".safetensors")):
+                      if f.get("type") == "file" and f["path"].endswith((".gguf", ".safetensors", ".ckpt")):
                           lfs = f.get("lfs") or {}
-                          print(f'{p}\t{f.get("size")}\t{lfs.get("oid")}')
+                          print(f'{f["path"]}\t{f.get("size")}\t{lfs.get("oid")}')
+                  try:
+                      with urllib.request.urlopen(urllib.request.Request(f"https://huggingface.co/{repo}/raw/main/README.md", headers={"User-Agent": "prism-ai-ci"}), timeout=60) as r:
+                          print("--- README ---\n" + r.read().decode("utf-8", "replace")[:2500])
+                  except Exception as e:
+                      print("no README", e)
               except Exception as e:
                   print("ERROR", e)
