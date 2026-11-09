@@ -99,6 +99,26 @@ class LlamaInferenceEngineIntegrationTest {
         engine.unload()
     }
 
+    /** Правильный ответ на фактический вопрос возможен, только если формат диалога Gemma собран верно. */
+    @Test
+    fun gemmaFollowsChatFormat(): Unit = runBlocking {
+        val file = requireModel("PRISM_TEST_GEMMA")
+        engine.load(modelFor(file, ChatFormat.GEMMA3), file.absolutePath)
+
+        val answer = engine.generate(
+            GenerationRequest(
+                systemPrompt = "You are a helpful assistant.",
+                messages = listOf(PromptMessage(MessageRole.USER, "What is the capital of France? Answer with one word.")),
+                maxTokens = 16,
+                sampling = SamplingParams(temperature = 0f),
+            ),
+        ).toList().joinToString("")
+
+        println("Gemma (format check): $answer")
+        assertTrue("Paris" in answer, "ожидался ответ «Paris», получено: $answer")
+        engine.unload()
+    }
+
     @Test
     fun corruptedModelFileIsReported(): Unit = runBlocking {
         assumeTrue("нет нативных библиотек", System.getProperty("prism.native.dir") != null)
