@@ -51,6 +51,22 @@ Prism AI — полностью офлайн ИИ-ассистент для **Wi
 - Светлый и тёмный режим, плавные анимации.
 - Интерфейс на русском, **все строки в ресурсах** (Compose Multiplatform resources), чтобы потом добавить английский.
 
+## Сборка и CI
+
+- Облачная среда разработки не имеет доступа к `dl.google.com` (Google Maven), поэтому проект собирается
+  и проверяется в GitHub Actions (`.github/workflows/build.yml`):
+  - **Android APK** — `:androidApp:assembleDebug`, артефакт `PrismAI-android-debug-apk`;
+  - **Desktop** — `:desktopApp:compileKotlin :shared:jvmTest`, UI-тесты сохраняют скриншоты (артефакт `PrismAI-screenshots`);
+  - **Windows** — `:desktopApp:createDistributable` на `windows-latest`, артефакт `PrismAI-windows`.
+- Предупреждения компилятора — ошибки (`allWarningsAsErrors`). Шаг диагностики CI при падении печатает
+  их текст (`-Pprism.werror=false` используется только им).
+- Версия приложения задаётся в `gradle/libs.versions.toml` (`prism-versionName`) и попадает в код через сгенерированный `BuildInfo`.
+- Известные особенности версий:
+  - в стабильном material3 API Expressive (`MaterialExpressiveTheme`, `MotionScheme`) внутренние — стиль собран из публичных API;
+  - AGP 9: модуль `shared` использует плагин `com.android.kotlin.multiplatform.library` и блок `kotlin { android { } }`;
+  - в UI-тестах Desktop — `androidx.compose.ui.test.v2.runDesktopComposeUiTest` (v1 устарел);
+  - главный поток Decompose на Desktop — поток Swing (`runOnUiThread`).
+
 ## Правила работы
 
 - Работай строго в рамках текущего этапа, не забегай вперёд.
