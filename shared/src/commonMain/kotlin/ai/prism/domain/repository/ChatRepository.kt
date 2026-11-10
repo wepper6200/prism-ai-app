@@ -1,5 +1,6 @@
 package ai.prism.domain.repository
 
+import ai.prism.domain.documents.MessageSource
 import ai.prism.domain.model.ChatMessage
 import ai.prism.domain.model.ChatSummary
 import ai.prism.domain.model.GenerationError
@@ -18,7 +19,7 @@ interface ChatRepository {
 
     suspend fun createChat(): ChatSummary
 
-    /** Удаляет диалог вместе с файлами его изображений. */
+    /** Удаляет диалог вместе с файлами его изображений и приложенными документами. */
     suspend fun deleteChat(chatId: String)
 
     /** Ставит заголовок, если у диалога его ещё нет. */
@@ -37,6 +38,9 @@ interface ChatRepository {
 
     /** Добавляет изображения к сообщению (созданные моделью изображений). */
     suspend fun attachImages(chatId: String, messageId: String, images: List<ImageAttachment>)
+
+    /** Запоминает, на какие фрагменты файлов опирался ответ. */
+    suspend fun attachSources(chatId: String, messageId: String, sources: List<MessageSource>)
 
     suspend fun deleteMessage(messageId: String)
 

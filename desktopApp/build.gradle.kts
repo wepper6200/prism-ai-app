@@ -29,7 +29,8 @@ compose.desktop {
             description = "Prism AI — офлайн ИИ-ассистент"
             vendor = "Prism AI"
             // java.sql — SQLite (SQLDelight), java.prefs — настройки, jdk.management — объём памяти устройства.
-            modules("java.sql", "java.prefs", "jdk.management")
+            // java.logging — для PDFBox (commons-logging), чтение PDF в «Файлах».
+            modules("java.sql", "java.prefs", "jdk.management", "java.logging")
             // Нативные библиотеки llama.cpp (собираются модулем :native).
             appResourcesRootDir.set(project(":native").layout.buildDirectory.dir("app-resources"))
 

@@ -3,6 +3,8 @@ package ai.prism.ui
 import ai.prism.domain.inference.PromptMessage
 import ai.prism.domain.model.MessageRole
 import ai.prism.resources.Res
+import ai.prism.resources.document_context
+import ai.prism.resources.document_page_label
 import ai.prism.resources.image_prompt_instruction
 import ai.prism.resources.image_review_instruction
 import ai.prism.resources.image_safety_instruction
@@ -28,5 +30,7 @@ class ResourcePersonaProvider : PersonaProvider {
         safeModeRule = getString(Res.string.safe_mode_chat_rule),
         imageSafetyInstruction = getString(Res.string.image_safety_instruction),
         imageReviewInstruction = getString(Res.string.image_review_instruction),
+        documentContext = getString(Res.string.document_context),
+        pageLabel = getString(Res.string.document_page_label),
     )
 }

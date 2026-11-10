@@ -6,6 +6,7 @@
 #include <jni.h>
 
 #include <algorithm>
+#include <cmath>
 #include <atomic>
 #include <cstdio>
 #include <cstddef>
@@ -693,6 +694,141 @@ Java_ai_prism_inference_llama_LlamaNative_generate(
     } catch (...) {
         if (sampler != nullptr) llama_sampler_free(sampler);
         return STATUS_ERROR_DECODE;
+    }
+}
+
+}  // extern "C"
+
+
+// ---------- Эмбеддинги (поиск по файлам) ----------
+
+namespace {
+
+struct Embedder {
+    llama_model * model = nullptr;
+    llama_context * ctx = nullptr;
+    llama_batch_ext * batch = nullptr;
+    int32_t max_tokens = 0;
+};
+
+Embedder * as_embedder(jlong handle) { return reinterpret_cast<Embedder *>(handle); }
+
+void free_embedder(Embedder * embedder) {
+    if (embedder == nullptr) return;
+    if (embedder->batch != nullptr) llama_batch_ext_free(embedder->batch);
+    if (embedder->ctx != nullptr) llama_free(embedder->ctx);
+    delete embedder;
+}
+
+}  // namespace
+
+extern "C" {
+
+// Контекст для эмбеддингов: весь текст обрабатывается одним батчем (у моделей эмбеддингов внимание не каузальное).
+// 0 — нехватка памяти или модель не умеет выдавать эмбеддинг текста (нет пулинга).
+JNIEXPORT jlong JNICALL
+Java_ai_prism_inference_llama_LlamaNative_createEmbedder(
+        JNIEnv * /*env*/, jobject /*thiz*/, jlong model, jint max_tokens, jint n_threads) {
+    Embedder * embedder = nullptr;
+    try {
+        embedder = new Embedder();
+        embedder->model = as_model(model);
+        const int32_t train = llama_model_n_ctx_train(embedder->model);
+        embedder->max_tokens = train > 0 ? std::min<int32_t>(max_tokens, train) : max_tokens;
+
+        llama_context_params params = llama_context_default_params();
+        params.n_ctx = static_cast<uint32_t>(embedder->max_tokens);
+        params.n_batch = static_cast<uint32_t>(embedder->max_tokens);
+        params.n_ubatch = static_cast<uint32_t>(embedder->max_tokens);
+        params.n_seq_max = 1;
+        params.n_threads = n_threads;
+        params.n_threads_batch = n_threads;
+        params.embeddings = true;
+        params.no_perf = true;
+
+        embedder->ctx = llama_init_from_model(embedder->model, params);
+        if (embedder->ctx == nullptr) {
+            free_embedder(embedder);
+            return 0;
+        }
+        if (llama_pooling_type(embedder->ctx) == LLAMA_POOLING_TYPE_NONE ||
+            llama_pooling_type(embedder->ctx) == LLAMA_POOLING_TYPE_RANK) {
+            set_last_error("the model does not produce text embeddings");
+            free_embedder(embedder);
+            return 0;
+        }
+        embedder->batch = llama_batch_ext_init(embedder->ctx);
+        if (embedder->batch == nullptr) {
+            free_embedder(embedder);
+            return 0;
+        }
+        return reinterpret_cast<jlong>(embedder);
+    } catch (const std::bad_alloc &) {
+        free_embedder(embedder);
+        set_last_error("out of memory");
+        return 0;
+    } catch (...) {
+        free_embedder(embedder);
+        return 0;
+    }
+}
+
+JNIEXPORT void JNICALL
+Java_ai_prism_inference_llama_LlamaNative_freeEmbedder(JNIEnv * /*env*/, jobject /*thiz*/, jlong handle) {
+    free_embedder(as_embedder(handle));
+}
+
+// Эмбеддинг текста (UTF-8), нормированный до единичной длины; слишком длинный текст обрезается.
+// null — текст пуст после токенизации или вычисление не удалось (см. lastError).
+JNIEXPORT jfloatArray JNICALL
+Java_ai_prism_inference_llama_LlamaNative_embed(JNIEnv * env, jobject /*thiz*/, jlong handle, jbyteArray text) {
+    Embedder * embedder = as_embedder(handle);
+    try {
+        const std::string input = to_std_string(env, text);
+        std::vector<llama_token> tokens = tokenize(llama_model_get_vocab(embedder->model), input, true);
+        if (tokens.empty()) return nullptr;
+        if (static_cast<int32_t>(tokens.size()) > embedder->max_tokens) {
+            tokens.resize(static_cast<size_t>(embedder->max_tokens));
+        }
+
+        llama_memory_clear(llama_get_memory(embedder->ctx), true);
+        llama_batch_ext_clear(embedder->batch);
+        for (size_t i = 0; i < tokens.size(); ++i) {
+            const int32_t idx = llama_batch_ext_add_token(embedder->batch, 0, tokens[i]);
+            if (idx < 0) {
+                set_last_error("embedding batch is full");
+                return nullptr;
+            }
+            const llama_pos pos = static_cast<llama_pos>(i);
+            llama_batch_ext_set_pos(embedder->batch, idx, &pos);
+            llama_batch_ext_set_output_embd(embedder->batch, idx, true);
+        }
+        const bool encoder_only = llama_model_has_encoder(embedder->model) && !llama_model_has_decoder(embedder->model);
+        const int32_t ret = llama_process(
+            embedder->ctx, encoder_only ? LLAMA_PROCESS_TYPE_ENCODE : LLAMA_PROCESS_TYPE_DECODE, embedder->batch);
+        if (ret != 0) {
+            if (ret == 1 || ret == -2) set_last_error("out of memory");
+            return nullptr;
+        }
+        const float * embd = llama_get_embeddings_seq(embedder->ctx, 0);
+        const int32_t n = llama_model_n_embd_out(embedder->model);
+        if (embd == nullptr || n <= 0) return nullptr;
+
+        double norm = 0.0;
+        for (int32_t i = 0; i < n; ++i) norm += static_cast<double>(embd[i]) * embd[i];
+        const float scale = norm > 0.0 ? static_cast<float>(1.0 / std::sqrt(norm)) : 0.0f;
+        std::vector<float> out(static_cast<size_t>(n));
+        for (int32_t i = 0; i < n; ++i) out[static_cast<size_t>(i)] = embd[i] * scale;
+
+        jfloatArray result = env->NewFloatArray(n);
+        if (result == nullptr) return nullptr;
+        env->SetFloatArrayRegion(result, 0, n, out.data());
+        return result;
+    } catch (const std::bad_alloc &) {
+        set_last_error("out of memory");
+        return nullptr;
+    } catch (...) {
+        return nullptr;
     }
 }
 

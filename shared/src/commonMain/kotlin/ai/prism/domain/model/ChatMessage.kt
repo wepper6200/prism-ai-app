@@ -1,5 +1,7 @@
 package ai.prism.domain.model
 
+import ai.prism.domain.documents.MessageSource
+
 import kotlinx.serialization.Serializable
 
 enum class MessageRole { USER, ASSISTANT }
@@ -49,6 +51,9 @@ enum class GenerationError {
     /** Запрос отклонён безопасным режимом. */
     BLOCKED_BY_SAFE_MODE,
 
+    /** В диалоге есть файлы, а модель поиска по файлам не скачана. */
+    NO_EMBEDDING_MODEL,
+
     /** Описание картинки по-русски, а модели чата для перевода на английский нет. */
     TRANSLATOR_REQUIRED,
 
@@ -68,6 +73,8 @@ data class ChatMessage(
     val createdAt: Long,
     /** Изображения, приложенные к сообщению пользователя, по порядку. */
     val images: List<ImageAttachment> = emptyList(),
+    /** Фрагменты файлов диалога, на которые опирался ответ ассистента. */
+    val sources: List<MessageSource> = emptyList(),
 )
 
 /** Изображение в сообщении: уменьшенный JPEG в каталоге изображений приложения (`ImageStore`). */

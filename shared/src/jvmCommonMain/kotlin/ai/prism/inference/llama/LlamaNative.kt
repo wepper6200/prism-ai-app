@@ -84,4 +84,15 @@ internal object LlamaNative {
         seed: Int,
         listener: TokenListener,
     ): Int
+
+    /**
+     * Контекст для эмбеддингов модели [model]: текст до [maxTokens] токенов за раз.
+     * 0 — нехватка памяти или модель не выдаёт эмбеддинг текста.
+     */
+    external fun createEmbedder(model: Long, maxTokens: Int, threads: Int): Long
+
+    external fun freeEmbedder(embedder: Long)
+
+    /** Эмбеддинг текста (UTF-8) единичной длины или `null` при ошибке (см. [lastError]). */
+    external fun embed(embedder: Long, text: ByteArray): FloatArray?
 }

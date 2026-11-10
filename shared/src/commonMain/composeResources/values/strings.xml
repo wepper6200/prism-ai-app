@@ -19,7 +19,6 @@
     <string name="chat_no_model">Модель не выбрана</string>
 
     <string name="input_placeholder">Сообщение</string>
-    <string name="input_attach_file">Прикрепить файл</string>
     <string name="input_attach_image">Прикрепить изображение</string>
     <string name="input_microphone">Голосовой ввод</string>
     <string name="input_send">Отправить</string>
@@ -89,6 +88,25 @@
     <string name="input_redraw_placeholder">Опишите, как изменить фото</string>
     <string name="draw_one_photo">Для перерисовки оставьте одно фото</string>
     <string name="draw_needs_translator">Пишите по-английски или скачайте модель чата для перевода</string>
+    <string name="input_attach_document">Приложить файл (PDF, DOCX, TXT, MD)</string>
+    <string name="document_indexing">Готовлю к поиску… %1$s</string>
+    <string name="document_ready">Готов к вопросам</string>
+    <string name="document_remove">Убрать файл</string>
+    <string name="document_sources">Источники: %1$s</string>
+    <string name="document_pages">с.</string>
+    <string name="document_page_label">с.</string>
+    <string name="document_error_unsupported">Формат не поддерживается</string>
+    <string name="document_error_unreadable">Файл повреждён или защищён паролем</string>
+    <string name="document_error_no_text">В файле нет текста (возможно, это скан)</string>
+    <string name="document_error_too_large">Файл слишком большой</string>
+    <string name="document_error_no_model">Не скачана модель поиска по файлам</string>
+    <string name="document_error_model">Модель поиска по файлам повреждена — скачайте её заново</string>
+    <string name="document_error_memory">Не хватило памяти</string>
+    <string name="document_error_interrupted">Подготовка прервалась — приложите файл ещё раз</string>
+    <string name="document_error_failed">Не удалось подготовить файл</string>
+    <string name="document_dialog_title">Модель поиска по файлам не скачана</string>
+    <string name="document_dialog_text">Чтобы задавать вопросы по файлам, скачайте «%1$s» (%2$s) на экране «Модели». Она работает без интернета, файлы не покидают устройство.</string>
+    <string name="document_context">Фрагменты файлов, приложенных к диалогу:\n\n{fragments}\n\nОтветь на сообщение ниже, опираясь на эти фрагменты. Если ответа в них нет, так и скажи. Ссылайся на фрагменты номерами в квадратных скобках, например [1].\n\nСообщение: {question}</string>
     <string name="draw_translating">Готовлю описание…</string>
     <string name="draw_loading">Загружаю модель рисования…</string>
     <string name="draw_step">Рисую… шаг %1$d из %2$d</string>
@@ -110,6 +128,7 @@
     <string name="error_image_failed">Не удалось обработать изображение. Попробуйте другое фото.</string>
     <string name="error_vision_module_corrupted">Модуль зрения повреждён. Удалите модель и скачайте её снова.</string>
     <string name="error_no_image_model">Модель для рисования не скачана. Откройте «Модели» и скачайте её.</string>
+    <string name="error_no_embedding_model">В диалоге есть файлы, а модель поиска по файлам не скачана. Откройте «Модели» и скачайте её.</string>
     <string name="error_image_generation_failed">Не удалось нарисовать изображение. Попробуйте ещё раз или измените описание.</string>
     <string name="error_gpu_driver_missing">Для рисования нужен драйвер видеокарты с поддержкой Vulkan. Установите драйвер NVIDIA, AMD или Intel.</string>
     <string name="error_blocked_by_safe_mode">Безопасный режим: такой запрос Prism AI не выполняет. Режим можно выключить в «Настройках».</string>
@@ -137,6 +156,8 @@
     <string name="models_vision_download">Скачать модуль зрения</string>
     <string name="models_draws">Рисует изображения</string>
     <string name="models_details_image">%1$s · %2$s · %3$d×%4$d</string>
+    <string name="models_searches_files">Поиск по файлам</string>
+    <string name="models_details_embedding">%1$s · %2$s</string>
     <string name="models_details">%1$s · %2$s · контекст %3$s</string>
     <string name="models_license">Лицензия: %1$s</string>
     <string name="models_delete_title">Удалить модель?</string>

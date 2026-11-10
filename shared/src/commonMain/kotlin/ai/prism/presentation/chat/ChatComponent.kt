@@ -1,6 +1,10 @@
 package ai.prism.presentation.chat
 
 import ai.prism.core.componentScope
+import ai.prism.domain.documents.DocumentError
+import ai.prism.domain.documents.DocumentFormat
+import ai.prism.domain.documents.DocumentStatus
+import ai.prism.domain.documents.MessageSource
 import ai.prism.domain.inference.EngineState
 import ai.prism.domain.inference.InferenceEngine
 import ai.prism.domain.model.GenerationError
@@ -10,12 +14,14 @@ import ai.prism.domain.model.MessageStatus
 import ai.prism.domain.model.ModelKind
 import ai.prism.domain.model.ModelStatus
 import ai.prism.domain.repository.ChatRepository
+import ai.prism.domain.repository.DocumentRepository
 import ai.prism.domain.repository.ImageException
 import ai.prism.domain.repository.ImageStore
 import ai.prism.domain.repository.ModelRepository
 import ai.prism.service.ChatGenerationService
 import ai.prism.service.DrawingProgress
 import ai.prism.service.ImagePromptPolicy
+import ai.prism.service.documents.DocumentService
 import com.arkivanov.decompose.ComponentContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -41,7 +47,31 @@ data class MessageItem(
     val images: List<ImageAttachment> = emptyList(),
     /** Ход рисования, пока модель создаёт изображение для этого ответа. */
     val drawing: DrawingProgress? = null,
+    /** Файлы диалога, на которые опирался ответ. */
+    val sources: List<MessageSource> = emptyList(),
 )
+
+/** Файл диалога на экране: [progress] — доля готовности, пока файл готовится к поиску. */
+data class DocumentItem(
+    val id: String,
+    val name: String,
+    val format: DocumentFormat,
+    val status: DocumentStatus,
+    val error: DocumentError?,
+    val progress: Float? = null,
+)
+
+/** Можно ли прикладывать файлы для поиска по ним. */
+enum class DocumentSupport {
+    /** Модель поиска по файлам скачана. */
+    READY,
+
+    /** Модель поиска по файлам есть в каталоге, но не скачана. */
+    NOT_DOWNLOADED,
+
+    /** Поиска по файлам на этой платформе нет. */
+    UNAVAILABLE,
+}
 
 /** Может ли приложение рисовать изображения. */
 enum class DrawSupport {
@@ -100,6 +130,12 @@ data class ChatState(
     val canTranslateDrawing: Boolean = true,
     /** Размер модуля зрения активной модели (для подсказки о загрузке), байт. */
     val visionModuleBytes: Long = 0,
+    /** Файлы диалога: ассистент ищет в них ответы на вопросы. */
+    val documents: List<DocumentItem> = emptyList(),
+    val documentSupport: DocumentSupport = DocumentSupport.UNAVAILABLE,
+    /** Модель поиска по файлам (для подсказки о загрузке). */
+    val embeddingModelName: String? = null,
+    val embeddingModelBytes: Long = 0,
     /** Прогресс загрузки модели в память, пока ответ этого чата ждёт её. */
     val modelLoadingProgress: Float? = null,
     val isGenerating: Boolean = false,
@@ -129,8 +165,15 @@ data class ChatState(
     }
 }
 
+/** Выбранный документ: имя файла и содержимое. */
+class PickedDocument(val name: String, val bytes: ByteArray)
+
 sealed interface ChatIntent {
     data class DraftChanged(val text: String) : ChatIntent
+
+    /** Пользователь выбрал документы для поиска по ним. */
+    data class AttachDocuments(val files: List<PickedDocument>) : ChatIntent
+    data class RemoveDocument(val id: String) : ChatIntent
 
     /** Пользователь выбрал изображения (байты файлов). */
     data class AttachImages(val files: List<ByteArray>) : ChatIntent
@@ -165,6 +208,8 @@ class DefaultChatComponent(
     modelRepository: ModelRepository,
     engine: InferenceEngine,
     private val generation: ChatGenerationService,
+    private val documentService: DocumentService,
+    documentRepository: DocumentRepository,
     private val imageStore: ImageStore,
     mainContext: CoroutineContext,
     private val onOpenModels: () -> Unit,
@@ -211,6 +256,9 @@ class DefaultChatComponent(
         val imageModelName: String?,
         val imageModelBytes: Long,
         val canTranslate: Boolean,
+        val documentSupport: DocumentSupport,
+        val embeddingModelName: String?,
+        val embeddingModelBytes: Long,
     )
 
     private val conversation = combine(
@@ -232,6 +280,7 @@ class DefaultChatComponent(
                     isStreaming = streaming != null,
                     images = message.images,
                     drawing = streaming?.drawing,
+                    sources = message.sources,
                 )
             },
             isGenerating = active?.chatId == chatId,
@@ -246,6 +295,7 @@ class DefaultChatComponent(
     ) { activeId, entries, engineState ->
         val entry = entries.firstOrNull { it.model.id == activeId }
         val imageEntry = entries.firstOrNull { it.model.kind == ModelKind.IMAGE }
+        val embeddingEntry = entries.firstOrNull { it.model.kind == ModelKind.EMBEDDING }
         ModelPart(
             name = entry?.model?.name,
             downloaded = entry?.chatReady == true,
@@ -264,7 +314,30 @@ class DefaultChatComponent(
             imageModelName = imageEntry?.model?.name,
             imageModelBytes = imageEntry?.model?.totalSizeBytes ?: 0L,
             canTranslate = entries.any { it.model.kind == ModelKind.CHAT && it.chatReady },
+            documentSupport = when {
+                embeddingEntry == null -> DocumentSupport.UNAVAILABLE
+                embeddingEntry.status == ModelStatus.Downloaded -> DocumentSupport.READY
+                else -> DocumentSupport.NOT_DOWNLOADED
+            },
+            embeddingModelName = embeddingEntry?.model?.name,
+            embeddingModelBytes = embeddingEntry?.model?.totalSizeBytes ?: 0L,
         )
+    }
+
+    private val documentsPart = combine(
+        documentRepository.documents(chatId),
+        documentService.progress,
+    ) { documents, progress ->
+        documents.map { document ->
+            DocumentItem(
+                id = document.id,
+                name = document.name,
+                format = document.format,
+                status = document.status,
+                error = document.error,
+                progress = progress[document.id],
+            )
+        }
     }
 
     override val state: StateFlow<ChatState> = combine(
@@ -272,8 +345,8 @@ class DefaultChatComponent(
         modelPart,
         draft,
         draftImages,
-        drawMode,
-    ) { chat, model, text, images, drawing ->
+        combine(drawMode, documentsPart) { drawing, documents -> drawing to documents },
+    ) { chat, model, text, images, (drawing, documents) ->
         ChatState(
             chatId = chatId,
             title = chat.title,
@@ -291,6 +364,10 @@ class DefaultChatComponent(
             imageModelName = model.imageModelName,
             imageModelBytes = model.imageModelBytes,
             canTranslateDrawing = model.canTranslate,
+            documents = documents,
+            documentSupport = model.documentSupport,
+            embeddingModelName = model.embeddingModelName,
+            embeddingModelBytes = model.embeddingModelBytes,
             modelLoadingProgress = model.loadingProgress?.takeIf { chat.isGenerating },
             isGenerating = chat.isGenerating,
             busyInOtherChat = chat.busyElsewhere,
@@ -304,6 +381,10 @@ class DefaultChatComponent(
     override fun onIntent(intent: ChatIntent) {
         when (intent) {
             is ChatIntent.DraftChanged -> draft.value = intent.text
+            is ChatIntent.AttachDocuments -> intent.files.forEach { file ->
+                scope.launch { documentService.add(chatId, file.name, file.bytes) }
+            }
+            is ChatIntent.RemoveDocument -> scope.launch { documentService.remove(intent.id) }
             is ChatIntent.AttachImages -> attach(intent.files)
             ChatIntent.AttachFailed -> draftImages.update { it.copy(error = AttachmentError.UNREADABLE) }
             is ChatIntent.RemoveAttachment -> remove(intent.id)

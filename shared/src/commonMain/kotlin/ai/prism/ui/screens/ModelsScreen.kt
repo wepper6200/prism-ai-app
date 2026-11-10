@@ -15,6 +15,7 @@ import ai.prism.resources.models_delete_text
 import ai.prism.resources.models_delete_title
 import ai.prism.resources.models_details
 import ai.prism.resources.models_details_image
+import ai.prism.resources.models_details_embedding
 import ai.prism.resources.models_draws
 import ai.prism.resources.models_device_ram
 import ai.prism.resources.models_download
@@ -23,6 +24,7 @@ import ai.prism.resources.models_engine_loading
 import ai.prism.resources.models_engine_ready
 import ai.prism.resources.models_for_desktop
 import ai.prism.resources.models_for_phone
+import ai.prism.resources.models_searches_files
 import ai.prism.resources.models_license
 import ai.prism.resources.models_low_ram
 import ai.prism.resources.models_pause
@@ -236,6 +238,7 @@ private fun ModelCard(
                 if ("desktop" in model.recommendedFor) Tag(stringResource(Res.string.models_for_desktop))
                 if (model.supportsImages) Tag(stringResource(Res.string.models_vision))
                 if (model.kind == ModelKind.IMAGE) Tag(stringResource(Res.string.models_draws))
+                if (model.kind == ModelKind.EMBEDDING) Tag(stringResource(Res.string.models_searches_files))
             }
             val image = model.image
             Text(
@@ -247,6 +250,8 @@ private fun ModelCard(
                         image.width,
                         image.height,
                     )
+                } else if (model.kind == ModelKind.EMBEDDING) {
+                    stringResource(Res.string.models_details_embedding, model.quantization, formatBytes(model.totalSizeBytes))
                 } else {
                     stringResource(
                         Res.string.models_details,

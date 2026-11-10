@@ -42,6 +42,26 @@ enum class ModelKind {
     /** Генерация изображений по описанию (stable-diffusion.cpp). */
     @SerialName("image")
     IMAGE,
+
+    /** Эмбеддинги текста для поиска по приложенным файлам (llama.cpp). */
+    @SerialName("embedding")
+    EMBEDDING,
+}
+
+/**
+ * Как модель эмбеддингов ждёт текст: шаблоны с `{text}` (и `{title}` для фрагментов файлов)
+ * и сколько токенов она читает за раз.
+ */
+@Serializable
+data class EmbeddingSettings(
+    val queryTemplate: String = "{text}",
+    val documentTemplate: String = "{text}",
+    val maxTokens: Int = 2048,
+) {
+    fun query(text: String): String = queryTemplate.replace("{text}", text)
+
+    fun document(title: String, text: String): String =
+        documentTemplate.replace("{title}", title).replace("{text}", text)
 }
 
 /**
@@ -111,6 +131,8 @@ data class CatalogModel(
     /** Остальные файлы модели изображений (текстовые энкодеры, VAE). */
     val components: List<ModelComponent> = emptyList(),
     val image: ImageModelSettings? = null,
+    /** Для моделей эмбеддингов: шаблоны запроса и фрагмента. */
+    val embedding: EmbeddingSettings? = null,
 ) {
     /** Основной файл с весами модели. */
     val mainFile: ModelFile get() = ModelFile(url, fileName, sizeBytes, sha256)

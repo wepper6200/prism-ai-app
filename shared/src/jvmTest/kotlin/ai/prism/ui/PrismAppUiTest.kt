@@ -4,11 +4,14 @@ import ai.prism.domain.model.DarkMode
 import ai.prism.domain.model.ModelEntry
 import ai.prism.domain.model.ModelStatus
 import ai.prism.domain.model.ThemeStyle
+import ai.prism.domain.documents.DocumentStatus
 import ai.prism.presentation.chat.ChatIntent
+import ai.prism.presentation.chat.PickedDocument
 import ai.prism.presentation.root.DefaultRootComponent
 import ai.prism.presentation.root.RootComponent
 import ai.prism.testing.FakeModelRepository
 import ai.prism.testing.TestApp
+import ai.prism.testing.testEmbeddingModel
 import ai.prism.testing.testImageModel
 import ai.prism.testing.testModel
 import ai.prism.testing.testVision
@@ -73,6 +76,7 @@ class PrismAppUiTest {
                 fitsInMemory = false,
             ),
             ModelEntry(testImageModel(), ModelStatus.Downloaded, fitsInMemory = true),
+            ModelEntry(testEmbeddingModel(), ModelStatus.Downloaded, fitsInMemory = true),
         ),
     )
 
@@ -241,5 +245,37 @@ class PrismAppUiTest {
         onNodeWithTag("generated_image").assertIsDisplayed()
         assertEquals("a sunset over the sea", app.imageGenerator.lastRequest?.prompt)
         screenshot("compact_11_drawn_picture")
+    }
+
+    /** Файлы диалога: строка файлов над полем ввода, ответ с источниками. */
+    @Test
+    fun compactChatWithDocuments() = runDesktopComposeUiTest(width = 412, height = 892) {
+        val (_, root) = createApp()
+        setContent { PrismApp(root) }
+
+        onNodeWithTag("new_chat").performClick()
+        val chat = assertIs<RootComponent.Child.Chat>(root.stack.value.active.instance).component
+        chat.onIntent(
+            ChatIntent.AttachDocuments(
+                listOf(
+                    PickedDocument("Правила отпусков.pdf", "Отпуск — 28 дней в году.\n---\nЗаявление — за две недели.".encodeToByteArray()),
+                    PickedDocument("скан.jpg", byteArrayOf(1, 2, 3)),
+                ),
+            ),
+        )
+        waitForIdle()
+        onNodeWithTag("document_strip").assertIsDisplayed()
+        assertEquals(
+            listOf(DocumentStatus.READY, DocumentStatus.FAILED),
+            chat.state.value.documents.map { it.status },
+        )
+        onNodeWithTag("message_input").performTextInput("Сколько дней отпуска?")
+        screenshot("compact_12_documents")
+
+        onNodeWithTag("send_button").performClick()
+        waitForIdle()
+        onNodeWithTag("message_sources").assertIsDisplayed()
+        onNodeWithText("Правила отпусков.pdf (с. 1, 2)", substring = true).assertIsDisplayed()
+        screenshot("compact_13_answer_with_sources")
     }
 }

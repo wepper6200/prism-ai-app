@@ -5,6 +5,7 @@ import ai.prism.domain.model.AppSettings
 import ai.prism.domain.model.DeviceInfo
 import ai.prism.domain.model.PlatformCapabilities
 import ai.prism.domain.repository.ChatRepository
+import ai.prism.domain.repository.DocumentRepository
 import ai.prism.domain.repository.ImageStore
 import ai.prism.domain.repository.ModelRepository
 import ai.prism.domain.repository.SettingsRepository
@@ -17,6 +18,7 @@ import ai.prism.presentation.models.ModelsComponent
 import ai.prism.presentation.settings.DefaultSettingsComponent
 import ai.prism.presentation.settings.SettingsComponent
 import ai.prism.service.ChatGenerationService
+import ai.prism.service.documents.DocumentService
 import com.arkivanov.decompose.ComponentContext
 import com.arkivanov.decompose.childContext
 import com.arkivanov.decompose.router.stack.ChildStack
@@ -59,6 +61,8 @@ class AppDependencies(
     val modelRepository: ModelRepository,
     val settingsRepository: SettingsRepository,
     val generationService: ChatGenerationService,
+    val documentService: DocumentService,
+    val documentRepository: DocumentRepository,
     val engine: InferenceEngine,
     val imageStore: ImageStore,
     val capabilities: PlatformCapabilities,
@@ -119,6 +123,8 @@ class DefaultRootComponent(
                     modelRepository = deps.modelRepository,
                     engine = deps.engine,
                     generation = deps.generationService,
+                    documentService = deps.documentService,
+                    documentRepository = deps.documentRepository,
                     imageStore = deps.imageStore,
                     mainContext = mainContext,
                     onOpenModels = { openScreen(Config.Models) },

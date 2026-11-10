@@ -100,10 +100,12 @@ kotlin {
             implementation(libs.androidx.activity.compose)
             implementation(libs.kotlinx.coroutines.android)
             implementation(libs.sqldelight.android.driver)
+            implementation(libs.pdfbox.android)
         }
         jvmMain.dependencies {
             implementation(libs.kotlinx.coroutines.swing)
             implementation(libs.sqldelight.sqlite.driver)
+            implementation(libs.pdfbox)
         }
         jvmTest.dependencies {
             implementation(libs.kotlin.test)

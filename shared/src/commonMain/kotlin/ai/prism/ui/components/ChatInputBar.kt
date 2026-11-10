@@ -3,7 +3,7 @@ package ai.prism.ui.components
 import ai.prism.domain.model.ImageAttachment
 import ai.prism.resources.Res
 import ai.prism.resources.image_description
-import ai.prism.resources.input_attach_file
+import ai.prism.resources.input_attach_document
 import ai.prism.resources.input_attach_image
 import ai.prism.resources.input_attaching
 import ai.prism.resources.input_draw
@@ -94,7 +94,7 @@ class InputDrawing(
 /**
  * Поле ввода сообщения. Enter — отправить, Shift+Enter — новая строка.
  * Во время ответа кнопка отправки превращается в «Стоп».
- * Над полем — миниатюры приложенных изображений. Файлы и микрофон появятся на следующих этапах.
+ * Над полем — миниатюры приложенных изображений. Микрофон появится на этапе «Голос».
  */
 @Composable
 fun ChatInputBar(
@@ -108,6 +108,8 @@ fun ChatInputBar(
     modifier: Modifier = Modifier,
     /** `null` — на этой платформе рисовать нельзя, кнопки нет. */
     drawing: InputDrawing? = null,
+    /** Приложить файл для поиска по нему; `null` — поиска по файлам нет, кнопка неактивна. */
+    onPickDocuments: (() -> Unit)? = null,
 ) {
     val drawActive = drawing?.active == true
     PrismPanel(modifier.fillMaxWidth(), shape = RoundedCornerShape(28.dp)) {
@@ -119,8 +121,12 @@ fun ChatInputBar(
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.Bottom,
             ) {
-                IconButton(onClick = {}, enabled = false) {
-                    Icon(Icons.Outlined.AttachFile, contentDescription = stringResource(Res.string.input_attach_file))
+                IconButton(
+                    onClick = { onPickDocuments?.invoke() },
+                    enabled = onPickDocuments != null && !isGenerating && !drawActive,
+                    modifier = Modifier.testTag("attach_document"),
+                ) {
+                    Icon(Icons.Outlined.AttachFile, contentDescription = stringResource(Res.string.input_attach_document))
                 }
                 if (drawing != null) DrawButton(drawing, enabled = !isGenerating)
                 ImageButton(attachments, enabled = !isGenerating && attachments.canAttachMore)

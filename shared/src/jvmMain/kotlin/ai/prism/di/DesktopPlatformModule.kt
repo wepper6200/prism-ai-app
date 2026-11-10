@@ -1,5 +1,7 @@
 package ai.prism.di
 
+import ai.prism.data.documents.FileTextExtractor
+import ai.prism.data.documents.PdfBoxTextReader
 import ai.prism.data.db.PrismDatabase
 import ai.prism.data.images.DesktopImageCodec
 import ai.prism.data.images.FileImageStore
@@ -11,6 +13,8 @@ import ai.prism.data.models.ModelStorage
 import ai.prism.data.settings.KeyValueStore
 import ai.prism.data.settings.PreferencesKeyValueStore
 import ai.prism.desktop.AppDirectories
+import ai.prism.domain.documents.DocumentTextExtractor
+import ai.prism.domain.documents.TextEmbedder
 import ai.prism.domain.imagegen.ImageGenerator
 import ai.prism.domain.inference.InferenceEngine
 import ai.prism.domain.model.DeviceInfo
@@ -18,6 +22,7 @@ import ai.prism.domain.model.PlatformCapabilities
 import ai.prism.domain.repository.ImageStore
 import ai.prism.imagegen.ProcessImageGenerator
 import ai.prism.inference.llama.LlamaInferenceEngine
+import ai.prism.inference.llama.LlamaTextEmbedder
 import ai.prism.platform.DesktopDeviceInfo
 import ai.prism.platform.DesktopNativeLibraryLoader
 import app.cash.sqldelight.db.SqlDriver
@@ -52,6 +57,8 @@ fun desktopPlatformModule(): Module = module {
         )
     }
     single<InferenceEngine> { LlamaInferenceEngine(DesktopNativeLibraryLoader(), get(), get()) }
+    single<DocumentTextExtractor> { FileTextExtractor(PdfBoxTextReader()) }
+    single<TextEmbedder> { LlamaTextEmbedder(DesktopNativeLibraryLoader(), get()) }
 }
 
 private const val DATABASE_NAME = "prism.db"

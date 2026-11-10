@@ -1,9 +1,15 @@
 package ai.prism.testing
 
 import ai.prism.data.chat.SqlChatRepository
+import ai.prism.data.documents.SqlDocumentRepository
 import ai.prism.data.db.PrismDatabase
 import ai.prism.data.settings.DefaultSettingsRepository
 import ai.prism.data.settings.MapKeyValueStore
+import ai.prism.domain.documents.DocumentException
+import ai.prism.domain.documents.DocumentFormat
+import ai.prism.domain.documents.DocumentTextExtractor
+import ai.prism.domain.documents.TextEmbedder
+import ai.prism.domain.documents.TextSection
 import ai.prism.domain.imagegen.GeneratedImage
 import ai.prism.domain.imagegen.ImageGenerationError
 import ai.prism.domain.imagegen.ImageGenerationException
@@ -19,6 +25,7 @@ import ai.prism.domain.inference.ModelInfo
 import ai.prism.domain.model.CatalogModel
 import ai.prism.domain.model.ChatFormat
 import ai.prism.domain.model.DeviceInfo
+import ai.prism.domain.model.EmbeddingSettings
 import ai.prism.domain.model.ImageAttachment
 import ai.prism.domain.model.ModelEntry
 import ai.prism.domain.model.ImageModelSettings
@@ -36,6 +43,7 @@ import ai.prism.domain.inference.PromptMessage
 import ai.prism.domain.model.MessageRole
 import ai.prism.service.AssistantPersona
 import ai.prism.service.ChatGenerationService
+import ai.prism.service.documents.DocumentService
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -243,10 +251,66 @@ class FakeModelRepository(
         models.value.firstOrNull { it.model.id == modelId && it.visionReady }?.model?.vision?.let { "/models/${it.fileName}" }
 }
 
-fun inMemoryChatRepository(images: ImageStore = MemoryImageStore()): SqlChatRepository {
+fun inMemoryDatabase(): PrismDatabase {
     val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
     PrismDatabase.Schema.create(driver)
-    return SqlChatRepository(PrismDatabase(driver), images, Dispatchers.Unconfined)
+    return PrismDatabase(driver)
+}
+
+fun inMemoryChatRepository(images: ImageStore = MemoryImageStore(), database: PrismDatabase = inMemoryDatabase()): SqlChatRepository =
+    SqlChatRepository(database, images, Dispatchers.Unconfined)
+
+/** Модель поиска по файлам для тестов. */
+fun testEmbeddingModel(id: String = "embed-test") = testModel(id = id, name = "EmbeddingGemma 300M").copy(
+    kind = ModelKind.EMBEDDING,
+    sizeBytes = 328_576_000,
+    embedding = EmbeddingSettings(queryTemplate = "query: {text}", documentTemplate = "title: {title} | text: {text}"),
+)
+
+/**
+ * Эмбеддинги по ключевым словам: измерение i — есть ли в тексте слово [vocabulary][i].
+ * Так в тестах «похожие по смыслу» тексты — это тексты с общими словами.
+ */
+class FakeTextEmbedder(
+    private val vocabulary: List<String> = listOf("кот", "собака", "отпуск", "зарплата", "договор"),
+) : TextEmbedder {
+    val requests = mutableListOf<String>()
+    var releases = 0
+    var error: InferenceException? = null
+
+    override suspend fun embed(
+        model: CatalogModel,
+        filePath: String,
+        texts: List<String>,
+        onProgress: (Int) -> Unit,
+    ): List<FloatArray> {
+        error?.let { throw it }
+        return texts.mapIndexed { index, text ->
+            requests += text
+            onProgress(index + 1)
+            val lower = text.lowercase()
+            val raw = FloatArray(vocabulary.size + 1) { i -> if (i < vocabulary.size && vocabulary[i] in lower) 1f else 0f }
+            raw[vocabulary.size] = 0.01f
+            val norm = kotlin.math.sqrt(raw.sumOf { (it * it).toDouble() }).toFloat()
+            FloatArray(raw.size) { raw[it] / norm }
+        }
+    }
+
+    override suspend fun release() {
+        releases++
+    }
+}
+
+/** Текст файла — его байты в UTF-8, по «странице» на каждый абзац, разделённый строкой `---`. */
+class FakeTextExtractor : DocumentTextExtractor {
+    var error: DocumentException? = null
+
+    override suspend fun extract(bytes: ByteArray, format: DocumentFormat): List<TextSection> {
+        error?.let { throw it }
+        return bytes.decodeToString().split("\n---\n").mapIndexed { index, text ->
+            TextSection(text, page = if (format == DocumentFormat.PDF) index + 1 else null)
+        }.filter { it.text.isNotBlank() }
+    }
 }
 
 /** Набор зависимостей приложения на подставных реализациях; всё выполняется синхронно. */
@@ -254,11 +318,23 @@ class TestApp(
     val engine: FakeInferenceEngine = FakeInferenceEngine(),
     val models: FakeModelRepository = FakeModelRepository(),
     val imageGenerator: FakeImageGenerator = FakeImageGenerator(),
+    val embedder: FakeTextEmbedder = FakeTextEmbedder(),
+    val extractor: FakeTextExtractor = FakeTextExtractor(),
 ) {
     val settings = DefaultSettingsRepository(MapKeyValueStore())
     val images = MemoryImageStore()
-    val chats = inMemoryChatRepository(images)
+    val database = inMemoryDatabase()
+    val chats = inMemoryChatRepository(images, database)
+    val documentRepository = SqlDocumentRepository(database, Dispatchers.Unconfined)
     val scope = CoroutineScope(Dispatchers.Unconfined)
+    val documents = DocumentService(
+        repository = documentRepository,
+        models = models,
+        extractor = extractor,
+        embedder = embedder,
+        scope = scope,
+        workContext = Dispatchers.Unconfined,
+    )
     val generation = ChatGenerationService(
         engine = engine,
         chats = chats,
@@ -274,18 +350,23 @@ class TestApp(
                 safeModeRule = "Безопасный режим.",
                 imageSafetyInstruction = "Проверь и переведи.",
                 imageReviewInstruction = "Есть недопустимое?",
+                documentContext = "Фрагменты:\n{fragments}\n\nВопрос: {question}",
+                pageLabel = "с.",
             )
         },
         images = images,
         imageGenerator = imageGenerator,
         settings = settings,
         scope = scope,
+        documents = documents,
     )
     val dependencies = AppDependencies(
         chatRepository = chats,
         modelRepository = models,
         settingsRepository = settings,
         generationService = generation,
+        documentService = documents,
+        documentRepository = documentRepository,
         engine = engine,
         imageStore = images,
         capabilities = PlatformCapabilities(supportsDynamicColor = false),

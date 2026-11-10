@@ -1,0 +1,90 @@
+-- Файлы, приложенные к диалогу (Этап «Файлы»): текст разбит на фрагменты с эмбеддингами для поиска по смыслу.
+-- Сам файл не хранится — только извлечённый текст фрагментов.
+
+CREATE TABLE document (
+    id TEXT NOT NULL PRIMARY KEY,
+    chat_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    format TEXT NOT NULL,
+    size_bytes INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    error TEXT,
+    chunk_count INTEGER NOT NULL,
+    embedding_model TEXT,
+    added_at INTEGER NOT NULL
+);
+
+CREATE INDEX document_by_chat ON document(chat_id, added_at);
+
+CREATE TABLE document_chunk (
+    document_id TEXT NOT NULL,
+    chat_id TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    page INTEGER,
+    text TEXT NOT NULL,
+    embedding BLOB NOT NULL,
+    PRIMARY KEY (document_id, position)
+);
+
+CREATE INDEX document_chunk_by_chat ON document_chunk(chat_id);
+
+-- Фрагменты файлов, на которые опирался ответ ассистента.
+CREATE TABLE message_source (
+    message_id TEXT NOT NULL,
+    chat_id TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    document_name TEXT NOT NULL,
+    page INTEGER,
+    PRIMARY KEY (message_id, position)
+);
+
+CREATE INDEX message_source_by_chat ON message_source(chat_id);
+
+selectDocumentsOfChat:
+SELECT * FROM document WHERE chat_id = ? ORDER BY added_at, rowid;
+
+selectDocument:
+SELECT * FROM document WHERE id = ?;
+
+insertDocument:
+INSERT INTO document(id, chat_id, name, format, size_bytes, status, error, chunk_count, embedding_model, added_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+updateDocumentStatus:
+UPDATE document SET status = ?, error = ?, chunk_count = ?, embedding_model = ? WHERE id = ?;
+
+markIndexingInterrupted:
+UPDATE document SET status = 'FAILED', error = 'INTERRUPTED' WHERE status = 'INDEXING';
+
+deleteDocument:
+DELETE FROM document WHERE id = ?;
+
+deleteDocumentsOfChat:
+DELETE FROM document WHERE chat_id = ?;
+
+insertChunk:
+INSERT OR REPLACE INTO document_chunk(document_id, chat_id, position, page, text, embedding) VALUES (?, ?, ?, ?, ?, ?);
+
+selectReadyChunksOfChat:
+SELECT document_chunk.document_id, document.name, document_chunk.position, document_chunk.page,
+       document_chunk.text, document_chunk.embedding
+FROM document_chunk JOIN document ON document.id = document_chunk.document_id
+WHERE document_chunk.chat_id = ? AND document.status = 'READY' AND document.embedding_model = ?;
+
+deleteChunksOfDocument:
+DELETE FROM document_chunk WHERE document_id = ?;
+
+deleteChunksOfChat:
+DELETE FROM document_chunk WHERE chat_id = ?;
+
+insertSource:
+INSERT OR REPLACE INTO message_source(message_id, chat_id, position, document_name, page) VALUES (?, ?, ?, ?, ?);
+
+selectSourcesOfChat:
+SELECT * FROM message_source WHERE chat_id = ? ORDER BY message_id, position;
+
+deleteSourcesOfMessage:
+DELETE FROM message_source WHERE message_id = ?;
+
+deleteSourcesOfChat:
+DELETE FROM message_source WHERE chat_id = ?;

@@ -1,0 +1,40 @@
+-- Версия 2 → 3 (Этап «Файлы»): документы диалога, их фрагменты и источники ответов.
+
+CREATE TABLE document (
+    id TEXT NOT NULL PRIMARY KEY,
+    chat_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    format TEXT NOT NULL,
+    size_bytes INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    error TEXT,
+    chunk_count INTEGER NOT NULL,
+    embedding_model TEXT,
+    added_at INTEGER NOT NULL
+);
+
+CREATE INDEX document_by_chat ON document(chat_id, added_at);
+
+CREATE TABLE document_chunk (
+    document_id TEXT NOT NULL,
+    chat_id TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    page INTEGER,
+    text TEXT NOT NULL,
+    embedding BLOB NOT NULL,
+    PRIMARY KEY (document_id, position)
+);
+
+CREATE INDEX document_chunk_by_chat ON document_chunk(chat_id);
+
+-- Фрагменты файлов, на которые опирался ответ ассистента.
+CREATE TABLE message_source (
+    message_id TEXT NOT NULL,
+    chat_id TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    document_name TEXT NOT NULL,
+    page INTEGER,
+    PRIMARY KEY (message_id, position)
+);
+
+CREATE INDEX message_source_by_chat ON message_source(chat_id);

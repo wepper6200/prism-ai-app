@@ -4,7 +4,9 @@ import ai.prism.core.currentTimeMillis
 import ai.prism.core.newId
 import ai.prism.data.db.Message
 import ai.prism.data.db.Message_image
+import ai.prism.data.db.Message_source
 import ai.prism.data.db.PrismDatabase
+import ai.prism.domain.documents.MessageSource
 import ai.prism.domain.model.ChatMessage
 import ai.prism.domain.model.ChatSummary
 import ai.prism.domain.model.GenerationError
@@ -32,6 +34,7 @@ class SqlChatRepository(
 
     private val queries get() = database.chatQueries
     private val imageQueries get() = database.messageImageQueries
+    private val documentQueries get() = database.documentQueries
 
     override val chats: Flow<List<ChatSummary>> = queries.selectChats()
         .asFlow()
@@ -41,12 +44,14 @@ class SqlChatRepository(
     override fun messages(chatId: String): Flow<List<ChatMessage>> = combine(
         queries.selectMessages(chatId).asFlow().mapToList(ioContext),
         imageQueries.selectImagesOfChat(chatId).asFlow().mapToList(ioContext),
-    ) { rows, images -> toDomain(rows, images) }
+        documentQueries.selectSourcesOfChat(chatId).asFlow().mapToList(ioContext),
+    ) { rows, images, sources -> toDomain(rows, images, sources) }
 
     override suspend fun messagesSnapshot(chatId: String): List<ChatMessage> = withContext(ioContext) {
         toDomain(
             queries.selectMessages(chatId).executeAsList(),
             imageQueries.selectImagesOfChat(chatId).executeAsList(),
+            documentQueries.selectSourcesOfChat(chatId).executeAsList(),
         )
     }
 
@@ -62,6 +67,9 @@ class SqlChatRepository(
             queries.transactionWithResult {
                 val files = imageQueries.selectFilesOfChat(chatId).executeAsList()
                 imageQueries.deleteImagesOfChat(chatId)
+                documentQueries.deleteSourcesOfChat(chatId)
+                documentQueries.deleteChunksOfChat(chatId)
+                documentQueries.deleteDocumentsOfChat(chatId)
                 queries.deleteMessagesOfChat(chatId)
                 queries.deleteChat(chatId)
                 files
@@ -147,9 +155,26 @@ class SqlChatRepository(
         }
     }
 
+    override suspend fun attachSources(chatId: String, messageId: String, sources: List<MessageSource>) =
+        withContext(ioContext) {
+            queries.transaction {
+                documentQueries.deleteSourcesOfMessage(messageId)
+                sources.forEachIndexed { index, source ->
+                    documentQueries.insertSource(
+                        message_id = messageId,
+                        chat_id = chatId,
+                        position = index.toLong(),
+                        document_name = source.documentName,
+                        page = source.page?.toLong(),
+                    )
+                }
+            }
+        }
+
     override suspend fun deleteMessage(messageId: String) = withContext(ioContext) {
         queries.transaction {
             imageQueries.deleteImagesOfMessage(messageId)
+            documentQueries.deleteSourcesOfMessage(messageId)
             queries.deleteMessage(messageId)
         }
     }
@@ -163,18 +188,22 @@ class SqlChatRepository(
         Unit
     }
 
-    private fun toDomain(rows: List<Message>, images: List<Message_image>): List<ChatMessage> {
+    private fun toDomain(rows: List<Message>, images: List<Message_image>, sources: List<Message_source>): List<ChatMessage> {
         val byMessage = images.groupBy { it.message_id }
+        val sourcesByMessage = sources.groupBy { it.message_id }
         return rows.map { row ->
             row.toDomain(
-                byMessage[row.id].orEmpty()
+                images = byMessage[row.id].orEmpty()
                     .sortedBy { it.position }
                     .map { ImageAttachment(it.id, it.file_name, it.width.toInt(), it.height.toInt()) },
+                sources = sourcesByMessage[row.id].orEmpty()
+                    .sortedBy { it.position }
+                    .map { MessageSource(it.document_name, it.page?.toInt()) },
             )
         }
     }
 
-    private fun Message.toDomain(images: List<ImageAttachment>) = ChatMessage(
+    private fun Message.toDomain(images: List<ImageAttachment>, sources: List<MessageSource>) = ChatMessage(
         id = id,
         chatId = chat_id,
         role = MessageRole.entries.firstOrNull { it.name == role } ?: MessageRole.ASSISTANT,
@@ -184,5 +213,6 @@ class SqlChatRepository(
         modelId = model_id,
         createdAt = created_at,
         images = images,
+        sources = sources,
     )
 }

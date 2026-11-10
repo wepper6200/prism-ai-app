@@ -1,5 +1,7 @@
 package ai.prism.di
 
+import ai.prism.data.documents.FileTextExtractor
+import ai.prism.data.documents.PdfBoxAndroidTextReader
 import ai.prism.data.db.PrismDatabase
 import ai.prism.data.images.AndroidImageCodec
 import ai.prism.data.images.FileImageStore
@@ -10,6 +12,8 @@ import ai.prism.data.models.ModelDownloader
 import ai.prism.data.models.ModelStorage
 import ai.prism.data.settings.KeyValueStore
 import ai.prism.data.settings.SharedPreferencesKeyValueStore
+import ai.prism.domain.documents.DocumentTextExtractor
+import ai.prism.domain.documents.TextEmbedder
 import ai.prism.domain.imagegen.ImageGenerator
 import ai.prism.domain.inference.InferenceEngine
 import ai.prism.domain.model.DeviceInfo
@@ -17,6 +21,7 @@ import ai.prism.domain.model.PlatformCapabilities
 import ai.prism.domain.repository.ImageStore
 import ai.prism.imagegen.ProcessImageGenerator
 import ai.prism.inference.llama.LlamaInferenceEngine
+import ai.prism.inference.llama.LlamaTextEmbedder
 import ai.prism.platform.AndroidDeviceInfo
 import ai.prism.platform.AndroidNativeLibraryLoader
 import android.content.Context
@@ -50,6 +55,8 @@ fun androidPlatformModule(context: Context): Module = module {
         )
     }
     single<InferenceEngine> { LlamaInferenceEngine(AndroidNativeLibraryLoader(appContext), get(), get()) }
+    single<DocumentTextExtractor> { FileTextExtractor(PdfBoxAndroidTextReader(appContext)) }
+    single<TextEmbedder> { LlamaTextEmbedder(AndroidNativeLibraryLoader(appContext), get()) }
 }
 
 private const val DATABASE_NAME = "prism.db"

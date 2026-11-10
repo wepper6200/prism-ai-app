@@ -3,16 +3,19 @@ package ai.prism.di
 import ai.prism.data.catalog.ModelCatalog
 import ai.prism.data.chat.SqlChatRepository
 import ai.prism.data.db.PrismDatabase
+import ai.prism.data.documents.SqlDocumentRepository
 import ai.prism.data.models.DefaultModelRepository
 import ai.prism.data.settings.DefaultSettingsRepository
 import ai.prism.domain.model.PlatformCapabilities
 import ai.prism.domain.repository.ChatRepository
+import ai.prism.domain.repository.DocumentRepository
 import ai.prism.domain.repository.ModelRepository
 import ai.prism.domain.repository.SettingsRepository
 import ai.prism.presentation.root.AppDependencies
 import ai.prism.presentation.root.RootComponentFactory
 import ai.prism.service.ChatGenerationService
 import ai.prism.service.PersonaProvider
+import ai.prism.service.documents.DocumentService
 import ai.prism.ui.ResourcePersonaProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -25,7 +28,8 @@ import org.koin.dsl.module
 /**
  * Общие зависимости. Платформенный модуль обязан предоставить
  * `KeyValueStore`, `SqlDriver`, `PlatformCapabilities`, `DeviceInfo`,
- * `ModelStorage`, `ModelDownloader`, `ImageStore`, `ImageGenerator` и `InferenceEngine`.
+ * `ModelStorage`, `ModelDownloader`, `ImageStore`, `ImageGenerator`, `InferenceEngine`,
+ * `DocumentTextExtractor` и `TextEmbedder`.
  */
 val sharedModule: Module = module {
     // Область приложения: загрузки моделей и генерация ответов живут дольше экранов.
@@ -46,6 +50,16 @@ val sharedModule: Module = module {
         )
     }
     single<PersonaProvider> { ResourcePersonaProvider() }
+    single<DocumentRepository> { SqlDocumentRepository(database = get()) }
+    single {
+        DocumentService(
+            repository = get(),
+            models = get(),
+            extractor = get(),
+            embedder = get(),
+            scope = get(),
+        )
+    }
     single {
         ChatGenerationService(
             engine = get(),
@@ -56,6 +70,7 @@ val sharedModule: Module = module {
             imageGenerator = get(),
             settings = get(),
             scope = get(),
+            documents = get<DocumentService>(),
         )
     }
     single {
@@ -64,6 +79,8 @@ val sharedModule: Module = module {
             modelRepository = get(),
             settingsRepository = get(),
             generationService = get(),
+            documentService = get(),
+            documentRepository = get(),
             engine = get(),
             imageStore = get(),
             capabilities = get(),

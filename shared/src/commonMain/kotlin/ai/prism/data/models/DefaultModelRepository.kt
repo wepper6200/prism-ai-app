@@ -139,7 +139,8 @@ class DefaultModelRepository(
     }
 
     override fun setActive(modelId: String) {
-        if (catalogModel(modelId)?.kind == ModelKind.IMAGE) return
+        // Активной бывает только модель чата: модели рисования и поиска по файлам работают сами по себе.
+        if (catalogModel(modelId)?.kind != ModelKind.CHAT) return
         active.value = modelId
         store.putString(KEY_ACTIVE_MODEL, modelId)
     }

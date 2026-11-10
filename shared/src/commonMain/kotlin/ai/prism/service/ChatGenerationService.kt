@@ -1,5 +1,8 @@
 package ai.prism.service
 
+import ai.prism.domain.documents.DocumentChunk
+import ai.prism.domain.documents.DocumentException
+import ai.prism.domain.documents.MessageSource
 import ai.prism.domain.imagegen.ImageGenerationError
 import ai.prism.domain.imagegen.ImageGenerationException
 import ai.prism.domain.imagegen.ImageGenerationProgress
@@ -25,6 +28,7 @@ import ai.prism.domain.repository.ImageException
 import ai.prism.domain.repository.ImageStore
 import ai.prism.domain.repository.ModelRepository
 import ai.prism.domain.repository.SettingsRepository
+import ai.prism.service.documents.DocumentRetriever
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.NonCancellable
@@ -51,6 +55,13 @@ data class AssistantPersona(
     val imageSafetyInstruction: String = "",
     /** Безопасный режим: вопрос к модели с модулем зрения о готовой картинке (ответ YES/NO). */
     val imageReviewInstruction: String = "",
+    /**
+     * Сообщение пользователя с фрагментами файлов диалога: `{fragments}` — пронумерованные фрагменты,
+     * `{question}` — само сообщение. Только в промпте, в историю не попадает.
+     */
+    val documentContext: String = "{fragments}\n\n{question}",
+    /** Подпись номера страницы PDF в заголовке фрагмента («с.»). */
+    val pageLabel: String = "p.",
 )
 
 /** Личность Prism AI на языке интерфейса. */
@@ -99,6 +110,8 @@ class ChatGenerationService(
     private val imageGenerator: ImageGenerator,
     private val settings: SettingsRepository,
     private val scope: CoroutineScope,
+    /** Поиск фрагментов в файлах диалога для ответа. */
+    private val documents: DocumentRetriever = DocumentRetriever.None,
 ) {
     private val mutableActive = MutableStateFlow<ActiveGeneration?>(null)
     val active: StateFlow<ActiveGeneration?> = mutableActive.asStateFlow()
@@ -220,7 +233,23 @@ class ChatGenerationService(
             chats.updateMessage(reply.id, "", MessageStatus.FAILED, GenerationError.IMAGES_NOT_SUPPORTED)
             return
         }
+        val persona = personaProvider.persona()
+        val found = try {
+            lastUser?.content?.takeIf { it.isNotBlank() }
+                ?.let { documents.retrieve(chatId, it, documentBudget(model)) }
+                .orEmpty()
+        } catch (e: DocumentException) {
+            chats.updateMessage(reply.id, "", MessageStatus.FAILED, GenerationError.NO_EMBEDDING_MODEL)
+            return
+        } catch (e: InferenceException) {
+            chats.updateMessage(reply.id, "", MessageStatus.FAILED, e.error.toGenerationError())
+            return
+        }
+        if (found.isNotEmpty()) {
+            chats.attachSources(chatId, reply.id, found.map { MessageSource(it.documentName, it.page) }.distinct())
+        }
         val history = promptHistory(messages, withImages = projectorPath != null)
+            .let { if (found.isEmpty()) it else withDocuments(it, found, persona) }
 
         val text = StringBuilder()
         try {
@@ -228,7 +257,6 @@ class ChatGenerationService(
             imageGenerator.release()
             engine.load(model, path, projectorPath)
             if (!stopRequested) {
-                val persona = personaProvider.persona()
                 val safeRule = persona.safeModeRule.takeIf { settings.settings.value.safeMode && it.isNotBlank() }
                 val request = GenerationRequest(
                     systemPrompt = listOfNotNull(persona.systemPrompt, safeRule).joinToString("\n\n"),
@@ -439,6 +467,23 @@ class ChatGenerationService(
         ImageGenerationError.CANCELLED, ImageGenerationError.FAILED -> GenerationError.IMAGE_GENERATION_FAILED
     }
 
+    /** Последнее сообщение пользователя с найденными фрагментами файлов (только в промпте). */
+    private fun withDocuments(history: List<PromptMessage>, found: List<DocumentChunk>, persona: AssistantPersona): List<PromptMessage> {
+        val index = history.indexOfLast { it.role == MessageRole.USER }
+        if (index < 0) return history
+        val fragments = found.withIndex().joinToString("\n\n") { (number, chunk) ->
+            val page = chunk.page?.let { ", ${persona.pageLabel} $it" }.orEmpty()
+            "[${number + 1}] ${chunk.documentName}$page\n${chunk.text}"
+        }
+        val question = history[index]
+        val content = persona.documentContext.replace("{fragments}", fragments).replace("{question}", question.content)
+        return history.toMutableList().apply { set(index, question.copy(content = content)) }
+    }
+
+    /** Сколько символов фрагментов файлов поместить в промпт: около трети контекста модели. */
+    private fun documentBudget(model: CatalogModel): Int =
+        (model.contextLength * DOCUMENT_CHARS_PER_CONTEXT_TOKEN).toInt().coerceIn(MIN_DOCUMENT_CHARS, MAX_DOCUMENT_CHARS)
+
     /** Завершённые реплики диалога для промпта; изображения — только если модель их понимает. */
     private fun promptHistory(messages: List<ChatMessage>, withImages: Boolean): List<PromptMessage> = messages
         .filter { it.status == MessageStatus.COMPLETE || it.status == MessageStatus.STOPPED }
@@ -467,6 +512,9 @@ class ChatGenerationService(
         private const val TITLE_LENGTH = 48
         private const val ORPHAN_IMAGE_AGE_MS = 7L * 24 * 60 * 60 * 1000
         private const val TRANSLATION_MAX_TOKENS = 400
+        private const val DOCUMENT_CHARS_PER_CONTEXT_TOKEN = 0.9
+        private const val MIN_DOCUMENT_CHARS = 2_000
+        private const val MAX_DOCUMENT_CHARS = 9_000
         private const val IMAGE_SIZE_STEP = 64
         private const val MIN_IMAGE_SIDE = 256
 

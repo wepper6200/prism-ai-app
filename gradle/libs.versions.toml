@@ -23,6 +23,9 @@ koin = "4.2.2"
 sqldelight = "2.4.1"
 decompose = "3.5.0"
 essenty = "2.7.1"
+# Текст PDF: Apache PDFBox на Desktop и его порт PdfBox-Android на Android (Apache 2.0).
+pdfbox = "3.0.8"
+pdfbox-android = "2.0.27.0"
 
 [libraries]
 compose-runtime = { module = "org.jetbrains.compose.runtime:runtime", version.ref = "compose-multiplatform" }
@@ -51,6 +54,9 @@ sqldelight-coroutines = { module = "app.cash.sqldelight:coroutines-extensions", 
 decompose = { module = "com.arkivanov.decompose:decompose", version.ref = "decompose" }
 decompose-extensions-compose = { module = "com.arkivanov.decompose:extensions-compose", version.ref = "decompose" }
 essenty-lifecycle = { module = "com.arkivanov.essenty:lifecycle", version.ref = "essenty" }
+
+pdfbox = { module = "org.apache.pdfbox:pdfbox", version.ref = "pdfbox" }
+pdfbox-android = { module = "com.tom-roush:pdfbox-android", version.ref = "pdfbox-android" }
 
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 

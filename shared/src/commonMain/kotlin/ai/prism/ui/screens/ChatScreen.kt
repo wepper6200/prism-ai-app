@@ -6,6 +6,7 @@ import ai.prism.presentation.chat.ChatComponent
 import ai.prism.presentation.chat.ChatIntent
 import ai.prism.presentation.chat.AttachmentError
 import ai.prism.presentation.chat.ChatState
+import ai.prism.presentation.chat.DocumentSupport
 import ai.prism.presentation.chat.DrawSupport
 import ai.prism.presentation.chat.MessageItem
 import ai.prism.presentation.chat.VisionSupport
@@ -19,6 +20,8 @@ import ai.prism.resources.draw_dialog_text
 import ai.prism.resources.draw_dialog_title
 import ai.prism.resources.draw_loading
 import ai.prism.resources.draw_needs_translator
+import ai.prism.resources.document_dialog_text
+import ai.prism.resources.document_dialog_title
 import ai.prism.resources.draw_one_photo
 import ai.prism.resources.draw_step
 import ai.prism.resources.draw_translating
@@ -60,6 +63,9 @@ import ai.prism.ui.components.formatPercent
 import ai.prism.ui.components.message
 import ai.prism.ui.components.rememberImageExporter
 import ai.prism.ui.components.rememberImagePicker
+import ai.prism.ui.components.DocumentStrip
+import ai.prism.ui.components.SourcesLine
+import ai.prism.ui.components.rememberDocumentPicker
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -90,6 +96,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.AttachFile
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Brush
 import androidx.compose.material.icons.outlined.Memory
@@ -146,6 +153,11 @@ fun ChatScreen(
     }
     val picker = rememberImagePicker(
         onPicked = { component.onIntent(ChatIntent.AttachImages(it)) },
+        onFailed = { component.onIntent(ChatIntent.AttachFailed) },
+    )
+    var documentDialog by remember { mutableStateOf(false) }
+    val documentPicker = rememberDocumentPicker(
+        onPicked = { component.onIntent(ChatIntent.AttachDocuments(it)) },
         onFailed = { component.onIntent(ChatIntent.AttachFailed) },
     )
     // Без модуля зрения вместо выбора фото объясняем, что нужно сделать. Для перерисовки фото зрение не нужно.
@@ -215,6 +227,13 @@ fun ChatScreen(
                     .testTag("draw_needs_translator"),
             )
         }
+        if (state.documents.isNotEmpty()) {
+            DocumentStrip(
+                documents = state.documents,
+                onRemove = { component.onIntent(ChatIntent.RemoveDocument(it)) },
+                modifier = Modifier.align(Alignment.CenterHorizontally).widthIn(max = 880.dp),
+            )
+        }
         state.attachmentError?.let { error ->
             AttachmentErrorBanner(
                 error = error,
@@ -254,6 +273,11 @@ fun ChatScreen(
                     onTakePhoto = { whenVisionReady(picker::takePhoto) },
                     onRemove = { component.onIntent(ChatIntent.RemoveAttachment(it)) },
                 ),
+                onPickDocuments = when (state.documentSupport) {
+                    DocumentSupport.READY -> documentPicker::pickDocuments
+                    DocumentSupport.NOT_DOWNLOADED -> ({ documentDialog = true })
+                    DocumentSupport.UNAVAILABLE -> null
+                },
                 modifier = Modifier.widthIn(max = 880.dp),
             )
         }
@@ -296,6 +320,35 @@ fun ChatScreen(
                 TextButton(onClick = { drawDialog = false }) { Text(stringResource(Res.string.action_cancel)) }
             },
             modifier = Modifier.testTag("draw_dialog"),
+        )
+    }
+    if (documentDialog) {
+        AlertDialog(
+            onDismissRequest = { documentDialog = false },
+            icon = { Icon(Icons.Outlined.AttachFile, contentDescription = null) },
+            title = { Text(stringResource(Res.string.document_dialog_title)) },
+            text = {
+                Text(
+                    stringResource(
+                        Res.string.document_dialog_text,
+                        state.embeddingModelName.orEmpty(),
+                        formatBytes(state.embeddingModelBytes),
+                    ),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        documentDialog = false
+                        component.onIntent(ChatIntent.OpenModels)
+                    },
+                    modifier = Modifier.testTag("document_open_models"),
+                ) { Text(stringResource(Res.string.chat_open_models)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { documentDialog = false }) { Text(stringResource(Res.string.action_cancel)) }
+            },
+            modifier = Modifier.testTag("document_dialog"),
         )
     }
     viewing?.let { fileName ->
@@ -555,6 +608,7 @@ private fun AssistantMessage(
                 )
                 MessageStatus.COMPLETE, MessageStatus.GENERATING -> Unit
             }
+            if (message.sources.isNotEmpty() && message.text.isNotEmpty()) SourcesLine(message.sources)
         }
     }
 }
