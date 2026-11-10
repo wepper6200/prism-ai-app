@@ -1,6 +1,9 @@
 package ai.prism.presentation.chat
 
 import ai.prism.core.componentScope
+import ai.prism.domain.agent.AgentStep
+import ai.prism.domain.agent.PendingAction
+import ai.prism.domain.agent.WorkspaceProvider
 import ai.prism.domain.documents.DocumentError
 import ai.prism.domain.documents.DocumentFormat
 import ai.prism.domain.documents.DocumentStatus
@@ -18,6 +21,7 @@ import ai.prism.domain.repository.DocumentRepository
 import ai.prism.domain.repository.ImageException
 import ai.prism.domain.repository.ImageStore
 import ai.prism.domain.repository.ModelRepository
+import ai.prism.domain.repository.SettingsRepository
 import ai.prism.service.ChatGenerationService
 import ai.prism.service.DrawingProgress
 import ai.prism.service.ImagePromptPolicy
@@ -49,6 +53,10 @@ data class MessageItem(
     val drawing: DrawingProgress? = null,
     /** Файлы диалога, на которые опирался ответ. */
     val sources: List<MessageSource> = emptyList(),
+    /** Шаги ассистента с инструментами: поиск, страницы, файлы, команды. */
+    val steps: List<AgentStep> = emptyList(),
+    /** Действие ассистента, которое ждёт разрешения (только у ответа, который генерируется). */
+    val pending: PendingAction? = null,
 )
 
 /** Файл диалога на экране: [progress] — доля готовности, пока файл готовится к поиску. */
@@ -136,6 +144,10 @@ data class ChatState(
     /** Модель поиска по файлам (для подсказки о загрузке). */
     val embeddingModelName: String? = null,
     val embeddingModelBytes: Long = 0,
+    /** Папка проекта диалога: имя для показа или `null`, если папка не выбрана. */
+    val workspaceName: String? = null,
+    /** Ассистенту разрешён интернет (настройка). */
+    val internetEnabled: Boolean = false,
     /** Прогресс загрузки модели в память, пока ответ этого чата ждёт её. */
     val modelLoadingProgress: Float? = null,
     val isGenerating: Boolean = false,
@@ -171,6 +183,14 @@ class PickedDocument(val name: String, val bytes: ByteArray)
 sealed interface ChatIntent {
     data class DraftChanged(val text: String) : ChatIntent
 
+    /** Пользователь выбрал папку проекта (адрес от выбора папки платформы). */
+    data class ChooseWorkspace(val location: String) : ChatIntent
+    data object RemoveWorkspace : ChatIntent
+    data object ToggleInternet : ChatIntent
+
+    /** Ответ на запрос разрешения действия ассистента. */
+    data class ResolvePending(val actionId: String, val approved: Boolean) : ChatIntent
+
     /** Пользователь выбрал документы для поиска по ним. */
     data class AttachDocuments(val files: List<PickedDocument>) : ChatIntent
     data class RemoveDocument(val id: String) : ChatIntent
@@ -204,12 +224,14 @@ interface ChatComponent {
 class DefaultChatComponent(
     componentContext: ComponentContext,
     private val chatId: String,
-    chatRepository: ChatRepository,
+    private val chatRepository: ChatRepository,
     modelRepository: ModelRepository,
     engine: InferenceEngine,
     private val generation: ChatGenerationService,
     private val documentService: DocumentService,
     documentRepository: DocumentRepository,
+    private val workspaceProvider: WorkspaceProvider,
+    private val settingsRepository: SettingsRepository,
     private val imageStore: ImageStore,
     mainContext: CoroutineContext,
     private val onOpenModels: () -> Unit,
@@ -281,6 +303,8 @@ class DefaultChatComponent(
                     images = message.images,
                     drawing = streaming?.drawing,
                     sources = message.sources,
+                    steps = streaming?.steps ?: message.steps,
+                    pending = streaming?.pending,
                 )
             },
             isGenerating = active?.chatId == chatId,
@@ -340,13 +364,26 @@ class DefaultChatComponent(
         }
     }
 
+    private data class AgentPart(val workspaceName: String?, val internetEnabled: Boolean)
+
+    private val agentPart = combine(
+        chatRepository.workspace(chatId).map { location ->
+            location?.let { workspaceProvider.open(it)?.name ?: it.substringAfterLast('/').substringAfterLast("%2F") }
+        },
+        settingsRepository.settings.map { it.internetEnabled },
+    ) { name, internet -> AgentPart(name, internet) }
+
+    private data class ExtraPart(val drawMode: Boolean, val documents: List<DocumentItem>, val agent: AgentPart)
+
     override val state: StateFlow<ChatState> = combine(
         conversation,
         modelPart,
         draft,
         draftImages,
-        combine(drawMode, documentsPart) { drawing, documents -> drawing to documents },
-    ) { chat, model, text, images, (drawing, documents) ->
+        combine(drawMode, documentsPart, agentPart) { drawing, documents, agent -> ExtraPart(drawing, documents, agent) },
+    ) { chat, model, text, images, extra ->
+        val drawing = extra.drawMode
+        val documents = extra.documents
         ChatState(
             chatId = chatId,
             title = chat.title,
@@ -368,6 +405,8 @@ class DefaultChatComponent(
             documentSupport = model.documentSupport,
             embeddingModelName = model.embeddingModelName,
             embeddingModelBytes = model.embeddingModelBytes,
+            workspaceName = extra.agent.workspaceName,
+            internetEnabled = extra.agent.internetEnabled,
             modelLoadingProgress = model.loadingProgress?.takeIf { chat.isGenerating },
             isGenerating = chat.isGenerating,
             busyInOtherChat = chat.busyElsewhere,
@@ -385,6 +424,10 @@ class DefaultChatComponent(
                 scope.launch { documentService.add(chatId, file.name, file.bytes) }
             }
             is ChatIntent.RemoveDocument -> scope.launch { documentService.remove(intent.id) }
+            is ChatIntent.ChooseWorkspace -> scope.launch { chatRepository.setWorkspace(chatId, intent.location) }
+            ChatIntent.RemoveWorkspace -> scope.launch { chatRepository.setWorkspace(chatId, null) }
+            ChatIntent.ToggleInternet -> settingsRepository.setInternetEnabled(!settingsRepository.settings.value.internetEnabled)
+            is ChatIntent.ResolvePending -> generation.resolvePending(intent.actionId, intent.approved)
             is ChatIntent.AttachImages -> attach(intent.files)
             ChatIntent.AttachFailed -> draftImages.update { it.copy(error = AttachmentError.UNREADABLE) }
             is ChatIntent.RemoveAttachment -> remove(intent.id)

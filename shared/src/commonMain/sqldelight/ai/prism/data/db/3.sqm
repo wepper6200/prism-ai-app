@@ -1,0 +1,16 @@
+-- Версия 3 → 4 (Этап «Агент»): папка проекта диалога и шаги ассистента с инструментами.
+
+ALTER TABLE chat ADD COLUMN workspace TEXT;
+
+CREATE TABLE message_step (
+    message_id TEXT NOT NULL,
+    chat_id TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    tool TEXT NOT NULL,
+    title TEXT NOT NULL,
+    detail TEXT NOT NULL,
+    status TEXT NOT NULL,
+    PRIMARY KEY (message_id, position)
+);
+
+CREATE INDEX message_step_by_chat ON message_step(chat_id);

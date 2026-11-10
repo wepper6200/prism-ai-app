@@ -15,4 +15,8 @@ interface SettingsRepository {
     fun setDynamicColor(enabled: Boolean)
 
     fun setSafeMode(enabled: Boolean)
+
+    fun setInternetEnabled(enabled: Boolean)
+
+    fun setAutoApplyEdits(enabled: Boolean)
 }

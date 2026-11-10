@@ -63,7 +63,11 @@ import ai.prism.ui.components.formatPercent
 import ai.prism.ui.components.message
 import ai.prism.ui.components.rememberImageExporter
 import ai.prism.ui.components.rememberImagePicker
+import ai.prism.ui.components.AgentContextRow
+import ai.prism.ui.components.AgentSteps
 import ai.prism.ui.components.DocumentStrip
+import ai.prism.ui.components.PendingActionCard
+import ai.prism.ui.components.rememberFolderPicker
 import ai.prism.ui.components.SourcesLine
 import ai.prism.ui.components.rememberDocumentPicker
 import androidx.compose.animation.core.RepeatMode
@@ -156,6 +160,7 @@ fun ChatScreen(
         onFailed = { component.onIntent(ChatIntent.AttachFailed) },
     )
     var documentDialog by remember { mutableStateOf(false) }
+    val folderPicker = rememberFolderPicker { location -> component.onIntent(ChatIntent.ChooseWorkspace(location)) }
     val documentPicker = rememberDocumentPicker(
         onPicked = { component.onIntent(ChatIntent.AttachDocuments(it)) },
         onFailed = { component.onIntent(ChatIntent.AttachFailed) },
@@ -195,6 +200,7 @@ fun ChatScreen(
                     loadImage = loadImage,
                     onOpenImage = { viewing = it },
                     onRetry = { component.onIntent(ChatIntent.Retry) },
+                    onResolve = { id, approved -> component.onIntent(ChatIntent.ResolvePending(id, approved)) },
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -227,6 +233,14 @@ fun ChatScreen(
                     .testTag("draw_needs_translator"),
             )
         }
+        AgentContextRow(
+            workspaceName = state.workspaceName,
+            internetEnabled = state.internetEnabled,
+            onPickWorkspace = folderPicker::pickFolder,
+            onRemoveWorkspace = { component.onIntent(ChatIntent.RemoveWorkspace) },
+            onToggleInternet = { component.onIntent(ChatIntent.ToggleInternet) },
+            modifier = Modifier.align(Alignment.CenterHorizontally).widthIn(max = 880.dp).fillMaxWidth(),
+        )
         if (state.documents.isNotEmpty()) {
             DocumentStrip(
                 documents = state.documents,
@@ -453,6 +467,7 @@ private fun MessageList(
     loadImage: ImageBytesLoader,
     onOpenImage: (String) -> Unit,
     onRetry: () -> Unit,
+    onResolve: (String, Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
@@ -482,6 +497,7 @@ private fun MessageList(
                     MessageRole.USER -> UserMessage(message, loadImage, onOpenImage)
                     MessageRole.ASSISTANT -> AssistantMessage(
                         message = message,
+                        onResolve = onResolve,
                         loadImage = loadImage,
                         onOpenImage = onOpenImage,
                         loadingProgress = state.modelLoadingProgress.takeIf { message.isStreaming },
@@ -553,6 +569,7 @@ private fun UserBubble(message: MessageItem) {
 @Composable
 private fun AssistantMessage(
     message: MessageItem,
+    onResolve: (String, Boolean) -> Unit,
     loadImage: ImageBytesLoader,
     onOpenImage: (String) -> Unit,
     loadingProgress: Float?,
@@ -581,10 +598,14 @@ private fun AssistantMessage(
                         .testTag("generated_image"),
                 )
             }
+            if (message.steps.isNotEmpty()) AgentSteps(message.steps)
+            message.pending?.let { action ->
+                PendingActionCard(action, onResolve = { approved -> onResolve(action.id, approved) })
+            }
             when {
                 message.drawing != null -> Drawing(message.drawing)
                 loadingProgress != null && message.text.isEmpty() -> ModelLoading(loadingProgress)
-                message.isStreaming && message.text.isEmpty() -> TypingIndicator()
+                message.isStreaming && message.text.isEmpty() && message.pending == null -> TypingIndicator()
                 message.text.isNotEmpty() -> SelectionContainer {
                     Text(
                         text = if (message.isStreaming) message.text + CURSOR else message.text,

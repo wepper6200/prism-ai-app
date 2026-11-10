@@ -38,6 +38,7 @@ import java.awt.RenderingHints
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.nio.file.Files
 import javax.imageio.ImageIO
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -277,5 +278,36 @@ class PrismAppUiTest {
         onNodeWithTag("message_sources").assertIsDisplayed()
         onNodeWithText("Правила отпусков.pdf (с. 1, 2)", substring = true).assertIsDisplayed()
         screenshot("compact_13_answer_with_sources")
+    }
+
+    /** Ассистент с папкой проекта: правка файла ждёт разрешения, после — шаги под ответом. */
+    @Test
+    fun compactAgentAsksBeforeEditing() = runDesktopComposeUiTest(width = 412, height = 892) {
+        val (app, root) = createApp()
+        val folder = Files.createTempDirectory("prism-ui-project").toFile()
+        folder.resolve("main.py").writeText("print('old')\n")
+        app.engine.queuedReplies += listOf(
+            "Поправлю вывод.\n<tool name=\"edit_file\">\n<path>main.py</path>\n<old>print('old')</old>\n<new>print('new')</new>\n</tool>",
+        )
+        app.engine.queuedReplies += listOf("Готово: программа теперь печатает new.")
+        setContent { PrismApp(root) }
+
+        onNodeWithTag("new_chat").performClick()
+        val chat = assertIs<RootComponent.Child.Chat>(root.stack.value.active.instance).component
+        chat.onIntent(ChatIntent.ChooseWorkspace(folder.path))
+        waitForIdle()
+        onNodeWithText(folder.name).assertIsDisplayed()
+        onNodeWithTag("message_input").performTextInput("Поменяй вывод на new")
+        onNodeWithTag("send_button").performClick()
+        waitForIdle()
+
+        onNodeWithTag("pending_action").assertIsDisplayed()
+        screenshot("compact_14_agent_approval")
+        onNodeWithTag("pending_approve").performClick()
+        waitForIdle()
+
+        assertEquals("print('new')\n", folder.resolve("main.py").readText())
+        onNodeWithTag("agent_steps").assertIsDisplayed()
+        screenshot("compact_15_agent_done")
     }
 }

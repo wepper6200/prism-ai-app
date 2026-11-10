@@ -1,5 +1,19 @@
 package ai.prism.ui
 
+import ai.prism.domain.agent.AgentTool
+import ai.prism.resources.agent_instructions
+import ai.prism.resources.agent_workspace_note
+import ai.prism.resources.agent_internet_note
+import ai.prism.resources.agent_tool_web_search
+import ai.prism.resources.agent_tool_fetch_page
+import ai.prism.resources.agent_tool_download_file
+import ai.prism.resources.agent_tool_list_files
+import ai.prism.resources.agent_tool_read_file
+import ai.prism.resources.agent_tool_search_files
+import ai.prism.resources.agent_tool_write_file
+import ai.prism.resources.agent_tool_edit_file
+import ai.prism.resources.agent_tool_run_command
+import org.jetbrains.compose.resources.StringResource
 import ai.prism.domain.inference.PromptMessage
 import ai.prism.domain.model.MessageRole
 import ai.prism.resources.Res
@@ -32,5 +46,22 @@ class ResourcePersonaProvider : PersonaProvider {
         imageReviewInstruction = getString(Res.string.image_review_instruction),
         documentContext = getString(Res.string.document_context),
         pageLabel = getString(Res.string.document_page_label),
+        agentInstructions = getString(Res.string.agent_instructions),
+        agentWorkspaceNote = getString(Res.string.agent_workspace_note),
+        agentInternetNote = getString(Res.string.agent_internet_note),
+        toolDescriptions = AgentTool.entries.associateWith { tool -> getString(tool.description()) },
     )
+}
+
+/** Описание инструмента для модели (на языке интерфейса). */
+internal fun AgentTool.description(): StringResource = when (this) {
+    AgentTool.WEB_SEARCH -> Res.string.agent_tool_web_search
+    AgentTool.FETCH_PAGE -> Res.string.agent_tool_fetch_page
+    AgentTool.DOWNLOAD_FILE -> Res.string.agent_tool_download_file
+    AgentTool.LIST_FILES -> Res.string.agent_tool_list_files
+    AgentTool.READ_FILE -> Res.string.agent_tool_read_file
+    AgentTool.SEARCH_FILES -> Res.string.agent_tool_search_files
+    AgentTool.WRITE_FILE -> Res.string.agent_tool_write_file
+    AgentTool.EDIT_FILE -> Res.string.agent_tool_edit_file
+    AgentTool.RUN_COMMAND -> Res.string.agent_tool_run_command
 }

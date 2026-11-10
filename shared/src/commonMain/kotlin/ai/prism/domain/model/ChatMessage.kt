@@ -1,5 +1,6 @@
 package ai.prism.domain.model
 
+import ai.prism.domain.agent.AgentStep
 import ai.prism.domain.documents.MessageSource
 
 import kotlinx.serialization.Serializable
@@ -75,6 +76,8 @@ data class ChatMessage(
     val images: List<ImageAttachment> = emptyList(),
     /** Фрагменты файлов диалога, на которые опирался ответ ассистента. */
     val sources: List<MessageSource> = emptyList(),
+    /** Шаги ассистента с инструментами: поиск, файлы, команды. */
+    val steps: List<AgentStep> = emptyList(),
 )
 
 /** Изображение в сообщении: уменьшенный JPEG в каталоге изображений приложения (`ImageStore`). */

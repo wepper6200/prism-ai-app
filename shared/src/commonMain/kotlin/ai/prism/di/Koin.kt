@@ -29,7 +29,7 @@ import org.koin.dsl.module
  * Общие зависимости. Платформенный модуль обязан предоставить
  * `KeyValueStore`, `SqlDriver`, `PlatformCapabilities`, `DeviceInfo`,
  * `ModelStorage`, `ModelDownloader`, `ImageStore`, `ImageGenerator`, `InferenceEngine`,
- * `DocumentTextExtractor` и `TextEmbedder`.
+ * `DocumentTextExtractor`, `TextEmbedder`, `WebClient`, `WorkspaceProvider` и `CommandRunner`.
  */
 val sharedModule: Module = module {
     // Область приложения: загрузки моделей и генерация ответов живут дольше экранов.
@@ -71,6 +71,9 @@ val sharedModule: Module = module {
             settings = get(),
             scope = get(),
             documents = get<DocumentService>(),
+            web = get(),
+            workspaces = get(),
+            commands = get(),
         )
     }
     single {
@@ -81,6 +84,7 @@ val sharedModule: Module = module {
             generationService = get(),
             documentService = get(),
             documentRepository = get(),
+            workspaceProvider = get(),
             engine = get(),
             imageStore = get(),
             capabilities = get(),

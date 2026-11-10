@@ -1,10 +1,16 @@
 package ai.prism.testing
 
+import ai.prism.data.agent.FileWorkspaceProvider
 import ai.prism.data.chat.SqlChatRepository
 import ai.prism.data.documents.SqlDocumentRepository
 import ai.prism.data.db.PrismDatabase
 import ai.prism.data.settings.DefaultSettingsRepository
 import ai.prism.data.settings.MapKeyValueStore
+import ai.prism.domain.agent.CommandResult
+import ai.prism.domain.agent.CommandRunner
+import ai.prism.domain.agent.WebClient
+import ai.prism.domain.agent.WebException
+import ai.prism.domain.agent.WebResult
 import ai.prism.domain.documents.DocumentException
 import ai.prism.domain.documents.DocumentFormat
 import ai.prism.domain.documents.DocumentTextExtractor
@@ -260,6 +266,39 @@ fun inMemoryDatabase(): PrismDatabase {
 fun inMemoryChatRepository(images: ImageStore = MemoryImageStore(), database: PrismDatabase = inMemoryDatabase()): SqlChatRepository =
     SqlChatRepository(database, images, Dispatchers.Unconfined)
 
+/** Интернет для тестов: заданные результаты поиска и страницы. */
+class FakeWebClient(
+    var results: List<WebResult> = listOf(WebResult("Погода в Москве", "https://weather.example/msk", "Сегодня +5, облачно")),
+    val pages: MutableMap<String, String> = mutableMapOf("https://weather.example/msk" to "Москва: +5, ветер 3 м/с"),
+) : WebClient {
+    val queries = mutableListOf<String>()
+    val fetched = mutableListOf<String>()
+
+    override suspend fun search(query: String): List<WebResult> {
+        queries += query
+        return results
+    }
+
+    override suspend fun fetchText(url: String, maxChars: Int): String {
+        fetched += url
+        return pages[url] ?: throw WebException("server answered 404 for $url")
+    }
+
+    override suspend fun download(url: String, maxBytes: Long): ByteArray =
+        (pages[url] ?: throw WebException("server answered 404 for $url")).encodeToByteArray()
+}
+
+/** Команды для тестов: запоминает команды и отвечает заданным выводом. */
+class FakeCommandRunner(var output: String = "BUILD SUCCESSFUL", var exitCode: Int = 0) : CommandRunner {
+    val commands = mutableListOf<Pair<String, String>>()
+    override val isSupported: Boolean = true
+
+    override suspend fun run(directory: String, command: String, timeoutMs: Long): CommandResult {
+        commands += directory to command
+        return CommandResult(exitCode, output, timedOut = false)
+    }
+}
+
 /** Модель поиска по файлам для тестов. */
 fun testEmbeddingModel(id: String = "embed-test") = testModel(id = id, name = "EmbeddingGemma 300M").copy(
     kind = ModelKind.EMBEDDING,
@@ -320,6 +359,8 @@ class TestApp(
     val imageGenerator: FakeImageGenerator = FakeImageGenerator(),
     val embedder: FakeTextEmbedder = FakeTextEmbedder(),
     val extractor: FakeTextExtractor = FakeTextExtractor(),
+    val web: FakeWebClient = FakeWebClient(),
+    val commands: FakeCommandRunner = FakeCommandRunner(),
 ) {
     val settings = DefaultSettingsRepository(MapKeyValueStore())
     val images = MemoryImageStore()
@@ -352,6 +393,9 @@ class TestApp(
                 imageReviewInstruction = "Есть недопустимое?",
                 documentContext = "Фрагменты:\n{fragments}\n\nВопрос: {question}",
                 pageLabel = "с.",
+                agentInstructions = "Инструменты.\n{context}\n{tools}",
+                agentWorkspaceNote = "Папка: {name}",
+                agentInternetNote = "Интернет включён",
             )
         },
         images = images,
@@ -359,6 +403,9 @@ class TestApp(
         settings = settings,
         scope = scope,
         documents = documents,
+        web = web,
+        workspaces = FileWorkspaceProvider(),
+        commands = commands,
     )
     val dependencies = AppDependencies(
         chatRepository = chats,
@@ -367,6 +414,7 @@ class TestApp(
         generationService = generation,
         documentService = documents,
         documentRepository = documentRepository,
+        workspaceProvider = FileWorkspaceProvider(),
         engine = engine,
         imageStore = images,
         capabilities = PlatformCapabilities(supportsDynamicColor = false),

@@ -34,6 +34,8 @@ sealed interface SettingsIntent {
     data class SelectDarkMode(val mode: DarkMode) : SettingsIntent
     data class SetDynamicColor(val enabled: Boolean) : SettingsIntent
     data class SetSafeMode(val enabled: Boolean) : SettingsIntent
+    data class SetInternetEnabled(val enabled: Boolean) : SettingsIntent
+    data class SetAutoApplyEdits(val enabled: Boolean) : SettingsIntent
     data object Back : SettingsIntent
 }
 
@@ -79,6 +81,8 @@ class DefaultSettingsComponent(
             is SettingsIntent.SelectDarkMode -> settingsRepository.setDarkMode(intent.mode)
             is SettingsIntent.SetDynamicColor -> settingsRepository.setDynamicColor(intent.enabled)
             is SettingsIntent.SetSafeMode -> settingsRepository.setSafeMode(intent.enabled)
+            is SettingsIntent.SetInternetEnabled -> settingsRepository.setInternetEnabled(intent.enabled)
+            is SettingsIntent.SetAutoApplyEdits -> settingsRepository.setAutoApplyEdits(intent.enabled)
             SettingsIntent.Back -> onBack()
         }
     }

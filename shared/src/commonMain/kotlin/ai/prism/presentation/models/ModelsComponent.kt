@@ -6,6 +6,7 @@ import ai.prism.domain.inference.InferenceEngine
 import ai.prism.domain.model.DeviceInfo
 import ai.prism.domain.model.ModelEntry
 import ai.prism.domain.repository.ModelRepository
+import ai.prism.domain.repository.SettingsRepository
 import ai.prism.service.ChatGenerationService
 import com.arkivanov.decompose.ComponentContext
 import kotlinx.coroutines.flow.SharingStarted
@@ -20,6 +21,8 @@ data class ModelsState(
     val activeModelId: String? = null,
     val engineState: EngineState = EngineState.Idle,
     val totalRamBytes: Long = 0,
+    /** Ассистенту разрешён интернет (та же настройка, что в «Настройках»). */
+    val internetEnabled: Boolean = false,
 )
 
 sealed interface ModelsIntent {
@@ -27,6 +30,7 @@ sealed interface ModelsIntent {
     data class Pause(val modelId: String) : ModelsIntent
     data class Delete(val modelId: String) : ModelsIntent
     data class Activate(val modelId: String) : ModelsIntent
+    data class SetInternetEnabled(val enabled: Boolean) : ModelsIntent
     data object Back : ModelsIntent
 }
 
@@ -41,6 +45,7 @@ class DefaultModelsComponent(
     private val modelRepository: ModelRepository,
     private val engine: InferenceEngine,
     private val generation: ChatGenerationService,
+    private val settingsRepository: SettingsRepository,
     deviceInfo: DeviceInfo,
     mainContext: CoroutineContext,
     private val onBack: () -> Unit,
@@ -52,8 +57,9 @@ class DefaultModelsComponent(
         modelRepository.models,
         modelRepository.activeModelId,
         engine.state,
-    ) { entries, activeId, engineState ->
-        ModelsState(entries, activeId, engineState, deviceInfo.totalRamBytes)
+        settingsRepository.settings,
+    ) { entries, activeId, engineState, settings ->
+        ModelsState(entries, activeId, engineState, deviceInfo.totalRamBytes, settings.internetEnabled)
     }.stateIn(scope, SharingStarted.Eagerly, ModelsState(totalRamBytes = deviceInfo.totalRamBytes))
 
     override fun onIntent(intent: ModelsIntent) {
@@ -61,6 +67,7 @@ class DefaultModelsComponent(
             is ModelsIntent.Download -> modelRepository.download(intent.modelId)
             is ModelsIntent.Pause -> modelRepository.pause(intent.modelId)
             is ModelsIntent.Activate -> modelRepository.setActive(intent.modelId)
+            is ModelsIntent.SetInternetEnabled -> settingsRepository.setInternetEnabled(intent.enabled)
             is ModelsIntent.Delete -> scope.launch {
                 // Файл нельзя удалять, пока модель открыта движком.
                 if (engineUses(intent.modelId)) {

@@ -1,5 +1,12 @@
 package ai.prism.service
 
+import ai.prism.core.newId
+import ai.prism.domain.agent.AgentStep
+import ai.prism.domain.agent.AgentTool
+import ai.prism.domain.agent.CommandRunner
+import ai.prism.domain.agent.PendingAction
+import ai.prism.domain.agent.WebClient
+import ai.prism.domain.agent.WorkspaceProvider
 import ai.prism.domain.documents.DocumentChunk
 import ai.prism.domain.documents.DocumentException
 import ai.prism.domain.documents.MessageSource
@@ -28,7 +35,11 @@ import ai.prism.domain.repository.ImageException
 import ai.prism.domain.repository.ImageStore
 import ai.prism.domain.repository.ModelRepository
 import ai.prism.domain.repository.SettingsRepository
+import ai.prism.inference.ChatPromptFormatter
+import ai.prism.service.agent.AgentToolbox
+import ai.prism.service.agent.ToolCallProtocol
 import ai.prism.service.documents.DocumentRetriever
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.NonCancellable
@@ -36,6 +47,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.flow.transformWhile
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.concurrent.Volatile
@@ -62,6 +75,14 @@ data class AssistantPersona(
     val documentContext: String = "{fragments}\n\n{question}",
     /** Подпись номера страницы PDF в заголовке фрагмента («с.»). */
     val pageLabel: String = "p.",
+    /** Как пользоваться инструментами: `{context}` — папка проекта и интернет, `{tools}` — список инструментов. */
+    val agentInstructions: String = "{context}\n\n{tools}",
+    /** Про папку проекта: `{name}` — имя папки. */
+    val agentWorkspaceNote: String = "{name}",
+    /** Про включённый интернет. */
+    val agentInternetNote: String = "",
+    /** Описание каждого инструмента для модели. */
+    val toolDescriptions: Map<AgentTool, String> = emptyMap(),
 )
 
 /** Личность Prism AI на языке интерфейса. */
@@ -95,6 +116,10 @@ data class ActiveGeneration(
     val messageId: String,
     val text: String,
     val drawing: DrawingProgress? = null,
+    /** Шаги ассистента с инструментами (поиск, файлы, команды) в этом ответе. */
+    val steps: List<AgentStep> = emptyList(),
+    /** Действие, которое ждёт разрешения пользователя. */
+    val pending: PendingAction? = null,
 )
 
 /**
@@ -112,12 +137,20 @@ class ChatGenerationService(
     private val scope: CoroutineScope,
     /** Поиск фрагментов в файлах диалога для ответа. */
     private val documents: DocumentRetriever = DocumentRetriever.None,
+    /** Интернет для ассистента (используется, только если он включён в настройках). */
+    private val web: WebClient? = null,
+    /** Папки проектов, выбранные для диалогов. */
+    private val workspaces: WorkspaceProvider? = null,
+    private val commands: CommandRunner = CommandRunner.None,
 ) {
     private val mutableActive = MutableStateFlow<ActiveGeneration?>(null)
     val active: StateFlow<ActiveGeneration?> = mutableActive.asStateFlow()
 
     @Volatile
     private var stopRequested = false
+
+    @Volatile
+    private var decision: CompletableDeferred<Boolean>? = null
 
     init {
         scope.launch {
@@ -192,8 +225,14 @@ class ChatGenerationService(
 
     fun stop() {
         stopRequested = true
+        decision?.complete(false)
         engine.cancel()
         imageGenerator.cancel()
+    }
+
+    /** Ответ пользователя на запрос разрешения [actionId] (изменение файлов, скачивание, команда). */
+    fun resolvePending(actionId: String, approved: Boolean) {
+        if (mutableActive.value?.pending?.id == actionId) decision?.complete(approved)
     }
 
     /** На этой платформе есть программа генерации изображений. */
@@ -251,7 +290,8 @@ class ChatGenerationService(
         val history = promptHistory(messages, withImages = projectorPath != null)
             .let { if (found.isEmpty()) it else withDocuments(it, found, persona) }
 
-        val text = StringBuilder()
+        val live = StringBuilder()
+        val steps = mutableListOf<AgentStep>()
         try {
             // Чат и рисование не держат модели в памяти одновременно: телефону не хватит памяти на обе.
             imageGenerator.release()
@@ -264,20 +304,121 @@ class ChatGenerationService(
                     primer = persona.primer,
                     reminder = persona.reminder,
                 )
-                engine.generate(request).collect { piece ->
-                    text.append(piece)
-                    mutableActive.value = ActiveGeneration(chatId, reply.id, text.toString())
+                val toolbox = agentToolbox(chatId, reply.id)
+                if (toolbox == null) {
+                    engine.generate(request).collect { piece ->
+                        live.append(piece)
+                        mutableActive.value = ActiveGeneration(chatId, reply.id, live.toString())
+                    }
+                } else {
+                    runAgent(chatId, reply.id, request, persona, toolbox, live, steps)
                 }
             }
             val status = if (stopRequested) MessageStatus.STOPPED else MessageStatus.COMPLETE
-            chats.updateMessage(reply.id, text.toString().trim(), status, null)
+            if (steps.isNotEmpty()) chats.attachSteps(chatId, reply.id, steps)
+            chats.updateMessage(reply.id, live.toString().trim(), status, null)
         } catch (e: InferenceException) {
-            chats.updateMessage(reply.id, text.toString().trim(), MessageStatus.FAILED, e.error.toGenerationError())
+            if (steps.isNotEmpty()) chats.attachSteps(chatId, reply.id, steps)
+            chats.updateMessage(reply.id, live.toString().trim(), MessageStatus.FAILED, e.error.toGenerationError())
         } catch (e: CancellationException) {
             withContext(NonCancellable) {
-                chats.updateMessage(reply.id, text.toString().trim(), MessageStatus.STOPPED, null)
+                if (steps.isNotEmpty()) chats.attachSteps(chatId, reply.id, steps)
+                chats.updateMessage(reply.id, live.toString().trim(), MessageStatus.STOPPED, null)
             }
             throw e
+        }
+    }
+
+    /**
+     * Инструменты для ответа: папка проекта диалога (если выбрана и доступна) и интернет (если включён).
+     * `null` — инструментов нет, ассистент отвечает обычным текстом.
+     */
+    private suspend fun agentToolbox(chatId: String, replyId: String): AgentToolbox? {
+        val current = settings.settings.value
+        val internet = web?.takeIf { current.internetEnabled }
+        val folder = chats.workspaceOf(chatId)?.let { location -> workspaces?.open(location) }
+        if (internet == null && folder == null) return null
+        return AgentToolbox(
+            workspace = folder,
+            web = internet,
+            commands = commands,
+            autoApplyEdits = current.autoApplyEdits,
+            approve = { action -> askApproval(chatId, replyId, action) },
+            newId = ::newId,
+        ).takeIf { it.tools.isNotEmpty() }
+    }
+
+    /**
+     * Ответ с инструментами: модель пишет вызов `<tool …>`, приложение выполняет его и возвращает результат,
+     * пока модель не ответит обычным текстом (не больше [MAX_AGENT_STEPS] шагов).
+     * В [live] — видимый текст ответа, в [steps] — выполненные шаги.
+     */
+    private suspend fun runAgent(
+        chatId: String,
+        replyId: String,
+        base: GenerationRequest,
+        persona: AssistantPersona,
+        toolbox: AgentToolbox,
+        live: StringBuilder,
+        steps: MutableList<AgentStep>,
+    ) {
+        val workspaceName = chats.workspaceOf(chatId)?.let { location -> workspaces?.open(location)?.name }
+        val context = listOfNotNull(
+            workspaceName?.let { persona.agentWorkspaceNote.replace("{name}", it) },
+            persona.agentInternetNote.takeIf { AgentTool.WEB_SEARCH in toolbox.tools && it.isNotBlank() },
+        ).joinToString("\n")
+        val tools = toolbox.tools.joinToString("\n") { tool -> "- " + (persona.toolDescriptions[tool] ?: tool.toolName) }
+        val instructions = persona.agentInstructions.replace("{context}", context).replace("{tools}", tools)
+        // Напоминание о личности остаётся у вопроса пользователя: так при следующих шагах кэш промпта не теряется.
+        var dialog = ChatPromptFormatter.withReminder(base.messages, base.reminder)
+        val parts = mutableListOf<String>()
+        fun show(current: String) {
+            live.setLength(0)
+            live.append((parts + current).filter { it.isNotBlank() }.joinToString("\n\n"))
+            mutableActive.value = ActiveGeneration(chatId, replyId, live.toString(), steps = steps.toList())
+        }
+        for (round in 0..MAX_AGENT_STEPS) {
+            val raw = StringBuilder()
+            val request = base.copy(
+                systemPrompt = base.systemPrompt + "\n\n" + instructions,
+                messages = dialog,
+                reminder = "",
+            )
+            engine.generate(request)
+                .transformWhile { piece ->
+                    raw.append(piece)
+                    emit(piece)
+                    !ToolCallProtocol.isComplete(raw.toString())
+                }
+                .collect { show(ToolCallProtocol.visibleText(raw.toString())) }
+            val visible = ToolCallProtocol.visibleText(raw.toString())
+            val call = ToolCallProtocol.parse(raw.toString())
+            parts += visible
+            show("")
+            if (stopRequested || call == null || round == MAX_AGENT_STEPS) return
+            val outcome = toolbox.execute(call)
+            outcome.step?.let { steps += it }
+            show("")
+            if (stopRequested) return
+            dialog = dialog +
+                PromptMessage(MessageRole.ASSISTANT, ToolCallProtocol.callText(raw.toString())) +
+                PromptMessage(MessageRole.USER, ToolCallProtocol.result(call.name, outcome.result))
+        }
+    }
+
+    /** Ждёт, пока пользователь разрешит или отклонит действие (или остановит ответ). */
+    private suspend fun askApproval(chatId: String, replyId: String, action: PendingAction): Boolean {
+        if (stopRequested) return false
+        val waiting = CompletableDeferred<Boolean>()
+        decision = waiting
+        mutableActive.update { current ->
+            (current ?: ActiveGeneration(chatId, replyId, "")).copy(pending = action)
+        }
+        return try {
+            waiting.await()
+        } finally {
+            decision = null
+            mutableActive.update { it?.copy(pending = null) }
         }
     }
 
@@ -512,6 +653,9 @@ class ChatGenerationService(
         private const val TITLE_LENGTH = 48
         private const val ORPHAN_IMAGE_AGE_MS = 7L * 24 * 60 * 60 * 1000
         private const val TRANSLATION_MAX_TOKENS = 400
+
+        /** Сколько раз подряд ассистент может вызвать инструменты в одном ответе. */
+        const val MAX_AGENT_STEPS = 12
         private const val DOCUMENT_CHARS_PER_CONTEXT_TOKEN = 0.9
         private const val MIN_DOCUMENT_CHARS = 2_000
         private const val MAX_DOCUMENT_CHARS = 9_000

@@ -4,7 +4,9 @@ CREATE TABLE chat (
     id TEXT NOT NULL PRIMARY KEY,
     title TEXT,
     created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL
+    updated_at INTEGER NOT NULL,
+    -- Папка проекта диалога (путь на Desktop, URI дерева документов на Android) или NULL.
+    workspace TEXT
 );
 
 CREATE TABLE message (
@@ -28,6 +30,12 @@ INSERT INTO chat(id, title, created_at, updated_at) VALUES (?, ?, ?, ?);
 
 setTitleIfEmpty:
 UPDATE chat SET title = ? WHERE id = ? AND title IS NULL;
+
+selectWorkspace:
+SELECT workspace FROM chat WHERE id = ?;
+
+setWorkspace:
+UPDATE chat SET workspace = ? WHERE id = ?;
 
 touchChat:
 UPDATE chat SET updated_at = ? WHERE id = ?;

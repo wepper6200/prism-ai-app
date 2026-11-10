@@ -29,6 +29,10 @@ class DefaultSettingsRepository(
 
     override fun setSafeMode(enabled: Boolean) = update { it.copy(safeMode = enabled) }
 
+    override fun setInternetEnabled(enabled: Boolean) = update { it.copy(internetEnabled = enabled) }
+
+    override fun setAutoApplyEdits(enabled: Boolean) = update { it.copy(autoApplyEdits = enabled) }
+
     private fun update(transform: (AppSettings) -> AppSettings) {
         save(state.updateAndGet(transform))
     }
@@ -40,6 +44,8 @@ class DefaultSettingsRepository(
             darkMode = parseEnum(store.getString(KEY_DARK_MODE), defaults.darkMode),
             dynamicColor = store.getString(KEY_DYNAMIC_COLOR)?.toBooleanStrictOrNull() ?: defaults.dynamicColor,
             safeMode = store.getString(KEY_SAFE_MODE)?.toBooleanStrictOrNull() ?: defaults.safeMode,
+            internetEnabled = store.getString(KEY_INTERNET)?.toBooleanStrictOrNull() ?: defaults.internetEnabled,
+            autoApplyEdits = store.getString(KEY_AUTO_APPLY)?.toBooleanStrictOrNull() ?: defaults.autoApplyEdits,
         )
     }
 
@@ -48,6 +54,8 @@ class DefaultSettingsRepository(
         store.putString(KEY_DARK_MODE, settings.darkMode.name)
         store.putString(KEY_DYNAMIC_COLOR, settings.dynamicColor.toString())
         store.putString(KEY_SAFE_MODE, settings.safeMode.toString())
+        store.putString(KEY_INTERNET, settings.internetEnabled.toString())
+        store.putString(KEY_AUTO_APPLY, settings.autoApplyEdits.toString())
     }
 
     private inline fun <reified E : Enum<E>> parseEnum(raw: String?, default: E): E =
@@ -58,5 +66,7 @@ class DefaultSettingsRepository(
         const val KEY_DARK_MODE = "dark_mode"
         const val KEY_DYNAMIC_COLOR = "dynamic_color"
         const val KEY_SAFE_MODE = "safe_mode"
+        const val KEY_INTERNET = "internet_enabled"
+        const val KEY_AUTO_APPLY = "auto_apply_edits"
     }
 }

@@ -29,7 +29,9 @@ import ai.prism.resources.models_license
 import ai.prism.resources.models_low_ram
 import ai.prism.resources.models_pause
 import ai.prism.resources.models_paused
+import ai.prism.resources.models_internet
 import ai.prism.resources.models_privacy_note
+import ai.prism.resources.settings_internet_desc
 import ai.prism.resources.models_resume
 import ai.prism.resources.models_use
 import ai.prism.resources.models_verifying
@@ -37,6 +39,7 @@ import ai.prism.resources.models_vision
 import ai.prism.resources.models_vision_download
 import ai.prism.resources.models_vision_missing
 import ai.prism.resources.nav_models
+import ai.prism.ui.components.SettingSwitch
 import ai.prism.ui.LocalExpandedLayout
 import ai.prism.ui.components.PrismPanel
 import ai.prism.ui.components.PrismTopBar
@@ -120,6 +123,18 @@ fun ModelsScreen(
         ) {
             item(key = "device") {
                 DeviceCard(state, Modifier.widthIn(max = 880.dp).fillMaxWidth())
+            }
+            item(key = "internet") {
+                PrismPanel(Modifier.widthIn(max = 880.dp).fillMaxWidth(), shape = MaterialTheme.shapes.large) {
+                    SettingSwitch(
+                        title = stringResource(Res.string.models_internet),
+                        description = stringResource(Res.string.settings_internet_desc),
+                        checked = state.internetEnabled,
+                        onCheckedChange = { component.onIntent(ModelsIntent.SetInternetEnabled(it)) },
+                        tag = "models_internet",
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
+                }
             }
             items(state.entries, key = { it.model.id }) { entry ->
                 ModelCard(

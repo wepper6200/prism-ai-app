@@ -1,5 +1,11 @@
 package ai.prism.di
 
+import ai.prism.data.agent.FileWorkspaceProvider
+import ai.prism.data.agent.HttpWebClient
+import ai.prism.data.agent.ProcessCommandRunner
+import ai.prism.domain.agent.CommandRunner
+import ai.prism.domain.agent.WebClient
+import ai.prism.domain.agent.WorkspaceProvider
 import ai.prism.data.documents.FileTextExtractor
 import ai.prism.data.documents.PdfBoxTextReader
 import ai.prism.data.db.PrismDatabase
@@ -58,6 +64,9 @@ fun desktopPlatformModule(): Module = module {
     }
     single<InferenceEngine> { LlamaInferenceEngine(DesktopNativeLibraryLoader(), get(), get()) }
     single<DocumentTextExtractor> { FileTextExtractor(PdfBoxTextReader()) }
+    single<WebClient> { HttpWebClient() }
+    single<WorkspaceProvider> { FileWorkspaceProvider() }
+    single<CommandRunner> { ProcessCommandRunner() }
     single<TextEmbedder> { LlamaTextEmbedder(DesktopNativeLibraryLoader(), get()) }
 }
 

@@ -15,6 +15,11 @@ import ai.prism.resources.settings_appearance
 import ai.prism.resources.settings_dark_mode
 import ai.prism.resources.settings_dynamic_color
 import ai.prism.resources.settings_dynamic_color_desc
+import ai.prism.resources.settings_assistant
+import ai.prism.resources.settings_auto_apply
+import ai.prism.resources.settings_auto_apply_desc
+import ai.prism.resources.settings_internet
+import ai.prism.resources.settings_internet_desc
 import ai.prism.resources.settings_safe_mode
 import ai.prism.resources.settings_safe_mode_desc
 import ai.prism.resources.settings_identity_note
@@ -28,6 +33,7 @@ import ai.prism.resources.theme_expressive
 import ai.prism.resources.theme_expressive_desc
 import ai.prism.resources.theme_glass
 import ai.prism.resources.theme_glass_desc
+import ai.prism.ui.components.SettingSwitch
 import ai.prism.ui.LocalExpandedLayout
 import ai.prism.ui.components.PrismPanel
 import ai.prism.ui.components.PrismTopBar
@@ -216,6 +222,23 @@ fun SettingsScreen(
                     Spacer(Modifier.width(16.dp))
                     Switch(checked = state.settings.safeMode, onCheckedChange = null)
                 }
+            }
+
+            SettingsSection(title = stringResource(Res.string.settings_assistant), modifier = sectionModifier) {
+                SettingSwitch(
+                    title = stringResource(Res.string.settings_internet),
+                    description = stringResource(Res.string.settings_internet_desc),
+                    checked = state.settings.internetEnabled,
+                    onCheckedChange = { component.onIntent(SettingsIntent.SetInternetEnabled(it)) },
+                    tag = "internet_setting",
+                )
+                SettingSwitch(
+                    title = stringResource(Res.string.settings_auto_apply),
+                    description = stringResource(Res.string.settings_auto_apply_desc),
+                    checked = state.settings.autoApplyEdits,
+                    onCheckedChange = { component.onIntent(SettingsIntent.SetAutoApplyEdits(it)) },
+                    tag = "auto_apply_setting",
+                )
             }
 
             SettingsSection(title = stringResource(Res.string.settings_models), modifier = sectionModifier) {

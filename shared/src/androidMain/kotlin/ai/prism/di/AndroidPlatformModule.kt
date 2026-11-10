@@ -1,5 +1,10 @@
 package ai.prism.di
 
+import ai.prism.data.agent.HttpWebClient
+import ai.prism.data.agent.SafWorkspaceProvider
+import ai.prism.domain.agent.CommandRunner
+import ai.prism.domain.agent.WebClient
+import ai.prism.domain.agent.WorkspaceProvider
 import ai.prism.data.documents.FileTextExtractor
 import ai.prism.data.documents.PdfBoxAndroidTextReader
 import ai.prism.data.db.PrismDatabase
@@ -56,6 +61,9 @@ fun androidPlatformModule(context: Context): Module = module {
     }
     single<InferenceEngine> { LlamaInferenceEngine(AndroidNativeLibraryLoader(appContext), get(), get()) }
     single<DocumentTextExtractor> { FileTextExtractor(PdfBoxAndroidTextReader(appContext)) }
+    single<WebClient> { HttpWebClient() }
+    single<WorkspaceProvider> { SafWorkspaceProvider(appContext) }
+    single<CommandRunner> { CommandRunner.None }
     single<TextEmbedder> { LlamaTextEmbedder(AndroidNativeLibraryLoader(appContext), get()) }
 }
 

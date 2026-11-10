@@ -27,7 +27,7 @@ class DatabaseMigrationTest {
         ).forEach { driver.execute(null, it, 0) }
 
         PrismDatabase.Schema.migrate(driver, 1, PrismDatabase.Schema.version)
-        assertEquals(3L, PrismDatabase.Schema.version)
+        assertEquals(4L, PrismDatabase.Schema.version)
 
         val repository = SqlChatRepository(PrismDatabase(driver), MemoryImageStore(), Dispatchers.Unconfined)
         assertEquals(listOf("Привет"), repository.messagesSnapshot("c1").map { it.content })
@@ -38,7 +38,7 @@ class DatabaseMigrationTest {
     }
 
     @Test
-    fun version2DatabaseGetsDocumentTables() = runBlocking {
+    fun olderDatabaseGetsDocumentAndAgentTables() = runBlocking {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         listOf(
             "CREATE TABLE chat (id TEXT NOT NULL PRIMARY KEY, title TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)",
@@ -55,5 +55,10 @@ class DatabaseMigrationTest {
         val repository = SqlChatRepository(database, MemoryImageStore(), Dispatchers.Unconfined)
         assertEquals(listOf("Что на фото?"), repository.messagesSnapshot("c1").map { it.content })
         assertEquals(0, database.documentQueries.selectDocumentsOfChat("c1").executeAsList().size)
+        // Версия 4: папка проекта диалога и шаги ассистента.
+        assertEquals(null, repository.workspaceOf("c1"))
+        repository.setWorkspace("c1", "/projects/app")
+        assertEquals("/projects/app", repository.workspaceOf("c1"))
+        assertEquals(0, database.agentStepQueries.selectStepsOfChat("c1").executeAsList().size)
     }
 }
