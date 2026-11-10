@@ -54,7 +54,7 @@ class VideoGenerationIntegrationTest {
 
         val seconds = (System.nanoTime() - started) / 1e9
         File(screenshots, "generated_wan_video.avi").writeBytes(video.avi)
-        val parsed = checkNotNull(MjpegAvi.parse(video.avi), "ролик не читается как MJPEG AVI")
+        val parsed = checkNotNull(MjpegAvi.parse(video.avi)) { "ролик не читается как MJPEG AVI" }
         val first = ImageIO.read(parsed.frames.first().inputStream())
         ImageIO.write(first, "png", File(screenshots, "generated_wan_first_frame.png"))
         var r = 0L
