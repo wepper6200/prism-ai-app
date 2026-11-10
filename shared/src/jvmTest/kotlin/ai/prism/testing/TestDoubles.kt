@@ -404,7 +404,7 @@ class TestApp(
         scope = scope,
         documents = documents,
         web = web,
-        workspaces = FileWorkspaceProvider(),
+        workspaces = FileWorkspaceProvider(Dispatchers.Unconfined),
         commands = commands,
     )
     val dependencies = AppDependencies(
@@ -414,7 +414,7 @@ class TestApp(
         generationService = generation,
         documentService = documents,
         documentRepository = documentRepository,
-        workspaceProvider = FileWorkspaceProvider(),
+        workspaceProvider = FileWorkspaceProvider(Dispatchers.Unconfined),
         engine = engine,
         imageStore = images,
         capabilities = PlatformCapabilities(supportsDynamicColor = false),

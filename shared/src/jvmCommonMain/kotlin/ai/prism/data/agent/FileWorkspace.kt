@@ -9,9 +9,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
+import kotlin.coroutines.CoroutineContext
 
 /** Папка проекта на диске (Desktop). Пути за её пределами отклоняются. */
-class FileWorkspace(root: File) : Workspace {
+class FileWorkspace(root: File, private val ioContext: CoroutineContext = Dispatchers.IO) : Workspace {
     private val root: File = root.canonicalFile
 
     override val name: String = this.root.name.ifEmpty { this.root.path }
@@ -72,7 +73,7 @@ class FileWorkspace(root: File) : Workspace {
 
     private fun relative(file: File): String = file.relativeTo(root).invariantSeparatorsPath
 
-    private suspend fun <T> io(block: () -> T): T = withContext(Dispatchers.IO) {
+    private suspend fun <T> io(block: () -> T): T = withContext(ioContext) {
         try {
             block()
         } catch (e: IOException) {
@@ -91,7 +92,7 @@ class FileWorkspace(root: File) : Workspace {
 }
 
 /** Папки проектов на Desktop: адрес — абсолютный путь. */
-class FileWorkspaceProvider : WorkspaceProvider {
+class FileWorkspaceProvider(private val ioContext: CoroutineContext = Dispatchers.IO) : WorkspaceProvider {
     override suspend fun open(location: String): FileWorkspace? =
-        File(location).takeIf { it.isDirectory }?.let(::FileWorkspace)
+        File(location).takeIf { it.isDirectory }?.let { FileWorkspace(it, ioContext) }
 }
