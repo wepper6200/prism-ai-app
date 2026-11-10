@@ -40,6 +40,22 @@ class FileImageStore(
         ImageAttachment(id = id, fileName = fileName, width = image.width, height = image.height)
     }
 
+    override suspend fun saveVideo(bytes: ByteArray, width: Int, height: Int): ImageAttachment = withContext(ioContext) {
+        val fileName = newId() + ImageAttachment.VIDEO_EXTENSION
+        try {
+            directory.mkdirs()
+            val temp = File(directory, "$fileName.tmp")
+            temp.writeBytes(bytes)
+            if (!temp.renameTo(File(directory, fileName))) {
+                temp.delete()
+                throw IOException("rename failed")
+            }
+        } catch (e: IOException) {
+            throw ImageException("Не удалось сохранить видео: ${e.message}", e)
+        }
+        ImageAttachment(id = fileName.removeSuffix(ImageAttachment.VIDEO_EXTENSION), fileName = fileName, width = width, height = height)
+    }
+
     override fun path(fileName: String): String = File(directory, fileName).absolutePath
 
     override suspend fun read(fileName: String): ByteArray? = withContext(ioContext) {

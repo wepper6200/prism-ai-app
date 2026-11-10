@@ -46,7 +46,36 @@ enum class ModelKind {
     /** Эмбеддинги текста для поиска по приложенным файлам (llama.cpp). */
     @SerialName("embedding")
     EMBEDDING,
+
+    /** Генерация видео по описанию (Wan в stable-diffusion.cpp). */
+    @SerialName("video")
+    VIDEO,
 }
+
+/** Параметры генерации по умолчанию для модели видео (Wan). */
+@Serializable
+data class VideoModelSettings(
+    /** Размер кадра: кратен 16 (Wan 2.1) или 32 (Wan 2.2 TI2V). */
+    val width: Int = 832,
+    val height: Int = 480,
+    /** Число кадров вида 4k+1. */
+    val frames: Int = 33,
+    val fps: Int = 16,
+    val steps: Int = 20,
+    val cfg: Float = 6.0f,
+    val flowShift: Float = 3.0f,
+    val sampler: String = "euler",
+    val scheduler: String = "",
+    /** Отрицательное описание, на котором обучена модель. */
+    val negativePrompt: String = "",
+    val vaeTiling: Boolean = true,
+    val mmap: Boolean = false,
+    /** Веса в оперативной памяти, в видеопамять — по частям (видеокарты с 8–12 ГБ). */
+    val offloadToCpu: Boolean = false,
+    val flashAttention: Boolean = false,
+    /** Модель умеет оживлять приложенное фото (Wan 2.2 TI2V). */
+    val imageToVideo: Boolean = false,
+)
 
 /**
  * Как модель эмбеддингов ждёт текст: шаблоны с `{text}` (и `{title}` для фрагментов файлов)
@@ -133,6 +162,8 @@ data class CatalogModel(
     val image: ImageModelSettings? = null,
     /** Для моделей эмбеддингов: шаблоны запроса и фрагмента. */
     val embedding: EmbeddingSettings? = null,
+    /** Для моделей видео: размер, кадры, шаги. */
+    val video: VideoModelSettings? = null,
 ) {
     /** Основной файл с весами модели. */
     val mainFile: ModelFile get() = ModelFile(url, fileName, sizeBytes, sha256)

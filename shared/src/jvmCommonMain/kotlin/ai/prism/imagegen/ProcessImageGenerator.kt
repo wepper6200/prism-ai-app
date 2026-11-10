@@ -1,11 +1,13 @@
 package ai.prism.imagegen
 
 import ai.prism.domain.imagegen.GeneratedImage
+import ai.prism.domain.imagegen.GeneratedVideo
 import ai.prism.domain.imagegen.ImageGenerationError
 import ai.prism.domain.imagegen.ImageGenerationException
 import ai.prism.domain.imagegen.ImageGenerationProgress
 import ai.prism.domain.imagegen.ImageGenerator
 import ai.prism.domain.imagegen.ImageRequest
+import ai.prism.domain.imagegen.VideoRequest
 import ai.prism.domain.model.CatalogModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -65,7 +67,7 @@ class ProcessImageGenerator(
         withContext(Dispatchers.IO) {
             cancelRequested = false
             try {
-                ensureLoaded(model, files, request, onProgress)
+                ensureLoaded(model, files, LoadOptions(request.vaeTiling, request.mmap), onProgress)
                 if (cancelRequested) throw cancelled()
                 runGeneration(request, onProgress)
             } catch (e: CancellationException) {
@@ -74,6 +76,34 @@ class ProcessImageGenerator(
             }
         }
     }
+
+    override suspend fun generateVideo(
+        model: CatalogModel,
+        files: Map<String, String>,
+        request: VideoRequest,
+        onProgress: (ImageGenerationProgress) -> Unit,
+    ): GeneratedVideo = mutex.withLock {
+        withContext(Dispatchers.IO) {
+            cancelRequested = false
+            try {
+                val options = LoadOptions(request.vaeTiling, request.mmap, request.offloadToCpu, request.flashAttention)
+                ensureLoaded(model, files, options, onProgress)
+                if (cancelRequested) throw cancelled()
+                runVideo(request, onProgress)
+            } catch (e: CancellationException) {
+                withContext(NonCancellable) { stopProcess() }
+                throw e
+            }
+        }
+    }
+
+    /** Как загружать модель: от этого зависит, можно ли переиспользовать уже запущенный процесс. */
+    private data class LoadOptions(
+        val vaeTiling: Boolean,
+        val mmap: Boolean,
+        val offloadToCpu: Boolean = false,
+        val flashAttention: Boolean = false,
+    )
 
     override fun cancel() {
         cancelRequested = true
@@ -96,10 +126,10 @@ class ProcessImageGenerator(
     private suspend fun ensureLoaded(
         model: CatalogModel,
         files: Map<String, String>,
-        request: ImageRequest,
+        options: LoadOptions,
         onProgress: (ImageGenerationProgress) -> Unit,
     ) {
-        val key = model.id + files.toSortedMap().toString() + request.vaeTiling + request.mmap
+        val key = model.id + files.toSortedMap().toString() + options
         if (process?.isAlive == true && loadedKey == key) return
         stopProcess()
         onProgress(ImageGenerationProgress.Loading)
@@ -109,8 +139,10 @@ class ProcessImageGenerator(
                 put("cmd", "load")
                 files.forEach { (role, path) -> put(role, path) }
                 put("threads", threads)
-                put("vae_tiling", request.vaeTiling)
-                put("mmap", request.mmap)
+                put("vae_tiling", options.vaeTiling)
+                put("mmap", options.mmap)
+                put("offload_to_cpu", options.offloadToCpu)
+                put("flash_attn", options.flashAttention)
             },
         )
         while (true) {
@@ -170,6 +202,54 @@ class ProcessImageGenerator(
                             seed = event["seed"]?.let { (it as? JsonPrimitive)?.longOrNull } ?: request.seed,
                         )
                     }
+                    "error" -> throw failure(event, loading = false)
+                }
+            }
+        } finally {
+            output.delete()
+        }
+    }
+
+    private suspend fun runVideo(request: VideoRequest, onProgress: (ImageGenerationProgress) -> Unit): GeneratedVideo {
+        workDir.mkdirs()
+        val output = File.createTempFile("prism-video", ".avi", workDir)
+        try {
+            send(
+                buildJsonObject {
+                    put("cmd", "generate_video")
+                    put("prompt", request.prompt)
+                    put("negative", request.negativePrompt)
+                    put("width", request.width)
+                    put("height", request.height)
+                    put("frames", request.frames)
+                    put("fps", request.fps)
+                    put("steps", request.steps)
+                    put("cfg", request.cfg)
+                    put("flow_shift", request.flowShift)
+                    put("seed", request.seed)
+                    put("sampler", request.sampler)
+                    put("scheduler", request.scheduler)
+                    put("output", output.absolutePath)
+                    request.initImagePath?.let { put("init_image", it) }
+                },
+            )
+            onProgress(ImageGenerationProgress.Step(0, request.steps))
+            while (true) {
+                val event = nextEvent()
+                when (event.string("event")) {
+                    "progress" -> {
+                        val step = event.int("step") ?: continue
+                        val steps = event.int("steps") ?: request.steps
+                        onProgress(ImageGenerationProgress.Step(step.coerceAtMost(steps), steps))
+                    }
+                    "done" -> return GeneratedVideo(
+                        avi = output.readBytes(),
+                        width = event.int("width") ?: request.width,
+                        height = event.int("height") ?: request.height,
+                        frames = event.int("frames") ?: request.frames,
+                        fps = event.int("fps") ?: request.fps,
+                        seed = event["seed"]?.let { (it as? JsonPrimitive)?.longOrNull } ?: request.seed,
+                    )
                     "error" -> throw failure(event, loading = false)
                 }
             }

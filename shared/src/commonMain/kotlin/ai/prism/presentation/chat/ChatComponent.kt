@@ -136,6 +136,14 @@ data class ChatState(
     val imageModelBytes: Long = 0,
     /** Скачана модель чата, которая переведёт русское описание картинки на английский. */
     val canTranslateDrawing: Boolean = true,
+    /** Режим «Видео»: сообщение — описание ролика для модели видео. */
+    val videoMode: Boolean = false,
+    val video: DrawSupport = DrawSupport.UNAVAILABLE,
+    /** Модель видео этой платформы (для подсказки о загрузке). */
+    val videoModelName: String? = null,
+    val videoModelBytes: Long = 0,
+    /** Модель видео умеет оживлять приложенное фото. */
+    val videoFromPhoto: Boolean = false,
     /** Размер модуля зрения активной модели (для подсказки о загрузке), байт. */
     val visionModuleBytes: Long = 0,
     /** Файлы диалога: ассистент ищет в них ответы на вопросы. */
@@ -159,18 +167,22 @@ data class ChatState(
             isGenerating || busyInOtherChat -> false
             drawMode -> draft.isNotBlank() && draw == DrawSupport.READY && !isAttaching && attachments.size <= 1 &&
                 !drawNeedsTranslator
+            videoMode -> draft.isNotBlank() && video == DrawSupport.READY && !isAttaching &&
+                attachments.size <= (if (videoFromPhoto) 1 else 0) && !drawNeedsTranslator
             else -> (draft.isNotBlank() || attachments.isNotEmpty()) && !isAttaching
         }
 
     val canAttachMore: Boolean
-        get() = attachments.size < (if (drawMode) 1 else MAX_ATTACHMENTS) && !isAttaching
+        get() = attachments.size < (if (drawMode || videoMode) 1 else MAX_ATTACHMENTS) && !isAttaching &&
+            (!videoMode || videoFromPhoto)
 
     /** В режиме рисования перерисовывается одно фото, а приложено несколько. */
-    val tooManyPhotosToDraw: Boolean get() = drawMode && attachments.size > 1
+    val tooManyPhotosToDraw: Boolean
+        get() = (drawMode && attachments.size > 1) || (videoMode && attachments.size > (if (videoFromPhoto) 1 else 0))
 
     /** Описание картинки по-русски, а переводить его на английский нечем: генератор нарисовал бы не то. */
     val drawNeedsTranslator: Boolean
-        get() = drawMode && !canTranslateDrawing && ImagePromptPolicy.hasCyrillic(draft)
+        get() = (drawMode || videoMode) && !canTranslateDrawing && ImagePromptPolicy.hasCyrillic(draft)
 
     companion object {
         const val MAX_ATTACHMENTS = 4
@@ -205,6 +217,9 @@ sealed interface ChatIntent {
 
     /** Включает или выключает режим «Нарисовать». */
     data object ToggleDrawMode : ChatIntent
+
+    /** Включает или выключает режим «Видео». */
+    data object ToggleVideoMode : ChatIntent
     data object Send : ChatIntent
     data object Stop : ChatIntent
     data object Retry : ChatIntent
@@ -250,6 +265,7 @@ class DefaultChatComponent(
     )
 
     private val drawMode = MutableStateFlow(stateKeeper.consume(KEY_DRAW_MODE, Boolean.serializer()) ?: false)
+    private val videoMode = MutableStateFlow(stateKeeper.consume(KEY_VIDEO_MODE, Boolean.serializer()) ?: false)
 
     private val draftImages = MutableStateFlow(
         DraftImages(items = stateKeeper.consume(KEY_ATTACHMENTS, ATTACHMENTS_SERIALIZER).orEmpty()),
@@ -259,6 +275,7 @@ class DefaultChatComponent(
         stateKeeper.register(KEY_DRAFT, String.serializer()) { draft.value }
         stateKeeper.register(KEY_ATTACHMENTS, ATTACHMENTS_SERIALIZER) { draftImages.value.items }
         stateKeeper.register(KEY_DRAW_MODE, Boolean.serializer()) { drawMode.value }
+        stateKeeper.register(KEY_VIDEO_MODE, Boolean.serializer()) { videoMode.value }
     }
 
     private data class ConversationPart(
@@ -281,6 +298,10 @@ class DefaultChatComponent(
         val documentSupport: DocumentSupport,
         val embeddingModelName: String?,
         val embeddingModelBytes: Long,
+        val video: DrawSupport,
+        val videoModelName: String?,
+        val videoModelBytes: Long,
+        val videoFromPhoto: Boolean,
     )
 
     private val conversation = combine(
@@ -320,6 +341,7 @@ class DefaultChatComponent(
         val entry = entries.firstOrNull { it.model.id == activeId }
         val imageEntry = entries.firstOrNull { it.model.kind == ModelKind.IMAGE }
         val embeddingEntry = entries.firstOrNull { it.model.kind == ModelKind.EMBEDDING }
+        val videoEntry = entries.firstOrNull { it.model.kind == ModelKind.VIDEO }
         ModelPart(
             name = entry?.model?.name,
             downloaded = entry?.chatReady == true,
@@ -345,6 +367,14 @@ class DefaultChatComponent(
             },
             embeddingModelName = embeddingEntry?.model?.name,
             embeddingModelBytes = embeddingEntry?.model?.totalSizeBytes ?: 0L,
+            video = when {
+                videoEntry == null || !generation.canGenerateImages -> DrawSupport.UNAVAILABLE
+                videoEntry.status == ModelStatus.Downloaded -> DrawSupport.READY
+                else -> DrawSupport.NOT_DOWNLOADED
+            },
+            videoModelName = videoEntry?.model?.name,
+            videoModelBytes = videoEntry?.model?.totalSizeBytes ?: 0L,
+            videoFromPhoto = videoEntry?.model?.video?.imageToVideo == true,
         )
     }
 
@@ -373,14 +403,21 @@ class DefaultChatComponent(
         settingsRepository.settings.map { it.internetEnabled },
     ) { name, internet -> AgentPart(name, internet) }
 
-    private data class ExtraPart(val drawMode: Boolean, val documents: List<DocumentItem>, val agent: AgentPart)
+    private data class ExtraPart(
+        val drawMode: Boolean,
+        val videoMode: Boolean,
+        val documents: List<DocumentItem>,
+        val agent: AgentPart,
+    )
 
     override val state: StateFlow<ChatState> = combine(
         conversation,
         modelPart,
         draft,
         draftImages,
-        combine(drawMode, documentsPart, agentPart) { drawing, documents, agent -> ExtraPart(drawing, documents, agent) },
+        combine(drawMode, videoMode, documentsPart, agentPart) { drawing, video, documents, agent ->
+            ExtraPart(drawing, video, documents, agent)
+        },
     ) { chat, model, text, images, extra ->
         val drawing = extra.drawMode
         val documents = extra.documents
@@ -397,6 +434,11 @@ class DefaultChatComponent(
             vision = model.vision,
             visionModuleBytes = model.visionBytes,
             drawMode = drawing && model.draw != DrawSupport.UNAVAILABLE,
+            videoMode = extra.videoMode && model.video != DrawSupport.UNAVAILABLE,
+            video = model.video,
+            videoModelName = model.videoModelName,
+            videoModelBytes = model.videoModelBytes,
+            videoFromPhoto = model.videoFromPhoto,
             draw = model.draw,
             imageModelName = model.imageModelName,
             imageModelBytes = model.imageModelBytes,
@@ -432,7 +474,14 @@ class DefaultChatComponent(
             ChatIntent.AttachFailed -> draftImages.update { it.copy(error = AttachmentError.UNREADABLE) }
             is ChatIntent.RemoveAttachment -> remove(intent.id)
             ChatIntent.DismissAttachmentError -> draftImages.update { it.copy(error = null) }
-            ChatIntent.ToggleDrawMode -> drawMode.update { !it }
+            ChatIntent.ToggleDrawMode -> {
+                drawMode.update { !it }
+                if (drawMode.value) videoMode.value = false
+            }
+            ChatIntent.ToggleVideoMode -> {
+                videoMode.update { !it }
+                if (videoMode.value) drawMode.value = false
+            }
             ChatIntent.Send -> send()
             ChatIntent.Stop -> generation.stop()
             ChatIntent.Retry -> generation.retry(chatId)
@@ -448,6 +497,13 @@ class DefaultChatComponent(
         if (!current.canSend) return
         if (current.drawMode) {
             if (generation.draw(chatId, draft.value, current.attachments.firstOrNull())) {
+                draft.value = ""
+                draftImages.update { it.copy(items = emptyList(), error = null) }
+            }
+            return
+        }
+        if (current.videoMode) {
+            if (generation.animate(chatId, draft.value, current.attachments.firstOrNull())) {
                 draft.value = ""
                 draftImages.update { it.copy(items = emptyList(), error = null) }
             }
@@ -500,6 +556,7 @@ class DefaultChatComponent(
         const val KEY_DRAFT = "chat_draft"
         const val KEY_ATTACHMENTS = "chat_attachments"
         const val KEY_DRAW_MODE = "chat_draw_mode"
+        const val KEY_VIDEO_MODE = "chat_video_mode"
         val ATTACHMENTS_SERIALIZER = ListSerializer(ImageAttachment.serializer())
     }
 }

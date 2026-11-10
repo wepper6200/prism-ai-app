@@ -20,6 +20,10 @@ import ai.prism.resources.draw_dialog_text
 import ai.prism.resources.draw_dialog_title
 import ai.prism.resources.draw_loading
 import ai.prism.resources.draw_needs_translator
+import ai.prism.resources.video_dialog_text
+import ai.prism.resources.video_dialog_title
+import ai.prism.resources.video_loading
+import ai.prism.resources.video_step
 import ai.prism.resources.document_dialog_text
 import ai.prism.resources.document_dialog_title
 import ai.prism.resources.draw_one_photo
@@ -64,6 +68,7 @@ import ai.prism.ui.components.message
 import ai.prism.ui.components.rememberImageExporter
 import ai.prism.ui.components.rememberImagePicker
 import ai.prism.ui.components.AgentContextRow
+import ai.prism.ui.components.VideoPlayer
 import ai.prism.ui.components.AgentSteps
 import ai.prism.ui.components.DocumentStrip
 import ai.prism.ui.components.PendingActionCard
@@ -104,6 +109,7 @@ import androidx.compose.material.icons.outlined.AttachFile
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Brush
 import androidx.compose.material.icons.outlined.Memory
+import androidx.compose.material.icons.outlined.Movie
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilledTonalButton
@@ -145,10 +151,12 @@ fun ChatScreen(
     val loadImage: ImageBytesLoader = component::imageBytes
     var visionDialog by remember { mutableStateOf(false) }
     var drawDialog by remember { mutableStateOf(false) }
+    var videoDialog by remember { mutableStateOf(false) }
     var viewing by remember { mutableStateOf<String?>(null) }
     var saveResult by remember { mutableStateOf<Boolean?>(null) }
     val scope = rememberCoroutineScope()
     val exporter = rememberImageExporter { ok -> saveResult = ok }
+    val videoExporter = rememberImageExporter(mimeType = "video/x-msvideo") { ok -> saveResult = ok }
     LaunchedEffect(saveResult) {
         if (saveResult != null) {
             delay(SAVE_MESSAGE_MS)
@@ -167,7 +175,7 @@ fun ChatScreen(
     )
     // Без модуля зрения вместо выбора фото объясняем, что нужно сделать. Для перерисовки фото зрение не нужно.
     fun whenVisionReady(action: () -> Unit) {
-        if (state.drawMode || state.vision == VisionSupport.READY) action() else visionDialog = true
+        if (state.drawMode || state.videoMode || state.vision == VisionSupport.READY) action() else visionDialog = true
     }
     Column(
         modifier = modifier
@@ -201,7 +209,23 @@ fun ChatScreen(
                     onOpenImage = { viewing = it },
                     onRetry = { component.onIntent(ChatIntent.Retry) },
                     onResolve = { id, approved -> component.onIntent(ChatIntent.ResolvePending(id, approved)) },
+                    onSaveVideo = { fileName ->
+                        scope.launch {
+                            val bytes = component.imageBytes(fileName)
+                            if (bytes == null) saveResult = false else videoExporter.export(bytes, "prism-ai-$fileName")
+                        }
+                    },
                     modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+        if (viewing == null) {
+            saveResult?.let { ok ->
+                Text(
+                    text = stringResource(if (ok) Res.string.image_saved else Res.string.image_save_failed),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (ok) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                    modifier = Modifier.align(Alignment.CenterHorizontally).testTag("save_result"),
                 )
             }
         }
@@ -287,6 +311,20 @@ fun ChatScreen(
                     onTakePhoto = { whenVisionReady(picker::takePhoto) },
                     onRemove = { component.onIntent(ChatIntent.RemoveAttachment(it)) },
                 ),
+                video = if (state.video == DrawSupport.UNAVAILABLE) {
+                    null
+                } else {
+                    InputDrawing(
+                        active = state.videoMode,
+                        onToggle = {
+                            if (state.video == DrawSupport.READY || state.videoMode) {
+                                component.onIntent(ChatIntent.ToggleVideoMode)
+                            } else {
+                                videoDialog = true
+                            }
+                        },
+                    )
+                },
                 onPickDocuments = when (state.documentSupport) {
                     DocumentSupport.READY -> documentPicker::pickDocuments
                     DocumentSupport.NOT_DOWNLOADED -> ({ documentDialog = true })
@@ -334,6 +372,35 @@ fun ChatScreen(
                 TextButton(onClick = { drawDialog = false }) { Text(stringResource(Res.string.action_cancel)) }
             },
             modifier = Modifier.testTag("draw_dialog"),
+        )
+    }
+    if (videoDialog) {
+        AlertDialog(
+            onDismissRequest = { videoDialog = false },
+            icon = { Icon(Icons.Outlined.Movie, contentDescription = null) },
+            title = { Text(stringResource(Res.string.video_dialog_title)) },
+            text = {
+                Text(
+                    stringResource(
+                        Res.string.video_dialog_text,
+                        state.videoModelName.orEmpty(),
+                        formatBytes(state.videoModelBytes),
+                    ),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        videoDialog = false
+                        component.onIntent(ChatIntent.OpenModels)
+                    },
+                    modifier = Modifier.testTag("video_open_models"),
+                ) { Text(stringResource(Res.string.chat_open_models)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { videoDialog = false }) { Text(stringResource(Res.string.action_cancel)) }
+            },
+            modifier = Modifier.testTag("video_dialog"),
         )
     }
     if (documentDialog) {
@@ -468,6 +535,7 @@ private fun MessageList(
     onOpenImage: (String) -> Unit,
     onRetry: () -> Unit,
     onResolve: (String, Boolean) -> Unit,
+    onSaveVideo: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
@@ -498,6 +566,7 @@ private fun MessageList(
                     MessageRole.ASSISTANT -> AssistantMessage(
                         message = message,
                         onResolve = onResolve,
+                        onSaveVideo = onSaveVideo,
                         loadImage = loadImage,
                         onOpenImage = onOpenImage,
                         loadingProgress = state.modelLoadingProgress.takeIf { message.isStreaming },
@@ -570,6 +639,7 @@ private fun UserBubble(message: MessageItem) {
 private fun AssistantMessage(
     message: MessageItem,
     onResolve: (String, Boolean) -> Unit,
+    onSaveVideo: (String) -> Unit,
     loadImage: ImageBytesLoader,
     onOpenImage: (String) -> Unit,
     loadingProgress: Float?,
@@ -586,6 +656,15 @@ private fun AssistantMessage(
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             message.images.forEach { image ->
                 val ratio = (image.width.toFloat() / image.height.coerceAtLeast(1)).coerceIn(0.5f, 2f)
+                if (image.isVideo) {
+                    VideoPlayer(
+                        fileName = image.fileName,
+                        load = loadImage,
+                        onSave = { onSaveVideo(image.fileName) },
+                        modifier = Modifier.size(width = 320.dp, height = 320.dp / ratio),
+                    )
+                    return@forEach
+                }
                 StoredImage(
                     fileName = image.fileName,
                     load = loadImage,
@@ -653,8 +732,9 @@ private fun Drawing(progress: DrawingProgress) {
         Text(
             text = when (progress.stage) {
                 DrawingStage.TRANSLATING -> stringResource(Res.string.draw_translating)
-                DrawingStage.LOADING -> stringResource(Res.string.draw_loading)
-                DrawingStage.DRAWING -> stringResource(Res.string.draw_step, progress.step, progress.steps)
+                DrawingStage.LOADING -> stringResource(if (progress.video) Res.string.video_loading else Res.string.draw_loading)
+                DrawingStage.DRAWING ->
+                    stringResource(if (progress.video) Res.string.video_step else Res.string.draw_step, progress.step, progress.steps)
             },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,

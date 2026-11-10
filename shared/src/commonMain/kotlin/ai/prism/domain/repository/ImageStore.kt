@@ -13,6 +13,9 @@ interface ImageStore {
      */
     suspend fun save(bytes: ByteArray): ImageAttachment
 
+    /** Сохраняет видео (MJPEG AVI) как вложение сообщения: файл `….avi` рядом с изображениями. */
+    suspend fun saveVideo(bytes: ByteArray, width: Int, height: Int): ImageAttachment
+
     /** Абсолютный путь к файлу изображения. */
     fun path(fileName: String): String
 

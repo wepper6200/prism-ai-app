@@ -29,4 +29,18 @@ class ChatStateTest {
         assertTrue(drawing("аниме девушка", canTranslate = true).canSend)
         assertFalse(drawing("an anime girl", canTranslate = false).drawNeedsTranslator)
     }
+
+    @Test
+    fun videoModeAcceptsPhotoOnlyForCapableModel() {
+        val base = ChatState(chatId = "chat", draft = "a cat", videoMode = true, video = DrawSupport.READY)
+        assertTrue(base.canSend)
+        val photo = ai.prism.domain.model.ImageAttachment("p", "p.jpg", 10, 10)
+        assertFalse(base.copy(attachments = listOf(photo)).canSend)
+        assertFalse(base.canAttachMore)
+        val capable = base.copy(videoFromPhoto = true)
+        assertTrue(capable.canAttachMore)
+        assertTrue(capable.copy(attachments = listOf(photo)).canSend)
+        assertFalse(base.copy(video = DrawSupport.NOT_DOWNLOADED).canSend)
+        assertTrue(base.copy(draft = "кот", canTranslateDrawing = false).drawNeedsTranslator)
+    }
 }

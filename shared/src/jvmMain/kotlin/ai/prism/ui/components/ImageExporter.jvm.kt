@@ -14,7 +14,7 @@ import java.io.File
 import java.io.IOException
 
 @Composable
-actual fun rememberImageExporter(onResult: (Boolean) -> Unit): ImageExporter {
+actual fun rememberImageExporter(mimeType: String, onResult: (Boolean) -> Unit): ImageExporter {
     val scope = rememberCoroutineScope()
     val result by rememberUpdatedState(onResult)
     return remember {
@@ -24,7 +24,8 @@ actual fun rememberImageExporter(onResult: (Boolean) -> Unit): ImageExporter {
                 isVisible = true
             }
             val name = dialog.file ?: return@ImageExporter
-            val target = File(dialog.directory, if (name.contains('.')) name else "$name.jpg")
+            val extension = fileName.substringAfterLast('.', "jpg")
+            val target = File(dialog.directory, if (name.contains('.')) name else "$name.$extension")
             scope.launch {
                 val ok = withContext(Dispatchers.IO) {
                     try {

@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 5,
   "models": [
     {
       "id": "gemma-4-e2b-it-q4_0",
@@ -17,8 +17,13 @@
       "contextLength": 8192,
       "minRamMb": 6144,
       "chatFormat": "gemma4",
-      "license": { "name": "Apache 2.0", "url": "https://www.apache.org/licenses/LICENSE-2.0" },
-      "recommendedFor": ["android"],
+      "license": {
+        "name": "Apache 2.0",
+        "url": "https://www.apache.org/licenses/LICENSE-2.0"
+      },
+      "recommendedFor": [
+        "android"
+      ],
       "vision": {
         "url": "https://huggingface.co/ggml-org/gemma-4-E2B-it-GGUF/resolve/main/mmproj-gemma-4-E2B-it-Q8_0.gguf",
         "fileName": "mmproj-gemma-4-E2B-it-Q8_0.gguf",
@@ -42,8 +47,13 @@
       "contextLength": 8192,
       "minRamMb": 8192,
       "chatFormat": "gemma4",
-      "license": { "name": "Apache 2.0", "url": "https://www.apache.org/licenses/LICENSE-2.0" },
-      "recommendedFor": ["desktop"],
+      "license": {
+        "name": "Apache 2.0",
+        "url": "https://www.apache.org/licenses/LICENSE-2.0"
+      },
+      "recommendedFor": [
+        "desktop"
+      ],
       "vision": {
         "url": "https://huggingface.co/ggml-org/gemma-4-E4B-it-GGUF/resolve/main/mmproj-gemma-4-E4B-it-Q8_0.gguf",
         "fileName": "mmproj-gemma-4-E4B-it-Q8_0.gguf",
@@ -67,8 +77,13 @@
       "contextLength": 16384,
       "minRamMb": 16384,
       "chatFormat": "gemma4",
-      "license": { "name": "Apache 2.0", "url": "https://www.apache.org/licenses/LICENSE-2.0" },
-      "recommendedFor": ["desktop"],
+      "license": {
+        "name": "Apache 2.0",
+        "url": "https://www.apache.org/licenses/LICENSE-2.0"
+      },
+      "recommendedFor": [
+        "desktop"
+      ],
       "vision": {
         "url": "https://huggingface.co/ggml-org/gemma-4-12B-it-GGUF/resolve/main/mmproj-gemma-4-12B-it-Q8_0.gguf",
         "fileName": "mmproj-gemma-4-12B-it-Q8_0.gguf",
@@ -92,7 +107,10 @@
       "contextLength": 16384,
       "minRamMb": 24576,
       "chatFormat": "gemma4",
-      "license": { "name": "Apache 2.0", "url": "https://www.apache.org/licenses/LICENSE-2.0" },
+      "license": {
+        "name": "Apache 2.0",
+        "url": "https://www.apache.org/licenses/LICENSE-2.0"
+      },
       "recommendedFor": [],
       "vision": {
         "url": "https://huggingface.co/ggml-org/gemma-4-26B-A4B-it-GGUF/resolve/main/mmproj-gemma-4-26B-A4B-it-Q8_0.gguf",
@@ -117,7 +135,10 @@
       "contextLength": 8192,
       "minRamMb": 3072,
       "chatFormat": "gemma3",
-      "license": { "name": "Gemma Terms of Use", "url": "https://ai.google.dev/gemma/terms" },
+      "license": {
+        "name": "Gemma Terms of Use",
+        "url": "https://ai.google.dev/gemma/terms"
+      },
       "recommendedFor": []
     },
     {
@@ -134,8 +155,14 @@
       "sizeBytes": 333590944,
       "sha256": "b5ce9d77a3fc4b3b39ccb5643c36777911cc4eb46a66962eadfa3f5f60490d63",
       "minRamMb": 1024,
-      "license": { "name": "Gemma Terms of Use", "url": "https://ai.google.dev/gemma/terms" },
-      "recommendedFor": ["android", "desktop"],
+      "license": {
+        "name": "Gemma Terms of Use",
+        "url": "https://ai.google.dev/gemma/terms"
+      },
+      "recommendedFor": [
+        "android",
+        "desktop"
+      ],
       "kind": "embedding",
       "embedding": {
         "queryTemplate": "task: search result | query: {text}",
@@ -157,10 +184,17 @@
       "sizeBytes": 6884606880,
       "sha256": "4f30741d2bfc786c92934ce925fcb0a43df3441e76504b797c3d5d5f0878fa6f",
       "minRamMb": 16384,
-      "license": { "name": "Apache 2.0", "url": "https://www.apache.org/licenses/LICENSE-2.0" },
-      "recommendedFor": ["desktop"],
+      "license": {
+        "name": "Apache 2.0",
+        "url": "https://www.apache.org/licenses/LICENSE-2.0"
+      },
+      "recommendedFor": [
+        "desktop"
+      ],
       "kind": "image",
-      "platforms": ["desktop"],
+      "platforms": [
+        "desktop"
+      ],
       "mainRole": "diffusion_model",
       "components": [
         {
@@ -208,10 +242,17 @@
       "sizeBytes": 2584858432,
       "sha256": "33cc25b6f5dd121ecf3ad28e35eb38cb21427b7794c53527ceafe2dc3b109f4f",
       "minRamMb": 8192,
-      "license": { "name": "CreativeML OpenRAIL++-M", "url": "https://huggingface.co/ByteDance/SDXL-Lightning" },
-      "recommendedFor": ["android"],
+      "license": {
+        "name": "CreativeML OpenRAIL++-M",
+        "url": "https://huggingface.co/ByteDance/SDXL-Lightning"
+      },
+      "recommendedFor": [
+        "android"
+      ],
       "kind": "image",
-      "platforms": ["android"],
+      "platforms": [
+        "android"
+      ],
       "mainRole": "model",
       "components": [
         {
@@ -231,6 +272,124 @@
         "scheduler": "sgm_uniform",
         "vaeTiling": true,
         "mmap": true
+      }
+    },
+    {
+      "id": "wan2.2-ti2v-5b-q4_0",
+      "name": "Wan 2.2 TI2V 5B",
+      "family": "Wan 2.2",
+      "parameters": "5B",
+      "quantization": "Q4_0",
+      "description": {
+        "ru": "Видео по описанию и оживление фото: 2 секунды 832×480 (24 кадра в секунду). Нужна видеокарта с 8–12 ГБ памяти; ролик создаётся несколько минут."
+      },
+      "url": "https://huggingface.co/QuantStack/Wan2.2-TI2V-5B-GGUF/resolve/main/Wan2.2-TI2V-5B-Q4_0.gguf",
+      "fileName": "Wan2.2-TI2V-5B-Q4_0.gguf",
+      "sizeBytes": 3029086560,
+      "sha256": "fcf40dd62cb5e15556eef5f975700ab0b071aacd1939607689276e88f81ba463",
+      "minRamMb": 16384,
+      "license": {
+        "name": "Apache 2.0",
+        "url": "https://www.apache.org/licenses/LICENSE-2.0"
+      },
+      "recommendedFor": [
+        "desktop"
+      ],
+      "kind": "video",
+      "platforms": [
+        "desktop"
+      ],
+      "mainRole": "diffusion_model",
+      "components": [
+        {
+          "role": "t5xxl",
+          "url": "https://huggingface.co/city96/umt5-xxl-encoder-gguf/resolve/main/umt5-xxl-encoder-Q4_K_M.gguf",
+          "fileName": "umt5-xxl-encoder-Q4_K_M.gguf",
+          "sizeBytes": 3655145312,
+          "sha256": "17cf97a5bbbc60a646d6105b832b6f657ce904a8a1ad970e4b59df0c67584a40"
+        },
+        {
+          "role": "vae",
+          "url": "https://huggingface.co/QuantStack/Wan2.2-TI2V-5B-GGUF/resolve/main/VAE/Wan2.2_VAE.safetensors",
+          "fileName": "Wan2.2_VAE.safetensors",
+          "sizeBytes": 1409400960,
+          "sha256": "e40321bd36b9709991dae2530eb4ac303dd168276980d3e9bc4b6e2b75fed156"
+        }
+      ],
+      "video": {
+        "width": 832,
+        "height": 480,
+        "frames": 49,
+        "fps": 24,
+        "steps": 20,
+        "cfg": 5.0,
+        "flowShift": 5.0,
+        "sampler": "euler",
+        "negativePrompt": "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走",
+        "vaeTiling": true,
+        "mmap": true,
+        "offloadToCpu": true,
+        "flashAttention": false,
+        "imageToVideo": true
+      }
+    },
+    {
+      "id": "wan2.1-t2v-1.3b-q4_k_m",
+      "name": "Wan 2.1 1.3B",
+      "family": "Wan 2.1",
+      "parameters": "1.3B",
+      "quantization": "Q4_K_M",
+      "description": {
+        "ru": "Экспериментально: короткое видео по описанию прямо на телефоне — около секунды 512×288. Только для флагманов с 12 ГБ памяти и больше; ролик создаётся несколько минут, телефон нагревается."
+      },
+      "url": "https://huggingface.co/samuelchristlie/Wan2.1-T2V-1.3B-GGUF/resolve/main/Wan2.1-T2V-1.3B-Q4_K_M.gguf",
+      "fileName": "Wan2.1-T2V-1.3B-Q4_K_M.gguf",
+      "sizeBytes": 982716640,
+      "sha256": "1e22a68152e6c4432524c61c78185efa35e6b305483ceb5fe238b2d51964cea7",
+      "minRamMb": 12288,
+      "license": {
+        "name": "Apache 2.0",
+        "url": "https://www.apache.org/licenses/LICENSE-2.0"
+      },
+      "recommendedFor": [
+        "android"
+      ],
+      "kind": "video",
+      "platforms": [
+        "android"
+      ],
+      "mainRole": "diffusion_model",
+      "components": [
+        {
+          "role": "t5xxl",
+          "url": "https://huggingface.co/city96/umt5-xxl-encoder-gguf/resolve/main/umt5-xxl-encoder-Q3_K_S.gguf",
+          "fileName": "umt5-xxl-encoder-Q3_K_S.gguf",
+          "sizeBytes": 2858489696,
+          "sha256": "f64f8d6dc4d8a24276df69d0ccea789aae686f7417950a41e6568c30cb478a5c"
+        },
+        {
+          "role": "vae",
+          "url": "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/vae/wan_2.1_vae.safetensors",
+          "fileName": "wan_2.1_vae.safetensors",
+          "sizeBytes": 253815318,
+          "sha256": "2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b"
+        }
+      ],
+      "video": {
+        "width": 512,
+        "height": 288,
+        "frames": 17,
+        "fps": 16,
+        "steps": 16,
+        "cfg": 6.0,
+        "flowShift": 3.0,
+        "sampler": "euler",
+        "negativePrompt": "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走",
+        "vaeTiling": true,
+        "mmap": true,
+        "offloadToCpu": false,
+        "flashAttention": true,
+        "imageToVideo": false
       }
     }
   ]

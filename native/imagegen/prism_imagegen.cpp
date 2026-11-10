@@ -6,22 +6,28 @@
 //
 // Команды:
 //   {"cmd":"load","diffusion_model":"…","model":"…","t5xxl":"…","clip_l":"…","clip_g":"…","vae":"…","taesd":"…",
-//    "threads":4,"vae_tiling":false,"mmap":false}
+//    "threads":4,"vae_tiling":false,"mmap":false,"offload_to_cpu":false,"flash_attn":false}
+//                                                — offload_to_cpu: веса в оперативной памяти, в видеопамять — по частям
 //   {"cmd":"generate","prompt":"…","negative":"","width":1024,"height":1024,"steps":4,"cfg":1.0,
 //    "guidance":3.5,"seed":-1,"sampler":"euler","scheduler":"","output":"…/image.png",
 //    "init_image":"…/photo.jpg","strength":0.7}   — init_image необязателен: перерисовка фото по описанию,
 //                                                  strength — насколько сильно менять (0 — не менять, 1 — рисовать заново)
+//   {"cmd":"generate_video","prompt":"…","negative":"…","width":832,"height":480,"frames":49,"fps":24,
+//    "steps":20,"cfg":6.0,"flow_shift":3.0,"seed":-1,"sampler":"euler","scheduler":"","output":"…/video.avi",
+//    "init_image":"…/photo.jpg"}                — видео (Wan); init_image необязателен: оживить фото (TI2V).
+//                                                  Результат — MJPEG AVI: открывается любым плеером
 //   {"cmd":"cancel"}   — остановить текущую генерацию
 //   {"cmd":"quit"}
 // События:
 //   {"event":"started"}                          — процесс запущен и ждёт команд
 //   {"event":"loaded","device":"…"}              — модель загружена
 //   {"event":"progress","step":1,"steps":4}
-//   {"event":"done","output":"…","width":…,"height":…,"seed":…}
+//   {"event":"done","output":"…","width":…,"height":…,"seed":…}          — для видео ещё "frames" и "fps"
 //   {"event":"error","code":"…","message":"…"}  — коды: bad_request, load_failed, out_of_memory,
 //                                                  generation_failed, cancelled, write_failed, busy
 
 #include <atomic>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
@@ -168,6 +174,136 @@ bool write_png(const std::string & path, const sd_image_t & image) {
     return ok;
 }
 
+void put_u32(std::vector<unsigned char> & out, uint32_t value) {
+    for (int i = 0; i < 4; ++i) out.push_back(static_cast<unsigned char>((value >> (8 * i)) & 0xFF));
+}
+
+void put_u16(std::vector<unsigned char> & out, uint16_t value) {
+    out.push_back(static_cast<unsigned char>(value & 0xFF));
+    out.push_back(static_cast<unsigned char>((value >> 8) & 0xFF));
+}
+
+void put_fourcc(std::vector<unsigned char> & out, const char * code) { out.insert(out.end(), code, code + 4); }
+
+void set_u32(std::vector<unsigned char> & out, size_t pos, uint32_t value) {
+    for (int i = 0; i < 4; ++i) out[pos + i] = static_cast<unsigned char>((value >> (8 * i)) & 0xFF);
+}
+
+void append_bytes(void * context, void * data, int size) {
+    auto * out = static_cast<std::vector<unsigned char> *>(context);
+    const auto * bytes = static_cast<const unsigned char *>(data);
+    out->insert(out->end(), bytes, bytes + size);
+}
+
+// Видео без звука в MJPEG AVI: кадры — JPEG, индекс idx1. Такой файл открывают плееры Windows и Android,
+// а приложение показывает его по кадрам.
+bool write_mjpeg_avi(const std::string & path, const sd_image_t * frames, int count, int fps) {
+    if (count <= 0 || fps <= 0) return false;
+    const uint32_t width = frames[0].width;
+    const uint32_t height = frames[0].height;
+    std::vector<std::vector<unsigned char>> jpegs(static_cast<size_t>(count));
+    for (int i = 0; i < count; ++i) {
+        const sd_image_t & frame = frames[i];
+        if (frame.data == nullptr || frame.width != width || frame.height != height) return false;
+        if (!stbi_write_jpg_to_func(append_bytes, &jpegs[static_cast<size_t>(i)], static_cast<int>(frame.width),
+                                    static_cast<int>(frame.height), static_cast<int>(frame.channel), frame.data, 90)) {
+            return false;
+        }
+        if (jpegs[static_cast<size_t>(i)].size() % 2 == 1) jpegs[static_cast<size_t>(i)].push_back(0);  // чанки AVI выровнены по 2 байта
+    }
+
+    std::vector<unsigned char> avi;
+    put_fourcc(avi, "RIFF");
+    const size_t riff_size = avi.size();
+    put_u32(avi, 0);
+    put_fourcc(avi, "AVI ");
+
+    put_fourcc(avi, "LIST");
+    put_u32(avi, 4 + 8 + 56 + 8 + 4 + 8 + 56 + 8 + 40);
+    put_fourcc(avi, "hdrl");
+    put_fourcc(avi, "avih");
+    put_u32(avi, 56);
+    put_u32(avi, 1000000u / static_cast<uint32_t>(fps));  // микросекунд на кадр
+    put_u32(avi, 0);
+    put_u32(avi, 0);
+    put_u32(avi, 0x10);  // AVIF_HASINDEX
+    put_u32(avi, static_cast<uint32_t>(count));
+    put_u32(avi, 0);
+    put_u32(avi, 1);
+    put_u32(avi, width * height * 3);
+    put_u32(avi, width);
+    put_u32(avi, height);
+    for (int i = 0; i < 4; ++i) put_u32(avi, 0);
+
+    put_fourcc(avi, "LIST");
+    put_u32(avi, 4 + 8 + 56 + 8 + 40);
+    put_fourcc(avi, "strl");
+    put_fourcc(avi, "strh");
+    put_u32(avi, 56);
+    put_fourcc(avi, "vids");
+    put_fourcc(avi, "MJPG");
+    put_u32(avi, 0);
+    put_u16(avi, 0);
+    put_u16(avi, 0);
+    put_u32(avi, 0);
+    put_u32(avi, 1);                               // scale
+    put_u32(avi, static_cast<uint32_t>(fps));      // rate
+    put_u32(avi, 0);
+    put_u32(avi, static_cast<uint32_t>(count));    // length
+    put_u32(avi, width * height * 3);
+    put_u32(avi, 0xFFFFFFFFu);
+    put_u32(avi, 0);
+    put_u16(avi, 0);
+    put_u16(avi, 0);
+    put_u16(avi, static_cast<uint16_t>(width));
+    put_u16(avi, static_cast<uint16_t>(height));
+    put_fourcc(avi, "strf");
+    put_u32(avi, 40);
+    put_u32(avi, 40);
+    put_u32(avi, width);
+    put_u32(avi, height);
+    put_u16(avi, 1);
+    put_u16(avi, 24);
+    put_fourcc(avi, "MJPG");
+    put_u32(avi, width * height * 3);
+    for (int i = 0; i < 4; ++i) put_u32(avi, 0);
+
+    put_fourcc(avi, "LIST");
+    const size_t movi_size = avi.size();
+    put_u32(avi, 0);
+    const size_t movi_start = avi.size();
+    put_fourcc(avi, "movi");
+    std::vector<uint32_t> offsets;
+    for (const auto & jpeg : jpegs) {
+        offsets.push_back(static_cast<uint32_t>(avi.size() - movi_start));
+        put_fourcc(avi, "00dc");
+        put_u32(avi, static_cast<uint32_t>(jpeg.size()));
+        avi.insert(avi.end(), jpeg.begin(), jpeg.end());
+    }
+    set_u32(avi, movi_size, static_cast<uint32_t>(avi.size() - movi_start));
+
+    put_fourcc(avi, "idx1");
+    put_u32(avi, static_cast<uint32_t>(16 * jpegs.size()));
+    for (size_t i = 0; i < jpegs.size(); ++i) {
+        put_fourcc(avi, "00dc");
+        put_u32(avi, 0x10);  // AVIIF_KEYFRAME
+        put_u32(avi, offsets[i]);
+        put_u32(avi, static_cast<uint32_t>(jpegs[i].size()));
+    }
+    set_u32(avi, riff_size, static_cast<uint32_t>(avi.size() - 8));
+
+    const std::filesystem::path target = std::filesystem::u8path(path);
+    const std::filesystem::path temp = std::filesystem::u8path(path + ".tmp");
+    std::ofstream out(temp, std::ios::binary | std::ios::trunc);
+    out.write(reinterpret_cast<const char *>(avi.data()), static_cast<std::streamsize>(avi.size()));
+    out.close();
+    if (!out) return false;
+    std::error_code error;
+    std::filesystem::rename(temp, target, error);
+    if (error) std::filesystem::remove(temp, error);
+    return !error;
+}
+
 // Исходное фото для перерисовки: читается по UTF-8 пути и приводится к размеру генерации (RGB).
 bool load_init_image(const std::string & path, int width, int height, std::vector<unsigned char> & out) {
     std::ifstream in(std::filesystem::u8path(path), std::ios::binary);
@@ -213,6 +349,13 @@ public:
         params.vae_path = c_str_or_null(paths_.vae);
         params.taesd_path = c_str_or_null(paths_.taesd);
         params.enable_mmap = request.value("mmap", false);
+        // Веса — в оперативной памяти, в видеопамять попадают по частям: видео Wan не помещается в 8–12 ГБ целиком.
+        params_backend_ = request.value("offload_to_cpu", false) ? "*=cpu" : "";
+        params.params_backend = c_str_or_null(params_backend_);
+        if (request.value("flash_attn", false)) {
+            params.flash_attn = true;
+            params.diffusion_flash_attn = true;
+        }
         const int threads = request.value("threads", 0);
         if (threads > 0) params.n_threads = threads;
         vae_tiling_ = request.value("vae_tiling", false);
@@ -235,12 +378,16 @@ public:
         emit({{"event", "loaded"}, {"device", device_name()}});
     }
 
-    void generate(const json & request) {
+    void generate(const json & request, bool video) {
         if (ctx_ == nullptr) return emit_error("bad_request", "model is not loaded");
         if (busy_.exchange(true)) return emit_error("busy", "generation in progress");
         join();
-        thread_ = std::thread([this, request]() {
-            run(request);
+        thread_ = std::thread([this, request, video]() {
+            if (video) {
+                run_video(request);
+            } else {
+                run(request);
+            }
             busy_.store(false);
         });
     }
@@ -323,6 +470,78 @@ private:
         emit({{"event", "done"}, {"output", output}, {"width", width}, {"height", height}, {"seed", params.seed}});
     }
 
+    void run_video(const json & request) {
+        const std::string prompt = str(request, "prompt");
+        const std::string negative = str(request, "negative");
+        const std::string output = str(request, "output");
+        if (output.empty()) return emit_error("bad_request", "no output path");
+
+        sd_vid_gen_params_t params;
+        sd_vid_gen_params_init(&params);
+        params.prompt = prompt.c_str();
+        params.negative_prompt = negative.c_str();
+        params.width = request.value("width", 832);
+        params.height = request.value("height", 480);
+        params.video_frames = request.value("frames", 33);
+        params.fps = request.value("fps", 16);
+        params.seed = request.value("seed", static_cast<int64_t>(-1));
+        if (params.seed < 0) params.seed = static_cast<int64_t>(std::random_device{}() & 0x7fffffff);
+        params.sample_params.sample_steps = request.value("steps", 20);
+        params.sample_params.guidance.txt_cfg = request.value("cfg", 6.0f);
+        params.sample_params.flow_shift = request.value("flow_shift", 3.0f);
+        const std::string sampler = str(request, "sampler");
+        const std::string scheduler = str(request, "scheduler");
+        params.sample_params.sample_method =
+            sampler.empty() ? sd_get_default_sample_method(ctx_) : str_to_sample_method(sampler.c_str());
+        if (params.sample_params.sample_method == SAMPLE_METHOD_COUNT) params.sample_params.sample_method = sd_get_default_sample_method(ctx_);
+        params.sample_params.scheduler = scheduler.empty()
+                                             ? sd_get_default_scheduler(ctx_, params.sample_params.sample_method)
+                                             : str_to_scheduler(scheduler.c_str());
+        if (params.sample_params.scheduler == SCHEDULER_COUNT) {
+            params.sample_params.scheduler = sd_get_default_scheduler(ctx_, params.sample_params.sample_method);
+        }
+        params.vae_tiling_params.enabled = vae_tiling_;
+
+        std::vector<unsigned char> init_pixels;
+        const std::string init_path = str(request, "init_image");
+        if (!init_path.empty()) {
+            if (!load_init_image(init_path, params.width, params.height, init_pixels)) {
+                return emit_error("bad_request", "cannot read init image");
+            }
+            params.init_image = sd_image_t{static_cast<uint32_t>(params.width), static_cast<uint32_t>(params.height), 3,
+                                           init_pixels.data()};
+        }
+
+        g_expected_steps.store(params.sample_params.sample_steps);
+        g_sampling_done.store(false);
+        sd_cancel_generation(ctx_, SD_CANCEL_RESET);
+        clear_last_error();
+        sd_video_generation_result_t * result = nullptr;
+        bool ok = false;
+        try {
+            ok = generate_video(ctx_, &params, &result);
+        } catch (const std::bad_alloc &) {
+            return emit_error("out_of_memory", "out of memory during generation");
+        } catch (const std::exception & e) {
+            return emit_error("generation_failed", e.what());
+        }
+        if (!ok || result == nullptr || result->frame_count < 1 || result->frames == nullptr) {
+            if (result != nullptr) free_sd_video_generation_result(result);
+            if (cancel_requested()) return emit_error("cancelled", "cancelled");
+            const std::string error = last_error();
+            return emit_error(looks_like_oom(error) ? "out_of_memory" : "generation_failed", error);
+        }
+        const int fps = result->fps > 0 ? result->fps : params.fps;
+        const int frames = result->frame_count;
+        const uint32_t width = result->frames[0].width;
+        const uint32_t height = result->frames[0].height;
+        const bool written = write_mjpeg_avi(output, result->frames, frames, fps);
+        free_sd_video_generation_result(result);
+        if (!written) return emit_error("write_failed", "cannot write " + output);
+        emit({{"event", "done"}, {"output", output}, {"width", width}, {"height", height}, {"seed", params.seed},
+              {"frames", frames}, {"fps", fps}});
+    }
+
     bool cancel_requested() const {
         const std::string error = last_error();
         return error.find("cancel") != std::string::npos || cancelled_.load();
@@ -330,6 +549,7 @@ private:
 
     sd_ctx_t * ctx_ = nullptr;
     Paths paths_;
+    std::string params_backend_;
     bool vae_tiling_ = false;
     std::atomic<bool> busy_{false};
     std::atomic<bool> cancelled_{false};
@@ -364,9 +584,9 @@ int main() {
         const std::string cmd = str(request, "cmd");
         if (cmd == "load") {
             worker.load(request);
-        } else if (cmd == "generate") {
+        } else if (cmd == "generate" || cmd == "generate_video") {
             worker.mark_cancelled(false);
-            worker.generate(request);
+            worker.generate(request, cmd == "generate_video");
         } else if (cmd == "cancel") {
             worker.mark_cancelled(true);
             worker.cancel();

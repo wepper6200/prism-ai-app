@@ -15,6 +15,7 @@ import ai.prism.domain.imagegen.ImageGenerationException
 import ai.prism.domain.imagegen.ImageGenerationProgress
 import ai.prism.domain.imagegen.ImageGenerator
 import ai.prism.domain.imagegen.ImageRequest
+import ai.prism.domain.imagegen.VideoRequest
 import ai.prism.domain.inference.GenerationRequest
 import ai.prism.domain.inference.InferenceEngine
 import ai.prism.domain.inference.InferenceError
@@ -105,6 +106,8 @@ data class DrawingProgress(
     val stage: DrawingStage,
     val step: Int = 0,
     val steps: Int = 0,
+    /** Создаётся видео, а не изображение. */
+    val video: Boolean = false,
 )
 
 /**
@@ -198,21 +201,43 @@ class ChatGenerationService(
         return true
     }
 
-    /** Повторяет последний неудачный или остановленный ответ (текстовый или рисунок). */
+    /**
+     * Просит модель видео (Wan) снять ролик по описанию [text]; с [source] — оживить это фото.
+     * `false` — уже идёт другая генерация или описание пустое.
+     */
+    fun animate(chatId: String, text: String, source: ImageAttachment? = null): Boolean {
+        val prompt = text.trim()
+        if (prompt.isEmpty() || !reserve(chatId)) return false
+        scope.launch {
+            try {
+                chats.addMessage(chatId, MessageRole.USER, prompt, MessageStatus.COMPLETE, modelId = null, images = listOfNotNull(source))
+                chats.setTitleIfEmpty(chatId, titleFrom(prompt))
+                videoReply(chatId, prompt, source)
+            } finally {
+                mutableActive.value = null
+            }
+        }
+        return true
+    }
+
+    /** Повторяет последний неудачный или остановленный ответ (текстовый, рисунок или видео). */
     fun retry(chatId: String): Boolean {
         if (!reserve(chatId)) return false
         scope.launch {
             try {
                 val messages = chats.messagesSnapshot(chatId)
                 val last = messages.lastOrNull()
-                val wasDrawing = last != null && last.role == MessageRole.ASSISTANT &&
-                    last.modelId?.let(models::catalogModel)?.kind == ModelKind.IMAGE
+                val lastKind = last?.takeIf { it.role == MessageRole.ASSISTANT }?.modelId?.let(models::catalogModel)?.kind
+                val wasDrawing = lastKind == ModelKind.IMAGE
+                val wasVideo = lastKind == ModelKind.VIDEO
                 if (last != null && last.role == MessageRole.ASSISTANT && last.status != MessageStatus.COMPLETE) {
                     chats.deleteMessage(last.id)
                 }
                 val request = messages.lastOrNull { it.role == MessageRole.USER }
                 if (wasDrawing && request != null && request.content.isNotBlank()) {
                     drawReply(chatId, request.content, request.images.firstOrNull())
+                } else if (wasVideo && request != null && request.content.isNotBlank()) {
+                    videoReply(chatId, request.content, request.images.firstOrNull())
                 } else {
                     generateReply(chatId)
                 }
@@ -237,6 +262,11 @@ class ChatGenerationService(
 
     /** На этой платформе есть программа генерации изображений. */
     val canGenerateImages: Boolean get() = imageGenerator.isSupported
+
+    /** Скачанная модель видео для этой платформы. */
+    fun videoModel(): CatalogModel? = models.models.value
+        .firstOrNull { it.model.kind == ModelKind.VIDEO && it.status == ModelStatus.Downloaded }
+        ?.model
 
     /** Скачанная модель изображений для этой платформы (каталог уже отфильтрован по платформе). */
     fun imageModel(): CatalogModel? = models.models.value
@@ -325,6 +355,89 @@ class ChatGenerationService(
                 if (steps.isNotEmpty()) chats.attachSteps(chatId, reply.id, steps)
                 chats.updateMessage(reply.id, live.toString().trim(), MessageStatus.STOPPED, null)
             }
+            throw e
+        }
+    }
+
+    private suspend fun videoReply(chatId: String, prompt: String, source: ImageAttachment?) {
+        val model = videoModel()
+        val reply = chats.addMessage(chatId, MessageRole.ASSISTANT, "", MessageStatus.GENERATING, model?.id)
+        fun progress(drawing: DrawingProgress) {
+            mutableActive.value = ActiveGeneration(chatId, reply.id, "", drawing.copy(video = true))
+        }
+        progress(DrawingProgress(DrawingStage.TRANSLATING))
+        val files = model?.let { models.imageModelFiles(it.id) }
+        val videoSettings = model?.video
+        if (model == null || files == null || videoSettings == null || !imageGenerator.isSupported) {
+            chats.updateMessage(reply.id, "", MessageStatus.FAILED, GenerationError.NO_VIDEO_MODEL)
+            return
+        }
+        val safeMode = settings.settings.value.safeMode
+        if (safeMode && ImagePromptPolicy.containsBlockedWords(prompt)) {
+            chats.updateMessage(reply.id, "", MessageStatus.FAILED, GenerationError.BLOCKED_BY_SAFE_MODE)
+            return
+        }
+        try {
+            val englishPrompt = when (val prepared = prepareImagePrompt(prompt, safeMode)) {
+                is PreparedPrompt.Ready -> prepared.prompt
+                is PreparedPrompt.Rejected -> {
+                    engine.unload()
+                    val status = if (stopRequested) MessageStatus.STOPPED else MessageStatus.FAILED
+                    chats.updateMessage(reply.id, "", status, prepared.error.takeIf { !stopRequested })
+                    return
+                }
+            }
+            engine.unload()
+            if (stopRequested) {
+                chats.updateMessage(reply.id, "", MessageStatus.STOPPED, null)
+                return
+            }
+            // Фото оживляет только модель, которая это умеет; размер кадра — как в настройках модели.
+            val photo = source?.takeIf { videoSettings.imageToVideo }
+            val video = imageGenerator.generateVideo(
+                model = model,
+                files = files,
+                request = VideoRequest(
+                    prompt = englishPrompt,
+                    negativePrompt = videoSettings.negativePrompt,
+                    width = videoSettings.width,
+                    height = videoSettings.height,
+                    frames = videoSettings.frames,
+                    fps = videoSettings.fps,
+                    steps = videoSettings.steps,
+                    cfg = videoSettings.cfg,
+                    flowShift = videoSettings.flowShift,
+                    sampler = videoSettings.sampler,
+                    scheduler = videoSettings.scheduler,
+                    vaeTiling = videoSettings.vaeTiling,
+                    mmap = videoSettings.mmap,
+                    offloadToCpu = videoSettings.offloadToCpu,
+                    flashAttention = videoSettings.flashAttention,
+                    initImagePath = photo?.let { images.path(it.fileName) },
+                ),
+                onProgress = { event ->
+                    when (event) {
+                        ImageGenerationProgress.Loading -> progress(DrawingProgress(DrawingStage.LOADING))
+                        is ImageGenerationProgress.Step -> progress(DrawingProgress(DrawingStage.DRAWING, event.step, event.steps))
+                    }
+                },
+            )
+            val attachment = images.saveVideo(video.avi, video.width, video.height)
+            chats.attachImages(chatId, reply.id, listOf(attachment))
+            chats.updateMessage(reply.id, "", MessageStatus.COMPLETE, null)
+        } catch (e: ImageGenerationException) {
+            if (e.error == ImageGenerationError.CANCELLED || stopRequested) {
+                chats.updateMessage(reply.id, "", MessageStatus.STOPPED, null)
+            } else {
+                val error = e.error.toGenerationError()
+                    .let { if (it == GenerationError.IMAGE_GENERATION_FAILED) GenerationError.VIDEO_GENERATION_FAILED else it }
+                    .let { if (it == GenerationError.NO_IMAGE_MODEL) GenerationError.NO_VIDEO_MODEL else it }
+                chats.updateMessage(reply.id, "", MessageStatus.FAILED, error)
+            }
+        } catch (e: ImageException) {
+            chats.updateMessage(reply.id, "", MessageStatus.FAILED, GenerationError.VIDEO_GENERATION_FAILED)
+        } catch (e: CancellationException) {
+            withContext(NonCancellable) { chats.updateMessage(reply.id, "", MessageStatus.STOPPED, null) }
             throw e
         }
     }

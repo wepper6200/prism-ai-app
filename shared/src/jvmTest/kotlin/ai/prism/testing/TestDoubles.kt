@@ -17,6 +17,8 @@ import ai.prism.domain.documents.DocumentTextExtractor
 import ai.prism.domain.documents.TextEmbedder
 import ai.prism.domain.documents.TextSection
 import ai.prism.domain.imagegen.GeneratedImage
+import ai.prism.domain.imagegen.GeneratedVideo
+import ai.prism.domain.imagegen.VideoRequest
 import ai.prism.domain.imagegen.ImageGenerationError
 import ai.prism.domain.imagegen.ImageGenerationException
 import ai.prism.domain.imagegen.ImageGenerationProgress
@@ -129,6 +131,28 @@ class FakeImageGenerator(var supported: Boolean = true) : ImageGenerator {
         return GeneratedImage(png, request.width, request.height, 42)
     }
 
+    /** Байты «видео», которое вернёт [generateVideo]. */
+    var avi: ByteArray = byteArrayOf(7, 7, 7)
+    var lastVideoRequest: VideoRequest? = null
+
+    override suspend fun generateVideo(
+        model: CatalogModel,
+        files: Map<String, String>,
+        request: VideoRequest,
+        onProgress: (ImageGenerationProgress) -> Unit,
+    ): GeneratedVideo {
+        lastVideoRequest = request
+        lastFiles = files
+        cancelled = false
+        onProgress(ImageGenerationProgress.Loading)
+        for (step in 1..request.steps) {
+            if (cancelled) throw ImageGenerationException(ImageGenerationError.CANCELLED, "остановлено")
+            onProgress(ImageGenerationProgress.Step(step, request.steps))
+        }
+        error?.let { throw it }
+        return GeneratedVideo(avi, request.width, request.height, request.frames, request.fps, 42)
+    }
+
     override fun cancel() {
         cancelled = true
     }
@@ -151,6 +175,14 @@ class MemoryImageStore(var size: Pair<Int, Int> = 640 to 480) : ImageStore {
         val fileName = "$id.jpg"
         files[fileName] = bytes
         return ImageAttachment(id, fileName, size.first, size.second)
+    }
+
+    override suspend fun saveVideo(bytes: ByteArray, width: Int, height: Int): ImageAttachment {
+        counter += 1
+        val id = "video-$counter"
+        val fileName = id + ImageAttachment.VIDEO_EXTENSION
+        files[fileName] = bytes
+        return ImageAttachment(id, fileName, width, height)
     }
 
     override fun path(fileName: String): String = "/images/$fileName"
@@ -250,7 +282,9 @@ class FakeModelRepository(
         models.value.firstOrNull { it.model.id == modelId && it.chatReady }?.let { "/models/${it.model.fileName}" }
 
     override fun imageModelFiles(modelId: String): Map<String, String>? =
-        models.value.firstOrNull { it.model.id == modelId && it.model.kind == ModelKind.IMAGE && it.status == ModelStatus.Downloaded }
+        models.value.firstOrNull {
+            it.model.id == modelId && it.model.kind in setOf(ModelKind.IMAGE, ModelKind.VIDEO) && it.status == ModelStatus.Downloaded
+        }
             ?.model?.let { model -> resolveImageModelFiles(model) { "/models/${it.fileName}" } }
 
     override fun downloadedProjectorPath(modelId: String): String? =

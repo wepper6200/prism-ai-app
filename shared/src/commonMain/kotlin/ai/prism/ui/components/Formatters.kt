@@ -22,6 +22,8 @@ import ai.prism.resources.error_model_corrupted
 import ai.prism.resources.error_model_not_downloaded
 import ai.prism.resources.error_native_missing
 import ai.prism.resources.error_no_embedding_model
+import ai.prism.resources.error_no_video_model
+import ai.prism.resources.error_video_generation_failed
 import ai.prism.resources.error_no_image_model
 import ai.prism.resources.error_no_model
 import ai.prism.resources.error_not_enough_memory
@@ -71,6 +73,8 @@ fun GenerationError.message(): StringResource = when (this) {
     GenerationError.BLOCKED_BY_SAFE_MODE -> Res.string.error_blocked_by_safe_mode
     GenerationError.TRANSLATOR_REQUIRED -> Res.string.error_translator_required
     GenerationError.NO_EMBEDDING_MODEL -> Res.string.error_no_embedding_model
+    GenerationError.NO_VIDEO_MODEL -> Res.string.error_no_video_model
+    GenerationError.VIDEO_GENERATION_FAILED -> Res.string.error_video_generation_failed
     GenerationError.TRANSLATION_FAILED -> Res.string.error_translation_failed
     GenerationError.UNKNOWN -> Res.string.error_unknown
 }

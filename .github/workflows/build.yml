@@ -306,6 +306,66 @@ jobs:
           path: shared/build/screenshots/
           if-no-files-found: warn
 
+  video:
+    name: Video generation (Wan 2.1 1.3B)
+    # Wan 2.1 1.3B с энкодером umt5 — ~4 ГБ: качается каждый раз, как FLUX. Маленький ролик на процессоре.
+    if: github.event_name != 'pull_request' && !startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      WAN_DIR: /mnt/prism-wan
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+      - name: Fetch ggml for stable-diffusion.cpp
+        shell: bash
+        run: git -C native/stable-diffusion.cpp submodule update --init --depth 1 ggml
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v5
+      - uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: flux-linux
+          max-size: 1G
+      - name: Download Wan 2.1 1.3B (files and checksums from the catalog)
+        shell: bash
+        run: |
+          sudo mkdir -p "$WAN_DIR" && sudo chown "$USER" "$WAN_DIR"
+          python3 - <<'PY' > "$WAN_DIR/files.txt"
+          import json
+          catalog = json.load(open("shared/src/commonMain/composeResources/files/models.json"))
+          wan = next(m for m in catalog["models"] if m["id"].startswith("wan2.1-t2v-1.3b"))
+          files = [(wan["url"], wan["fileName"], wan["sha256"])] + [(c["url"], c["fileName"], c["sha256"]) for c in wan["components"]]
+          for url, name, sha in files:
+              print(url, name, sha)
+          PY
+          cd "$WAN_DIR"
+          while read -r url name sha; do
+            curl -fsSL --retry 5 -o "$name" "$url"
+            echo "$sha  $name" | sha256sum -c -
+          done < files.txt
+          echo "PRISM_TEST_WAN_DIR=$WAN_DIR" >> "$GITHUB_ENV"
+      - name: Provision Gradle (retries on network errors)
+        shell: bash
+        run: |
+          for i in 1 2 3 4 5; do
+            ./gradlew --version && exit 0
+            echo "Gradle download failed, retry $i"; sleep $((i * 15))
+          done
+          exit 1
+      - name: Make a video with Wan 2.1 1.3B on CPU
+        run: ./gradlew --stacktrace -Pprism.skipAndroid=true -Pprism.nativeTests=true -Pprism.imagegen=true -Pprism.ccache=true :shared:jvmTest --tests "ai.prism.imagegen.VideoGenerationIntegrationTest"
+      - name: Upload generated video
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: PrismAI-wan-video
+          path: shared/build/screenshots/
+          if-no-files-found: warn
+
   catalog-report:
     name: Model catalog report
     # Облачная среда разработки не видит huggingface.co: размеры, SHA-256 и лицензии файлов для каталога

@@ -91,6 +91,9 @@
     <string name="input_draw">Нарисовать</string>
     <string name="input_draw_placeholder">Опишите картинку</string>
     <string name="input_redraw_placeholder">Опишите, как изменить фото</string>
+    <string name="input_video">Видео</string>
+    <string name="input_video_placeholder">Опишите видео</string>
+    <string name="input_animate_placeholder">Опишите, как оживить фото</string>
     <string name="draw_one_photo">Для перерисовки оставьте одно фото</string>
     <string name="draw_needs_translator">Пишите по-английски или скачайте модель чата для перевода</string>
     <string name="input_attach_document">Приложить файл (PDF, DOCX, TXT, MD)</string>
@@ -117,9 +120,16 @@
     <string name="draw_step">Рисую… шаг %1$d из %2$d</string>
     <string name="draw_dialog_title">Модель для рисования не скачана</string>
     <string name="draw_dialog_text">Чтобы рисовать, скачайте «%1$s» (%2$s) на экране «Модели». Она работает без интернета.</string>
+    <string name="video_dialog_title">Модель видео не скачана</string>
+    <string name="video_dialog_text">Чтобы снимать видео, скачайте «%1$s» (%2$s) на экране «Модели». Она работает без интернета, но ролик создаётся несколько минут.</string>
+    <string name="video_loading">Загружаю модель видео…</string>
+    <string name="video_step">Создаю видео… шаг %1$d из %2$d</string>
+    <string name="video_description">Видео</string>
+    <string name="video_play">Воспроизвести</string>
+    <string name="video_save">Сохранить видео</string>
     <string name="image_save">Сохранить</string>
-    <string name="image_saved">Изображение сохранено</string>
-    <string name="image_save_failed">Не удалось сохранить изображение</string>
+    <string name="image_saved">Файл сохранён</string>
+    <string name="image_save_failed">Не удалось сохранить файл</string>
     <string name="input_stop">Остановить ответ</string>
 
     <string name="error_no_model">Модель не выбрана. Откройте «Модели» и скачайте любую.</string>
@@ -134,6 +144,8 @@
     <string name="error_vision_module_corrupted">Модуль зрения повреждён. Удалите модель и скачайте её снова.</string>
     <string name="error_no_image_model">Модель для рисования не скачана. Откройте «Модели» и скачайте её.</string>
     <string name="error_no_embedding_model">В диалоге есть файлы, а модель поиска по файлам не скачана. Откройте «Модели» и скачайте её.</string>
+    <string name="error_no_video_model">Модель видео не скачана. Откройте «Модели» и скачайте её.</string>
+    <string name="error_video_generation_failed">Не удалось создать видео.</string>
     <string name="agent_instructions">У тебя есть инструменты. Чтобы вызвать инструмент, напиши блок и больше ничего после него:\n&lt;tool name="имя"&gt;\n&lt;аргумент&gt;значение&lt;/аргумент&gt;\n&lt;/tool&gt;\nЗначения пиши как есть: без кавычек и экранирования, код — целиком. Пример:\n&lt;tool name="read_file"&gt;\n&lt;path&gt;src/main.py&lt;/path&gt;\n&lt;/tool&gt;\nВызывай один инструмент за раз и жди результата: он придёт в сообщении &lt;result name="имя"&gt;…&lt;/result&gt;. Не выдумывай результаты. Когда задача выполнена, ответь пользователю обычным текстом без блока &lt;tool&gt; и кратко опиши, что сделано.\n\n{context}\n\nИнструменты:\n{tools}</string>
     <string name="agent_workspace_note">Папка проекта пользователя: «{name}». Пути указывай относительно неё, например src/main.py. Прежде чем менять файл, прочитай его.</string>
     <string name="agent_internet_note">Интернет включён: свежие сведения ищи через web_search, страницы читай через fetch_page и указывай в ответе ссылки на источники.</string>
@@ -197,6 +209,8 @@
     <string name="models_details_image">%1$s · %2$s · %3$d×%4$d</string>
     <string name="models_searches_files">Поиск по файлам</string>
     <string name="models_details_embedding">%1$s · %2$s</string>
+    <string name="models_makes_video">Создаёт видео</string>
+    <string name="models_details_video">%1$s · %2$s · %3$d×%4$d, %5$d кадров</string>
     <string name="models_details">%1$s · %2$s · контекст %3$s</string>
     <string name="models_license">Лицензия: %1$s</string>
     <string name="models_delete_title">Удалить модель?</string>

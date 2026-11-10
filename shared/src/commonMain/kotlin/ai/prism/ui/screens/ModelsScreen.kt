@@ -16,7 +16,9 @@ import ai.prism.resources.models_delete_title
 import ai.prism.resources.models_details
 import ai.prism.resources.models_details_image
 import ai.prism.resources.models_details_embedding
+import ai.prism.resources.models_details_video
 import ai.prism.resources.models_draws
+import ai.prism.resources.models_makes_video
 import ai.prism.resources.models_device_ram
 import ai.prism.resources.models_download
 import ai.prism.resources.models_downloading
@@ -254,6 +256,7 @@ private fun ModelCard(
                 if (model.supportsImages) Tag(stringResource(Res.string.models_vision))
                 if (model.kind == ModelKind.IMAGE) Tag(stringResource(Res.string.models_draws))
                 if (model.kind == ModelKind.EMBEDDING) Tag(stringResource(Res.string.models_searches_files))
+                if (model.kind == ModelKind.VIDEO) Tag(stringResource(Res.string.models_makes_video))
             }
             val image = model.image
             Text(
@@ -264,6 +267,16 @@ private fun ModelCard(
                         formatBytes(model.totalSizeBytes),
                         image.width,
                         image.height,
+                    )
+                } else if (model.kind == ModelKind.VIDEO && model.video != null) {
+                    val video = checkNotNull(model.video)
+                    stringResource(
+                        Res.string.models_details_video,
+                        model.quantization,
+                        formatBytes(model.totalSizeBytes),
+                        video.width,
+                        video.height,
+                        video.frames,
                     )
                 } else if (model.kind == ModelKind.EMBEDDING) {
                     stringResource(Res.string.models_details_embedding, model.quantization, formatBytes(model.totalSizeBytes))

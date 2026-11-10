@@ -73,4 +73,21 @@ class ModelCatalogTest {
         assertTrue("{text}" in settings.queryTemplate && "{text}" in settings.documentTemplate)
         assertTrue(model.url.startsWith("https://huggingface.co/ggml-org/"))
     }
+
+    /** Видео: Wan 2.2 TI2V 5B на Desktop и Wan 2.1 1.3B на Android, у каждой — umt5 и VAE, кадры вида 4k+1. */
+    @Test
+    fun videoModelsCoverBothPlatforms() {
+        for (platform in listOf("android", "desktop")) {
+            val video = models.filter { it.kind == ModelKind.VIDEO && it.availableOn(platform) }
+            assertEquals(1, video.size, platform)
+            val model = video.single()
+            val settings = assertNotNull(model.video, model.id)
+            assertEquals("diffusion_model", model.mainRole)
+            assertEquals(setOf("t5xxl", "vae"), model.components.map { it.role }.toSet(), model.id)
+            assertEquals(1, settings.frames % 4, "кадров должно быть 4k+1: ${model.id}")
+            assertTrue(settings.width % 16 == 0 && settings.height % 16 == 0, model.id)
+            assertTrue(settings.negativePrompt.isNotBlank(), model.id)
+        }
+        assertTrue(models.single { it.id.startsWith("wan2.2-ti2v") }.video!!.imageToVideo)
+    }
 }

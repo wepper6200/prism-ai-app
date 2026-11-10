@@ -2,8 +2,10 @@ package ai.prism.ui
 
 import ai.prism.domain.model.DarkMode
 import ai.prism.domain.model.ModelEntry
+import ai.prism.domain.model.ModelKind
 import ai.prism.domain.model.ModelStatus
 import ai.prism.domain.model.ThemeStyle
+import ai.prism.domain.model.VideoModelSettings
 import ai.prism.domain.documents.DocumentStatus
 import ai.prism.presentation.chat.ChatIntent
 import ai.prism.presentation.chat.PickedDocument
@@ -78,6 +80,15 @@ class PrismAppUiTest {
             ),
             ModelEntry(testImageModel(), ModelStatus.Downloaded, fitsInMemory = true),
             ModelEntry(testEmbeddingModel(), ModelStatus.Downloaded, fitsInMemory = true),
+            ModelEntry(
+                testImageModel(id = "wan-test", name = "Wan 2.2 TI2V 5B").copy(
+                    kind = ModelKind.VIDEO,
+                    image = null,
+                    video = VideoModelSettings(width = 64, height = 32, frames = 3, fps = 16, steps = 2, imageToVideo = true),
+                ),
+                ModelStatus.Downloaded,
+                fitsInMemory = true,
+            ),
         ),
     )
 
@@ -309,5 +320,23 @@ class PrismAppUiTest {
         assertEquals("print('new')\n", folder.resolve("main.py").readText())
         onNodeWithTag("agent_steps").assertIsDisplayed()
         screenshot("compact_15_agent_done")
+    }
+
+    /** Режим «Видео»: описание уходит модели видео, ответ — проигрываемый ролик. */
+    @Test
+    fun compactChatMakesVideo() = runDesktopComposeUiTest(width = 412, height = 892) {
+        val (app, root) = createApp()
+        app.imageGenerator.avi = checkNotNull(javaClass.getResourceAsStream("/three-frames.avi")).readBytes()
+        setContent { PrismApp(root) }
+
+        onNodeWithTag("new_chat").performClick()
+        onNodeWithTag("video_toggle").performClick()
+        onNodeWithTag("message_input").performTextInput("a red sunset over the sea")
+        onNodeWithTag("send_button").performClick()
+        waitForIdle()
+
+        onNodeWithTag("generated_video").assertIsDisplayed()
+        assertEquals(3, app.imageGenerator.lastVideoRequest?.frames)
+        screenshot("compact_16_video")
     }
 }

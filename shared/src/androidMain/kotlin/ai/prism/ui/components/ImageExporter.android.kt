@@ -16,12 +16,12 @@ import kotlinx.coroutines.withContext
 import java.io.IOException
 
 @Composable
-actual fun rememberImageExporter(onResult: (Boolean) -> Unit): ImageExporter {
+actual fun rememberImageExporter(mimeType: String, onResult: (Boolean) -> Unit): ImageExporter {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val result by rememberUpdatedState(onResult)
     var pending by remember { mutableStateOf<ByteArray?>(null) }
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/jpeg")) { uri ->
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(mimeType)) { uri ->
         val bytes = pending
         pending = null
         if (uri == null || bytes == null) return@rememberLauncherForActivityResult

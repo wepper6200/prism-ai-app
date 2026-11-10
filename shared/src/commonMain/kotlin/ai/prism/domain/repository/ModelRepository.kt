@@ -28,6 +28,6 @@ interface ModelRepository {
     /** Путь к скачанному модулю зрения модели или `null` (нет в каталоге или не скачан). */
     fun downloadedProjectorPath(modelId: String): String?
 
-    /** Файлы скачанной модели изображений по назначению (`model`, `t5xxl`, `vae`…) или `null`, если скачано не всё. */
+    /** Файлы скачанной модели изображений или видео по назначению (`model`, `t5xxl`, `vae`…) или `null`, если скачано не всё. */
     fun imageModelFiles(modelId: String): Map<String, String>?
 }

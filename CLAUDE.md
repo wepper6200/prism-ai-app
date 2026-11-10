@@ -110,6 +110,15 @@ Prism AI — полностью офлайн ИИ-ассистент для **Wi
   (`PendingAction`, разница «было/стало»), если не включено «Править файлы без подтверждения»; команды — всегда.
   Шаги ответа хранятся в `message_step` и показываются под ответом.
 
+- **Видео (Этап 6):** Wan в stable-diffusion.cpp через тот же процесс `prism_imagegen`: команда `generate_video`
+  (`generate_video()` C API), ролик пишется в MJPEG AVI (`write_mjpeg_avi`: кадры JPEG, индекс idx1) — его открывают
+  плееры, а приложение проигрывает по кадрам (`MjpegAvi` → `VideoPlayer`). Видео — вложение сообщения в той же
+  таблице `message_image` (файл `….avi`, `ImageAttachment.isVideo`). Каталог: `kind: video`, поле `video` (размер,
+  кадры 4k+1, fps, шаги, cfg, flow shift, отрицательное описание, `offloadToCpu` — веса в ОЗУ через
+  `params_backend="*=cpu"`, `imageToVideo`). Windows — Wan 2.2 TI2V 5B Q4_0 + umt5 Q4_K_M + Wan2.2 VAE (умеет оживлять
+  фото), Android — экспериментально Wan 2.1 T2V 1.3B Q4_K_M + umt5 Q3_K_S + Wan 2.1 VAE. Описание переводится
+  моделью чата, как для рисования. Тест: `PRISM_TEST_WAN_DIR` (задание «Video generation (Wan 2.1 1.3B)»).
+
 ## Дизайн
 
 - Две темы на выбор:

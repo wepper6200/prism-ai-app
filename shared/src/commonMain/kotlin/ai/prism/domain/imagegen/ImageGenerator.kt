@@ -22,6 +22,17 @@ interface ImageGenerator {
         onProgress: (ImageGenerationProgress) -> Unit,
     ): GeneratedImage
 
+    /**
+     * Создаёт видео (Wan) и возвращает байты MJPEG AVI. Модель загружается так же, как для [generate].
+     * Бросает [ImageGenerationException]; отмена через [cancel] — [ImageGenerationError.CANCELLED].
+     */
+    suspend fun generateVideo(
+        model: CatalogModel,
+        files: Map<String, String>,
+        request: VideoRequest,
+        onProgress: (ImageGenerationProgress) -> Unit,
+    ): GeneratedVideo
+
     /** Останавливает текущую генерацию (из любого потока). */
     fun cancel()
 
@@ -48,6 +59,32 @@ data class ImageRequest(
     /** Насколько сильно менять фото: 0 — оставить как есть, 1 — нарисовать заново. */
     val strength: Float = 0.7f,
 )
+
+/** Запрос видео: размер кадра, число кадров и частота, параметры шагов. */
+data class VideoRequest(
+    val prompt: String,
+    val negativePrompt: String = "",
+    val width: Int,
+    val height: Int,
+    val frames: Int,
+    val fps: Int,
+    val steps: Int,
+    val cfg: Float,
+    val flowShift: Float,
+    val sampler: String,
+    val scheduler: String,
+    val vaeTiling: Boolean,
+    val mmap: Boolean,
+    val offloadToCpu: Boolean,
+    val flashAttention: Boolean,
+    /** −1 — случайное зерно. */
+    val seed: Long = -1,
+    /** Фото, которое нужно оживить (`null` — видео с нуля). */
+    val initImagePath: String? = null,
+)
+
+/** Готовое видео: MJPEG AVI. */
+class GeneratedVideo(val avi: ByteArray, val width: Int, val height: Int, val frames: Int, val fps: Int, val seed: Long)
 
 sealed interface ImageGenerationProgress {
     /** Модель загружается в память. */

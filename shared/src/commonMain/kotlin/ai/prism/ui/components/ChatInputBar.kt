@@ -7,7 +7,10 @@ import ai.prism.resources.input_attach_document
 import ai.prism.resources.input_attach_image
 import ai.prism.resources.input_attaching
 import ai.prism.resources.input_draw
+import ai.prism.resources.input_animate_placeholder
 import ai.prism.resources.input_draw_placeholder
+import ai.prism.resources.input_video
+import ai.prism.resources.input_video_placeholder
 import ai.prism.resources.input_redraw_placeholder
 import ai.prism.resources.input_microphone
 import ai.prism.resources.input_pick_gallery
@@ -40,6 +43,7 @@ import androidx.compose.material.icons.outlined.AttachFile
 import androidx.compose.material.icons.outlined.Brush
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.material.icons.outlined.Movie
 import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material3.CircularProgressIndicator
@@ -110,8 +114,11 @@ fun ChatInputBar(
     drawing: InputDrawing? = null,
     /** Приложить файл для поиска по нему; `null` — поиска по файлам нет, кнопка неактивна. */
     onPickDocuments: (() -> Unit)? = null,
+    /** Кнопка режима «Видео»; `null` — видео на этой платформе нет. */
+    video: InputDrawing? = null,
 ) {
     val drawActive = drawing?.active == true
+    val videoActive = video?.active == true
     PrismPanel(modifier.fillMaxWidth(), shape = RoundedCornerShape(28.dp)) {
         Column {
             AnimatedVisibility(visible = attachments.items.isNotEmpty() || attachments.isAttaching) {
@@ -123,12 +130,13 @@ fun ChatInputBar(
             ) {
                 IconButton(
                     onClick = { onPickDocuments?.invoke() },
-                    enabled = onPickDocuments != null && !isGenerating && !drawActive,
+                    enabled = onPickDocuments != null && !isGenerating && !drawActive && !videoActive,
                     modifier = Modifier.testTag("attach_document"),
                 ) {
                     Icon(Icons.Outlined.AttachFile, contentDescription = stringResource(Res.string.input_attach_document))
                 }
                 if (drawing != null) DrawButton(drawing, enabled = !isGenerating)
+                if (video != null) VideoButton(video, enabled = !isGenerating)
                 ImageButton(attachments, enabled = !isGenerating && attachments.canAttachMore)
                 val textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface)
                 BasicTextField(
@@ -159,6 +167,8 @@ fun ChatInputBar(
                                         when {
                                             drawActive && attachments.items.isNotEmpty() -> Res.string.input_redraw_placeholder
                                             drawActive -> Res.string.input_draw_placeholder
+                                            videoActive && attachments.items.isNotEmpty() -> Res.string.input_animate_placeholder
+                                            videoActive -> Res.string.input_video_placeholder
                                             else -> Res.string.input_placeholder
                                         },
                                     ),
@@ -199,6 +209,20 @@ private fun DrawButton(drawing: InputDrawing, enabled: Boolean) {
     } else {
         IconButton(onClick = drawing.onToggle, enabled = enabled, modifier = Modifier.testTag("draw_toggle")) {
             Icon(Icons.Outlined.Brush, contentDescription = description)
+        }
+    }
+}
+
+@Composable
+private fun VideoButton(video: InputDrawing, enabled: Boolean) {
+    val description = stringResource(Res.string.input_video)
+    if (video.active) {
+        FilledTonalIconButton(onClick = video.onToggle, enabled = enabled, modifier = Modifier.testTag("video_toggle")) {
+            Icon(Icons.Outlined.Movie, contentDescription = description)
+        }
+    } else {
+        IconButton(onClick = video.onToggle, enabled = enabled, modifier = Modifier.testTag("video_toggle")) {
+            Icon(Icons.Outlined.Movie, contentDescription = description)
         }
     }
 }

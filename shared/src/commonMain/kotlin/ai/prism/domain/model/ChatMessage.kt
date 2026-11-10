@@ -55,6 +55,12 @@ enum class GenerationError {
     /** В диалоге есть файлы, а модель поиска по файлам не скачана. */
     NO_EMBEDDING_MODEL,
 
+    /** Нет скачанной модели видео для этой платформы. */
+    NO_VIDEO_MODEL,
+
+    /** Не удалось создать видео. */
+    VIDEO_GENERATION_FAILED,
+
     /** Описание картинки по-русски, а модели чата для перевода на английский нет. */
     TRANSLATOR_REQUIRED,
 
@@ -87,4 +93,11 @@ data class ImageAttachment(
     val fileName: String,
     val width: Int,
     val height: Int,
-)
+) {
+    /** Вложение — видео (MJPEG AVI), а не изображение. */
+    val isVideo: Boolean get() = fileName.endsWith(VIDEO_EXTENSION)
+
+    companion object {
+        const val VIDEO_EXTENSION = ".avi"
+    }
+}
