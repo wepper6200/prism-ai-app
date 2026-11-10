@@ -36,6 +36,9 @@ env:
   SDXL_TEST_SHA256: 33cc25b6f5dd121ecf3ad28e35eb38cb21427b7794c53527ceafe2dc3b109f4f
   TAESDXL_URL: https://huggingface.co/madebyollin/taesdxl/resolve/main/diffusion_pytorch_model.safetensors
   TAESDXL_SHA256: ff4824aca94dd6111e0340fa749347fb74101060d9712cb5ef1ca8f1cf17502f
+  # Поиск по файлам: EmbeddingGemma 300M (та же, что в каталоге).
+  EMBED_TEST_URL: https://huggingface.co/ggml-org/embeddinggemma-300M-GGUF/resolve/main/embeddinggemma-300M-Q8_0.gguf
+  EMBED_TEST_SHA256: b5ce9d77a3fc4b3b39ccb5643c36777911cc4eb46a66962eadfa3f5f60490d63
 
 jobs:
   android:
@@ -119,7 +122,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/prism-test-models
-          key: test-models-${{ env.TINY_MODEL_SHA256 }}-${{ env.GEMMA_TEST_SHA256 }}-${{ env.VLM_TEST_SHA256 }}-${{ env.GEMMA4_TEST_SHA256 }}-${{ env.SDXL_TEST_SHA256 }}
+          key: test-models-${{ env.TINY_MODEL_SHA256 }}-${{ env.GEMMA_TEST_SHA256 }}-${{ env.VLM_TEST_SHA256 }}-${{ env.GEMMA4_TEST_SHA256 }}-${{ env.SDXL_TEST_SHA256 }}-${{ env.EMBED_TEST_SHA256 }}
       - name: Download test models
         shell: bash
         run: |
@@ -140,6 +143,9 @@ jobs:
           [ -f taesdxl.safetensors ] || curl -fsSL --retry 5 -o taesdxl.safetensors "$TAESDXL_URL"
           echo "$SDXL_TEST_SHA256  sdxl.gguf" | sha256sum -c -
           echo "$TAESDXL_SHA256  taesdxl.safetensors" | sha256sum -c -
+          [ -f embed.gguf ] || curl -fsSL --retry 5 -o embed.gguf "$EMBED_TEST_URL"
+          echo "$EMBED_TEST_SHA256  embed.gguf" | sha256sum -c -
+          echo "PRISM_TEST_EMBED=$HOME/prism-test-models/embed.gguf" >> "$GITHUB_ENV"
           echo "PRISM_TEST_SDXL=$HOME/prism-test-models/sdxl.gguf" >> "$GITHUB_ENV"
           echo "PRISM_TEST_SDXL_TAESD=$HOME/prism-test-models/taesdxl.safetensors" >> "$GITHUB_ENV"
           echo "PRISM_TEST_MODEL=$HOME/prism-test-models/tiny.gguf" >> "$GITHUB_ENV"

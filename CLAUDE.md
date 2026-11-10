@@ -85,6 +85,17 @@ Prism AI — полностью офлайн ИИ-ассистент для **Wi
   описание не рисуется: `TRANSLATOR_REQUIRED` / `TRANSLATION_FAILED`), затем она выгружается; перед ответом чата выгружается
   модель рисования — в памяти всегда одна.
 
+- **Файлы (Этап 4):** PDF, DOCX, TXT, MD прикладываются к диалогу (не к сообщению): `DocumentService`
+  извлекает текст (`FileTextExtractor`: PDFBox на Desktop, PdfBox-Android на Android, `word/document.xml` из DOCX,
+  UTF-8/UTF-16/Windows-1251), делит на фрагменты ~900 символов внутри одной страницы с перекрытием (`TextChunker`)
+  и считает эмбеддинги моделью каталога `kind: embedding` — EmbeddingGemma 300M (`LlamaTextEmbedder`: JNI
+  `createEmbedder`/`embed`, процессор, свой поток; шаблоны запроса/фрагмента — поле `embedding` каталога).
+  Сам файл не хранится: таблицы `document`, `document_chunk` (вектор float32 LE), `message_source` (миграция `2.sqm`).
+  Перед ответом: если файлы целиком помещаются в бюджет (~0,9 символа на токен контекста модели, 2–9 тыс.),
+  модель получает весь текст, иначе — самые похожие фрагменты (`DocumentSearch`: не дальше 0,15 от лучшего).
+  Фрагменты добавляются только к последнему сообщению в промпте (`AssistantPersona.documentContext`),
+  у ответа сохраняются источники (файл, страница). Модель эмбеддингов выгружается после подготовки файлов и поиска.
+
 ## Дизайн
 
 - Две темы на выбор:
@@ -109,10 +120,14 @@ Prism AI — полностью офлайн ИИ-ассистент для **Wi
   `PRISM_TEST_GEMMA4_MMPROJ` (Gemma 4 E2B): модель должна назвать цвет однотонной картинки.
 - Рисование: `-Pprism.imagegen=true` собирает `prism_imagegen` (на Windows с `-Pprism.vulkan=true` — с Vulkan);
   после клонирования ещё `git -C native/stable-diffusion.cpp submodule update --init --depth 1 ggml`.
-  Тесты: `PRISM_TEST_SDXL` / `PRISM_TEST_SDXL_TAESD` (в задании Desktop) и `PRISM_TEST_FLUX_DIR` (отдельное задание
+  Поиск по файлам: `PRISM_TEST_EMBED` (EmbeddingGemma 300M) — вопрос ближе к фрагменту о том же.
+  Тесты рисования: `PRISM_TEST_SDXL` / `PRISM_TEST_SDXL_TAESD` (в задании Desktop) и `PRISM_TEST_FLUX_DIR` (отдельное задание
   «Image generation (FLUX.1 schnell)»: ~10 ГБ не помещаются в кэш Actions) — модель рисует красный фон, проверяется цвет.
-- Облачная среда разработки не видит huggingface.co: метаданные файлов (размер, SHA-256) получаются разовым
-  workflow `model-catalog-report.yml`.
+- Облачная среда разработки не видит huggingface.co: метаданные файлов (размер, SHA-256) печатает задание
+  «Model catalog report» (`.github/catalog_report.py`) для коммита со словом `[catalog-report]` в сообщении.
+- Релиз: коммит со словом `[release]` (или тег `vX.Y.Z`) собирает приложение и публикует релиз GitHub
+  с тегом `v<prism-versionName>` (APK, zip для Windows, SHA256SUMS); текст — `.github/release-notes.md`.
+  Тег из облачной среды не пушится — его создаёт задание release.
 - Предупреждения компилятора — ошибки (`allWarningsAsErrors`). Шаг диагностики CI при падении печатает
   их текст (`-Pprism.werror=false` используется только им).
 - Версия приложения задаётся в `gradle/libs.versions.toml` (`prism-versionName`) и попадает в код через сгенерированный `BuildInfo`.

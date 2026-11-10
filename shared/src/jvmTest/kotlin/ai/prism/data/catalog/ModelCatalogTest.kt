@@ -5,6 +5,7 @@ import ai.prism.domain.model.ModelKind
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /** Проверяет встроенный каталог `files/models.json`. */
@@ -60,5 +61,16 @@ class ModelCatalogTest {
     @Test
     fun hasGemma4ModelForPhones() {
         assertTrue(models.any { it.chatFormat == ChatFormat.GEMMA4 && "android" in it.recommendedFor && it.minRamMb <= 8192 })
+    }
+
+    @Test
+    fun hasEmbeddingModelForFileSearch() {
+        val embedding = models.filter { it.kind == ModelKind.EMBEDDING }
+        assertEquals(1, embedding.size, "нужна ровно одна модель поиска по файлам")
+        val model = embedding.single()
+        assertTrue(model.platforms.isEmpty(), "поиск по файлам нужен на обеих платформах")
+        val settings = assertNotNull(model.embedding)
+        assertTrue("{text}" in settings.queryTemplate && "{text}" in settings.documentTemplate)
+        assertTrue(model.url.startsWith("https://huggingface.co/ggml-org/"))
     }
 }

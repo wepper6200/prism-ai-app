@@ -88,7 +88,7 @@ class DocumentTextTest {
         val chunks = listOf(
             chunk(0, "о собаках", 0f, 1f),
             chunk(1, "о котах", 1f, 0f),
-            chunk(2, "снова о котах и немного о собаках", 0.8f, 0.6f),
+            chunk(2, "снова о котах и немного о собаках", 0.9f, 0.43589f),
             chunk(3, "длинный текст о котах ".repeat(20), 1f, 0f),
         )
 
@@ -96,6 +96,8 @@ class DocumentTextTest {
 
         // Самые похожие — 1 и 3, но 3 не помещается в бюджет; взят следующий по сходству — 2.
         assertEquals(listOf(1, 2), found.map { it.position })
+        // Далёкие от лучшего фрагменты не берутся, даже если остаётся место.
+        assertEquals(listOf(1), DocumentSearch.select(chunks.take(2), floatArrayOf(1f, 0f), maxChars = 1000).map { it.position })
         assertTrue(DocumentSearch.fitsWhole(chunks.take(3), maxChars = 100))
     }
 }
