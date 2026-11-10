@@ -3,6 +3,8 @@ name: Build
 on:
   push:
     branches: [main, "claude/**", "ccr-**"]
+    # Тег vX.Y.Z собирает приложение и выкладывает релиз на GitHub (задание release).
+    tags: ["v*"]
   pull_request:
   workflow_dispatch:
 
@@ -239,7 +241,8 @@ jobs:
   flux:
     name: Image generation (FLUX.1 schnell)
     # FLUX весит ~10 ГБ — не помещается в кэш Actions вместе с остальными моделями, качается каждый раз.
-    if: github.event_name != 'pull_request'
+    # Для тега релиза не запускается: этот коммит уже проверен сборкой ветки.
+    if: github.event_name != 'pull_request' && !startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     timeout-minutes: 75
     env:
@@ -295,3 +298,39 @@ jobs:
           name: PrismAI-flux-pictures
           path: shared/build/screenshots/
           if-no-files-found: warn
+
+  release:
+    name: GitHub release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [android, desktop, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - name: Tag matches the app version
+        shell: bash
+        run: |
+          version=$(sed -n 's/^prism-versionName = "\(.*\)"/\1/p' gradle/libs.versions.toml)
+          [ "v$version" = "$GITHUB_REF_NAME" ] || { echo "Tag $GITHUB_REF_NAME does not match version $version"; exit 1; }
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+      - uses: actions/download-artifact@v7
+        with:
+          name: PrismAI-android-debug-apk
+          path: artifacts/android
+      - uses: actions/download-artifact@v7
+        with:
+          name: PrismAI-windows
+          path: artifacts/windows/PrismAI
+      - name: Package
+        shell: bash
+        run: |
+          mkdir dist
+          cp artifacts/android/*.apk "dist/PrismAI-$VERSION-android-arm64.apk"
+          (cd artifacts/windows && zip -qr9 "$GITHUB_WORKSPACE/dist/PrismAI-$VERSION-windows-x64.zip" PrismAI)
+          (cd dist && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt)
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: Prism AI ${{ env.VERSION }}
+          body_path: .github/release-notes.md
+          files: dist/*
