@@ -135,7 +135,7 @@ class VoiceServiceTest {
         val messages = app.chats.messagesSnapshot(chat.id)
         assertEquals(listOf(MessageRole.USER, MessageRole.ASSISTANT), messages.map { it.role })
         assertEquals("Какая сегодня погода?", messages.first().content)
-        assertEquals(listOf("Привет!", "Я Prism AI."), app.speechEngine.spoken)
+        assertEquals(listOf("Привет!", "Я Призм эй-ай."), app.speechEngine.spoken)
         // Второй раз никто не заговорил — разговор закончился сам.
         assertEquals(2, app.audioInput.started)
         assertNull(app.voice.state.value.conversationChatId)

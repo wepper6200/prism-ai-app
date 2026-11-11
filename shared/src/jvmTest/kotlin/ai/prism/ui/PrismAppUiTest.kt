@@ -371,7 +371,7 @@ class PrismAppUiTest {
         waitForIdle()
         onNodeWithTag("speak_button").performClick()
         waitForIdle()
-        assertEquals(listOf("Привет!", "Я Prism AI."), app.speechEngine.spoken)
+        assertEquals(listOf("Привет!", "Я Призм эй-ай."), app.speechEngine.spoken)
         screenshot("compact_18_spoken_answer")
     }
 
