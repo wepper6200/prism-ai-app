@@ -41,6 +41,8 @@ import ai.prism.inference.ChatPromptFormatter
 import ai.prism.service.agent.AgentToolbox
 import ai.prism.service.agent.ToolCallProtocol
 import ai.prism.service.documents.DocumentRetriever
+import ai.prism.service.video.VideoClipBuilder
+import ai.prism.service.video.VideoPlan
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -114,6 +116,9 @@ data class DrawingProgress(
     val steps: Int = 0,
     /** Создаётся видео, а не изображение. */
     val video: Boolean = false,
+    /** Длинное видео снимается кусками: какой сейчас и сколько всего (0 — один кусок). */
+    val part: Int = 0,
+    val parts: Int = 0,
 )
 
 /**
@@ -271,10 +276,19 @@ class ChatGenerationService(
     /** На этой платформе есть программа генерации изображений. */
     val canGenerateImages: Boolean get() = imageGenerator.isSupported
 
-    /** Скачанная модель видео для этой платформы. */
-    fun videoModel(): CatalogModel? = models.models.value
-        .firstOrNull { it.model.kind == ModelKind.VIDEO && it.status == ModelStatus.Downloaded }
-        ?.model
+    /** Модель видео: выбранная в настройках, иначе первая скачанная для этой платформы. */
+    fun videoModel(): CatalogModel? {
+        val ready = models.models.value.filter { it.model.kind == ModelKind.VIDEO && it.status == ModelStatus.Downloaded }
+        val selected = settings.settings.value.videoModelId
+        return (ready.firstOrNull { it.model.id == selected } ?: ready.firstOrNull())?.model
+    }
+
+    /** Длительность ролика для [model], секунды: выбранная в настройках, если модель её умеет, иначе ближайшая. */
+    fun videoSeconds(model: CatalogModel): Int {
+        val video = model.video ?: return 1
+        val wanted = settings.settings.value.videoSeconds.takeIf { it > 0 } ?: video.defaultSeconds
+        return video.availableDurations.minByOrNull { kotlin.math.abs(it - wanted) } ?: video.defaultSeconds
+    }
 
     /** Скачанная модель изображений для этой платформы (каталог уже отфильтрован по платформе). */
     fun imageModel(): CatalogModel? = models.models.value
@@ -402,37 +416,70 @@ class ChatGenerationService(
             }
             // Фото оживляет только модель, которая это умеет; размер кадра — как в настройках модели.
             val photo = source?.takeIf { videoSettings.imageToVideo }
-            val video = imageGenerator.generateVideo(
-                model = model,
-                files = files,
-                request = VideoRequest(
-                    prompt = englishPrompt,
-                    negativePrompt = videoSettings.negativePrompt,
-                    width = videoSettings.width,
-                    height = videoSettings.height,
-                    frames = videoSettings.frames,
-                    fps = videoSettings.fps,
-                    steps = videoSettings.steps,
-                    cfg = videoSettings.cfg,
-                    flowShift = videoSettings.flowShift,
-                    sampler = videoSettings.sampler,
-                    scheduler = videoSettings.scheduler,
-                    vaeTiling = videoSettings.vaeTiling,
-                    mmap = videoSettings.mmap,
-                    offloadToCpu = videoSettings.offloadToCpu,
-                    flashAttention = videoSettings.flashAttention,
-                    initImagePath = photo?.let { images.path(it.fileName) },
-                ),
-                onProgress = { event ->
-                    when (event) {
-                        ImageGenerationProgress.Loading -> progress(DrawingProgress(DrawingStage.LOADING))
-                        is ImageGenerationProgress.Step -> progress(DrawingProgress(DrawingStage.DRAWING, event.step, event.steps))
+            val segments = VideoPlan.segments(videoSettings, videoSeconds(model))
+            val clip = VideoClipBuilder()
+            var startImage: ImageAttachment? = photo
+            // Последний кадр куска — временная картинка, от которой снимается следующий кусок.
+            var lastFrame: ImageAttachment? = null
+            var stopped = false
+            try {
+                for ((index, frames) in segments.withIndex()) {
+                    if (stopRequested) {
+                        stopped = true
+                        break
                     }
-                },
-            )
-            val attachment = images.saveVideo(video.avi, video.width, video.height)
+                    val part = if (segments.size > 1) index + 1 else 0
+                    val video = imageGenerator.generateVideo(
+                        model = model,
+                        files = files,
+                        request = VideoRequest(
+                            prompt = englishPrompt,
+                            negativePrompt = videoSettings.negativePrompt,
+                            width = videoSettings.width,
+                            height = videoSettings.height,
+                            frames = frames,
+                            fps = videoSettings.fps,
+                            steps = videoSettings.steps,
+                            cfg = videoSettings.cfg,
+                            flowShift = videoSettings.flowShift,
+                            sampler = videoSettings.sampler,
+                            scheduler = videoSettings.scheduler,
+                            vaeTiling = videoSettings.vaeTiling,
+                            mmap = videoSettings.mmap,
+                            offloadToCpu = videoSettings.offloadToCpu,
+                            flashAttention = videoSettings.flashAttention,
+                            initImagePath = startImage?.let { images.path(it.fileName) },
+                        ),
+                        onProgress = { event ->
+                            when (event) {
+                                ImageGenerationProgress.Loading -> progress(DrawingProgress(DrawingStage.LOADING, part = part, parts = segments.size))
+                                is ImageGenerationProgress.Step ->
+                                    progress(DrawingProgress(DrawingStage.DRAWING, event.step, event.steps, part = part, parts = segments.size))
+                            }
+                        },
+                    )
+                    if (segments.size == 1) {
+                        clip.single(video)
+                        break
+                    }
+                    val last = clip.append(video) ?: throw ImageGenerationException(ImageGenerationError.FAILED, "Пустой кусок видео")
+                    if (index < segments.lastIndex) {
+                        lastFrame?.let { images.delete(listOf(it.fileName)) }
+                        lastFrame = images.save(last)
+                        startImage = lastFrame
+                    }
+                }
+            } catch (e: ImageGenerationException) {
+                // Остановлено после первых кусков — сохраняем то, что уже снято.
+                if (!(e.error == ImageGenerationError.CANCELLED || stopRequested) || clip.isEmpty) throw e
+                stopped = true
+            } finally {
+                lastFrame?.let { withContext(NonCancellable) { images.delete(listOf(it.fileName)) } }
+            }
+            val result = clip.build() ?: throw ImageGenerationException(ImageGenerationError.CANCELLED, "Видео остановлено")
+            val attachment = images.saveVideo(result.avi, result.width, result.height)
             chats.attachImages(chatId, reply.id, listOf(attachment))
-            chats.updateMessage(reply.id, "", MessageStatus.COMPLETE, null)
+            chats.updateMessage(reply.id, "", if (stopped) MessageStatus.STOPPED else MessageStatus.COMPLETE, null)
         } catch (e: ImageGenerationException) {
             if (e.error == ImageGenerationError.CANCELLED || stopRequested) {
                 chats.updateMessage(reply.id, "", MessageStatus.STOPPED, null)

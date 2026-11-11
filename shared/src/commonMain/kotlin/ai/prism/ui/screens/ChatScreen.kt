@@ -70,6 +70,10 @@ import ai.prism.ui.components.VoiceErrorBanner
 import ai.prism.ui.components.VoiceModelDialog
 import ai.prism.ui.components.rememberMicrophonePermission
 import ai.prism.resources.chat_conversation_start
+import ai.prism.resources.video_duration
+import ai.prism.resources.video_part
+import ai.prism.resources.video_seconds
+import androidx.compose.material3.FilterChip
 import ai.prism.resources.chat_conversation_stop
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.outlined.RecordVoiceOver
@@ -82,6 +86,7 @@ import ai.prism.ui.components.rememberImageExporter
 import ai.prism.ui.components.rememberImagePicker
 import ai.prism.ui.components.AgentContextRow
 import ai.prism.ui.components.VideoPlayer
+import ai.prism.ui.components.VideoAudioPlayer
 import ai.prism.ui.components.AgentSteps
 import ai.prism.ui.components.DocumentStrip
 import ai.prism.ui.components.PendingActionCard
@@ -260,6 +265,7 @@ fun ChatScreen(
                             if (bytes == null) saveResult = false else videoExporter.export(bytes, "prism-ai-$fileName")
                         }
                     },
+                    playAudio = component::playAudio,
                     onSpeak = { id ->
                         if (state.voice.canSpeak || state.voice.speakingMessageId == id) {
                             component.onIntent(ChatIntent.Speak(id))
@@ -287,6 +293,14 @@ fun ChatScreen(
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.align(Alignment.CenterHorizontally),
+            )
+        }
+        if (state.videoMode && state.videoDurations.size > 1) {
+            VideoDurationRow(
+                durations = state.videoDurations,
+                selected = state.videoSeconds,
+                onSelect = { component.onIntent(ChatIntent.SelectVideoSeconds(it)) },
+                modifier = Modifier.align(Alignment.CenterHorizontally).widthIn(max = 880.dp),
             )
         }
         if (state.tooManyPhotosToDraw) {
@@ -631,6 +645,7 @@ private fun MessageList(
     onResolve: (String, Boolean) -> Unit,
     onSaveVideo: (String) -> Unit,
     onSpeak: (String) -> Unit,
+    playAudio: VideoAudioPlayer,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
@@ -662,6 +677,7 @@ private fun MessageList(
                         message = message,
                         onResolve = onResolve,
                         onSaveVideo = onSaveVideo,
+                        playAudio = playAudio,
                         loadImage = loadImage,
                         onOpenImage = onOpenImage,
                         loadingProgress = state.modelLoadingProgress.takeIf { message.isStreaming },
@@ -742,6 +758,7 @@ private fun AssistantMessage(
     message: MessageItem,
     onResolve: (String, Boolean) -> Unit,
     onSaveVideo: (String) -> Unit,
+    playAudio: VideoAudioPlayer,
     loadImage: ImageBytesLoader,
     onOpenImage: (String) -> Unit,
     loadingProgress: Float?,
@@ -764,6 +781,7 @@ private fun AssistantMessage(
                         fileName = image.fileName,
                         load = loadImage,
                         onSave = { onSaveVideo(image.fileName) },
+                        playAudio = playAudio,
                         modifier = Modifier.size(width = 320.dp, height = 320.dp / ratio),
                     )
                     return@forEach
@@ -836,13 +854,14 @@ private fun ModelLoading(progress: Float) {
 @Composable
 private fun Drawing(progress: DrawingProgress) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.testTag("drawing_progress")) {
+        val stage = when (progress.stage) {
+            DrawingStage.TRANSLATING -> stringResource(Res.string.draw_translating)
+            DrawingStage.LOADING -> stringResource(if (progress.video) Res.string.video_loading else Res.string.draw_loading)
+            DrawingStage.DRAWING ->
+                stringResource(if (progress.video) Res.string.video_step else Res.string.draw_step, progress.step, progress.steps)
+        }
         Text(
-            text = when (progress.stage) {
-                DrawingStage.TRANSLATING -> stringResource(Res.string.draw_translating)
-                DrawingStage.LOADING -> stringResource(if (progress.video) Res.string.video_loading else Res.string.draw_loading)
-                DrawingStage.DRAWING ->
-                    stringResource(if (progress.video) Res.string.video_step else Res.string.draw_step, progress.step, progress.steps)
-            },
+            text = if (progress.parts > 1) stringResource(Res.string.video_part, progress.part, progress.parts) + " · " + stage else stage,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -851,6 +870,32 @@ private fun Drawing(progress: DrawingProgress) {
             LinearProgressIndicator(progress = { progress.step.toFloat() / progress.steps }, modifier = modifier)
         } else {
             LinearProgressIndicator(modifier = modifier)
+        }
+    }
+}
+
+/** Длительность следующих видео: «2 с · 3 с · 5 с…». Длиннее одного куска модель снимает продолжением. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun VideoDurationRow(durations: List<Int>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
+    FlowRow(
+        modifier = modifier.testTag("video_durations"),
+        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(
+            text = stringResource(Res.string.video_duration),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.align(Alignment.CenterVertically),
+        )
+        durations.forEach { seconds ->
+            FilterChip(
+                selected = seconds == selected,
+                onClick = { onSelect(seconds) },
+                label = { Text(stringResource(Res.string.video_seconds, seconds)) },
+                modifier = Modifier.testTag("video_seconds_$seconds"),
+            )
         }
     }
 }

@@ -113,7 +113,22 @@ data class VideoModelSettings(
     val flashAttention: Boolean = false,
     /** Модель умеет оживлять приложенное фото (Wan 2.2 TI2V). */
     val imageToVideo: Boolean = false,
-)
+    /** Число кадров — вида `frameStep·k + 1` (Wan — 4, LTX — 8). */
+    val frameStep: Int = 4,
+    /** Сколько кадров модель снимает за один раз; длиннее — продолжением по последнему кадру ([imageToVideo]). */
+    val maxFrames: Int = frames,
+    /** Длительности на выбор, секунды; пусто — только [frames]. */
+    val durations: List<Int> = emptyList(),
+    /** Модель создаёт и звук (LTX). */
+    val audio: Boolean = false,
+) {
+    /** Длительность по умолчанию, секунды. */
+    val defaultSeconds: Int get() = ((frames - 1) / fps.toFloat()).let { kotlin.math.round(it).toInt() }.coerceAtLeast(1)
+
+    /** Длительности, которые можно выбрать (без продолжения — только те, что помещаются в один кусок). */
+    val availableDurations: List<Int>
+        get() = durations.filter { imageToVideo || it * fps + 1 <= maxFrames }.ifEmpty { listOf(defaultSeconds) }
+}
 
 /**
  * Как модель эмбеддингов ждёт текст: шаблоны с `{text}` (и `{title}` для фрагментов файлов)

@@ -6,6 +6,7 @@
 //
 // Команды:
 //   {"cmd":"load","diffusion_model":"…","model":"…","t5xxl":"…","clip_l":"…","clip_g":"…","vae":"…","taesd":"…",
+//    "llm":"…","audio_vae":"…","embeddings_connectors":"…",   — LTX: текстовый энкодер (Gemma), звуковой VAE
 //    "threads":4,"vae_tiling":false,"mmap":false,"offload_to_cpu":false,"flash_attn":false}
 //                                                — offload_to_cpu: веса в оперативной памяти, в видеопамять — по частям
 //   {"cmd":"generate","prompt":"…","negative":"","width":1024,"height":1024,"steps":4,"cfg":1.0,
@@ -14,8 +15,10 @@
 //                                                  strength — насколько сильно менять (0 — не менять, 1 — рисовать заново)
 //   {"cmd":"generate_video","prompt":"…","negative":"…","width":832,"height":480,"frames":49,"fps":24,
 //    "steps":20,"cfg":6.0,"flow_shift":3.0,"seed":-1,"sampler":"euler","scheduler":"","output":"…/video.avi",
-//    "init_image":"…/photo.jpg"}                — видео (Wan); init_image необязателен: оживить фото (TI2V).
-//                                                  Результат — MJPEG AVI: открывается любым плеером
+//    "init_image":"…/photo.jpg"}                — видео (Wan, LTX); init_image необязателен: оживить фото (TI2V)
+//                                                  или продолжить ролик от его последнего кадра. flow_shift ≤ 0 —
+//                                                  по умолчанию модели. Результат — MJPEG AVI; звук (LTX) — WAV рядом:
+//                                                  "<output>.wav", путь в событии done ("audio")
 //   {"cmd":"cancel"}   — остановить текущую генерацию
 //   {"cmd":"quit"}
 // События:
@@ -147,8 +150,9 @@ std::string str(const json & request, const char * key) {
 const char * c_str_or_null(const std::string & value) { return value.empty() ? nullptr : value.c_str(); }
 
 struct Paths {
-    std::string model, diffusion_model, t5xxl, clip_l, clip_g, vae, taesd;
+    std::string model, diffusion_model, t5xxl, clip_l, clip_g, vae, taesd, llm, audio_vae, embeddings_connectors;
 };
+
 
 bool write_png(const std::string & path, const sd_image_t & image) {
     int length = 0;
@@ -193,6 +197,43 @@ void append_bytes(void * context, void * data, int size) {
     auto * out = static_cast<std::vector<unsigned char> *>(context);
     const auto * bytes = static_cast<const unsigned char *>(data);
     out->insert(out->end(), bytes, bytes + size);
+}
+
+// Звук модели (LTX) в WAV: 16-битный PCM, каналы чередуются (как и в sd_audio_t).
+bool write_wav(const std::string & path, const sd_audio_t & audio) {
+    if (audio.data == nullptr || audio.sample_count == 0 || audio.channels == 0 || audio.sample_rate == 0) return false;
+    const uint32_t channels = audio.channels;
+    const uint64_t samples = audio.sample_count;
+    std::vector<unsigned char> wav;
+    put_fourcc(wav, "RIFF");
+    put_u32(wav, static_cast<uint32_t>(36 + samples * channels * 2));
+    put_fourcc(wav, "WAVE");
+    put_fourcc(wav, "fmt ");
+    put_u32(wav, 16);
+    put_u16(wav, 1);
+    put_u16(wav, static_cast<uint16_t>(channels));
+    put_u32(wav, audio.sample_rate);
+    put_u32(wav, audio.sample_rate * channels * 2);
+    put_u16(wav, static_cast<uint16_t>(channels * 2));
+    put_u16(wav, 16);
+    put_fourcc(wav, "data");
+    put_u32(wav, static_cast<uint32_t>(samples * channels * 2));
+    for (uint64_t i = 0; i < samples * channels; ++i) {
+        float v = audio.data[i];
+        if (v > 1.0f) v = 1.0f;
+        if (v < -1.0f) v = -1.0f;
+        put_u16(wav, static_cast<uint16_t>(static_cast<int16_t>(v * 32767.0f)));
+    }
+    const std::filesystem::path target = std::filesystem::u8path(path);
+    const std::filesystem::path temp = std::filesystem::u8path(path + ".tmp");
+    std::ofstream out(temp, std::ios::binary | std::ios::trunc);
+    out.write(reinterpret_cast<const char *>(wav.data()), static_cast<std::streamsize>(wav.size()));
+    out.close();
+    if (!out) return false;
+    std::error_code error;
+    std::filesystem::rename(temp, target, error);
+    if (error) std::filesystem::remove(temp, error);
+    return !error;
 }
 
 // Видео без звука в MJPEG AVI: кадры — JPEG, индекс idx1. Такой файл открывают плееры Windows и Android,
@@ -334,7 +375,8 @@ public:
             ctx_ = nullptr;
         }
         paths_ = Paths{str(request, "model"), str(request, "diffusion_model"), str(request, "t5xxl"), str(request, "clip_l"),
-                       str(request, "clip_g"), str(request, "vae"), str(request, "taesd")};
+                       str(request, "clip_g"), str(request, "vae"), str(request, "taesd"), str(request, "llm"),
+                       str(request, "audio_vae"), str(request, "embeddings_connectors")};
         if (paths_.model.empty() && paths_.diffusion_model.empty()) {
             return emit_error("bad_request", "no model path");
         }
@@ -348,6 +390,9 @@ public:
         params.clip_g_path = c_str_or_null(paths_.clip_g);
         params.vae_path = c_str_or_null(paths_.vae);
         params.taesd_path = c_str_or_null(paths_.taesd);
+        params.llm_path = c_str_or_null(paths_.llm);
+        params.audio_vae_path = c_str_or_null(paths_.audio_vae);
+        params.embeddings_connectors_path = c_str_or_null(paths_.embeddings_connectors);
         params.enable_mmap = request.value("mmap", false);
         // Веса — в оперативной памяти, в видеопамять попадают по частям: видео Wan не помещается в 8–12 ГБ целиком.
         params_backend_ = request.value("offload_to_cpu", false) ? "*=cpu" : "";
@@ -488,7 +533,9 @@ private:
         if (params.seed < 0) params.seed = static_cast<int64_t>(std::random_device{}() & 0x7fffffff);
         params.sample_params.sample_steps = request.value("steps", 20);
         params.sample_params.guidance.txt_cfg = request.value("cfg", 6.0f);
-        params.sample_params.flow_shift = request.value("flow_shift", 3.0f);
+        // flow_shift ≤ 0 — значение по умолчанию модели (у LTX оно своё).
+        const float flow_shift = request.value("flow_shift", 0.0f);
+        if (flow_shift > 0.0f) params.sample_params.flow_shift = flow_shift;
         const std::string sampler = str(request, "sampler");
         const std::string scheduler = str(request, "scheduler");
         params.sample_params.sample_method =
@@ -536,10 +583,14 @@ private:
         const uint32_t width = result->frames[0].width;
         const uint32_t height = result->frames[0].height;
         const bool written = write_mjpeg_avi(output, result->frames, frames, fps);
+        const std::string audio_path = output + ".wav";
+        const bool has_audio = result->audio != nullptr && write_wav(audio_path, *result->audio);
         free_sd_video_generation_result(result);
         if (!written) return emit_error("write_failed", "cannot write " + output);
-        emit({{"event", "done"}, {"output", output}, {"width", width}, {"height", height}, {"seed", params.seed},
-              {"frames", frames}, {"fps", fps}});
+        json done = {{"event", "done"}, {"output", output}, {"width", width}, {"height", height}, {"seed", params.seed},
+                     {"frames", frames}, {"fps", fps}};
+        if (has_audio) done["audio"] = audio_path;
+        emit(done);
     }
 
     bool cancel_requested() const {

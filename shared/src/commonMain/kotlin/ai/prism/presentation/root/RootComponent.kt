@@ -20,6 +20,7 @@ import ai.prism.presentation.settings.DefaultSettingsComponent
 import ai.prism.presentation.settings.SettingsComponent
 import ai.prism.service.ChatGenerationService
 import ai.prism.service.voice.VoiceService
+import ai.prism.domain.voice.AudioOutput
 import ai.prism.service.documents.DocumentService
 import com.arkivanov.decompose.ComponentContext
 import com.arkivanov.decompose.childContext
@@ -71,6 +72,8 @@ class AppDependencies(
     val capabilities: PlatformCapabilities,
     val deviceInfo: DeviceInfo,
     val voiceService: VoiceService,
+    /** Динамик: звук роликов со звуком (LTX). */
+    val audioOutput: AudioOutput,
 )
 
 class DefaultRootComponent(
@@ -133,6 +136,7 @@ class DefaultRootComponent(
                     settingsRepository = deps.settingsRepository,
                     imageStore = deps.imageStore,
                     voice = deps.voiceService,
+                    audioOutput = deps.audioOutput,
                     mainContext = mainContext,
                     onOpenModels = { openScreen(Config.Models) },
                     onBack = ::onBack,

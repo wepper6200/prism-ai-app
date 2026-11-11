@@ -1,5 +1,6 @@
 package ai.prism.imagegen
 
+import ai.prism.core.MjpegAvi
 import ai.prism.domain.imagegen.GeneratedImage
 import ai.prism.domain.imagegen.GeneratedVideo
 import ai.prism.domain.imagegen.ImageGenerationError
@@ -225,7 +226,7 @@ class ProcessImageGenerator(
                     put("fps", request.fps)
                     put("steps", request.steps)
                     put("cfg", request.cfg)
-                    put("flow_shift", request.flowShift)
+                    if (request.flowShift > 0f) put("flow_shift", request.flowShift)
                     put("seed", request.seed)
                     put("sampler", request.sampler)
                     put("scheduler", request.scheduler)
@@ -242,14 +243,30 @@ class ProcessImageGenerator(
                         val steps = event.int("steps") ?: request.steps
                         onProgress(ImageGenerationProgress.Step(step.coerceAtMost(steps), steps))
                     }
-                    "done" -> return GeneratedVideo(
-                        avi = output.readBytes(),
-                        width = event.int("width") ?: request.width,
-                        height = event.int("height") ?: request.height,
-                        frames = event.int("frames") ?: request.frames,
-                        fps = event.int("fps") ?: request.fps,
-                        seed = event["seed"]?.let { (it as? JsonPrimitive)?.longOrNull } ?: request.seed,
-                    )
+                    "done" -> {
+                        val width = event.int("width") ?: request.width
+                        val height = event.int("height") ?: request.height
+                        val fps = event.int("fps") ?: request.fps
+                        // Звук модели (LTX) приходит отдельным WAV — вшиваем его в AVI вторым потоком.
+                        val audioFile = event.string("audio")?.let(::File)
+                        val audio = try {
+                            audioFile?.takeIf { it.isFile }?.readBytes()?.let(MjpegAvi::parseWav)
+                        } finally {
+                            audioFile?.delete()
+                        }
+                        val raw = output.readBytes()
+                        val avi = audio?.let { sound ->
+                            MjpegAvi.parse(raw)?.let { video -> MjpegAvi.write(video.frames, width, height, fps, sound) }
+                        } ?: raw
+                        return GeneratedVideo(
+                            avi = avi,
+                            width = width,
+                            height = height,
+                            frames = event.int("frames") ?: request.frames,
+                            fps = fps,
+                            seed = event["seed"]?.let { (it as? JsonPrimitive)?.longOrNull } ?: request.seed,
+                        )
+                    }
                     "error" -> throw failure(event, loading = false)
                 }
             }

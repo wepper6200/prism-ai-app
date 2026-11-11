@@ -602,7 +602,15 @@
         "mmap": true,
         "offloadToCpu": true,
         "flashAttention": false,
-        "imageToVideo": true
+        "imageToVideo": true,
+        "maxFrames": 121,
+        "durations": [
+          2,
+          3,
+          5,
+          10,
+          15
+        ]
       }
     },
     {
@@ -661,7 +669,12 @@
         "mmap": true,
         "offloadToCpu": false,
         "flashAttention": true,
-        "imageToVideo": false
+        "imageToVideo": false,
+        "maxFrames": 33,
+        "durations": [
+          1,
+          2
+        ]
       }
     }
   ]

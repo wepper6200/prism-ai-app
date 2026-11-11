@@ -29,6 +29,10 @@ import ai.prism.service.documents.DocumentService
 import ai.prism.service.voice.VoicePhase
 import ai.prism.service.voice.VoiceService
 import ai.prism.domain.voice.VoiceError
+import ai.prism.domain.voice.AudioOutput
+import ai.prism.domain.voice.SpeechAudio
+import ai.prism.domain.voice.VoiceException
+import ai.prism.core.PcmAudio
 import com.arkivanov.essenty.lifecycle.doOnDestroy
 import com.arkivanov.decompose.ComponentContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -173,6 +177,10 @@ data class ChatState(
     val videoModelBytes: Long = 0,
     /** Модель видео умеет оживлять приложенное фото. */
     val videoFromPhoto: Boolean = false,
+    /** Длительности видео на выбор, секунды (у скачанной модели). */
+    val videoDurations: List<Int> = emptyList(),
+    /** Выбранная длительность видео, секунды. */
+    val videoSeconds: Int = 0,
     /** Размер модуля зрения активной модели (для подсказки о загрузке), байт. */
     val visionModuleBytes: Long = 0,
     /** Файлы диалога: ассистент ищет в них ответы на вопросы. */
@@ -250,6 +258,9 @@ sealed interface ChatIntent {
 
     /** Включает или выключает режим «Видео». */
     data object ToggleVideoMode : ChatIntent
+
+    /** Длительность следующих видео, секунды. */
+    data class SelectVideoSeconds(val seconds: Int) : ChatIntent
     data object Send : ChatIntent
     data object Stop : ChatIntent
 
@@ -280,6 +291,9 @@ interface ChatComponent {
 
     /** Байты сохранённого изображения (JPEG) для показа или `null`. */
     suspend fun imageBytes(fileName: String): ByteArray?
+
+    /** Проигрывает звук ролика; возвращается, когда он доиграл. */
+    suspend fun playAudio(audio: PcmAudio)
 }
 
 class DefaultChatComponent(
@@ -295,6 +309,7 @@ class DefaultChatComponent(
     private val settingsRepository: SettingsRepository,
     private val imageStore: ImageStore,
     private val voice: VoiceService,
+    private val audioOutput: AudioOutput,
     mainContext: CoroutineContext,
     private val onOpenModels: () -> Unit,
     private val onBack: () -> Unit,
@@ -354,6 +369,8 @@ class DefaultChatComponent(
         val videoModelName: String?,
         val videoModelBytes: Long,
         val videoFromPhoto: Boolean,
+        val videoDurations: List<Int>,
+        val videoSeconds: Int,
     )
 
     private val conversation = combine(
@@ -389,11 +406,14 @@ class DefaultChatComponent(
         modelRepository.activeModelId,
         modelRepository.models,
         engine.state,
-    ) { activeId, entries, engineState ->
+        settingsRepository.settings,
+    ) { activeId, entries, engineState, _ ->
         val entry = entries.firstOrNull { it.model.id == activeId }
         val imageEntry = entries.firstOrNull { it.model.kind == ModelKind.IMAGE }
         val embeddingEntry = entries.firstOrNull { it.model.kind == ModelKind.EMBEDDING }
-        val videoEntry = entries.firstOrNull { it.model.kind == ModelKind.VIDEO }
+        // Скачанная (выбранная в настройках) модель видео, иначе первая из каталога — для подсказки о загрузке.
+        val selectedVideo = generation.videoModel()
+        val videoEntry = entries.firstOrNull { it.model.id == selectedVideo?.id } ?: entries.firstOrNull { it.model.kind == ModelKind.VIDEO }
         ModelPart(
             name = entry?.model?.name,
             downloaded = entry?.chatReady == true,
@@ -427,6 +447,8 @@ class DefaultChatComponent(
             videoModelName = videoEntry?.model?.name,
             videoModelBytes = videoEntry?.model?.totalSizeBytes ?: 0L,
             videoFromPhoto = videoEntry?.model?.video?.imageToVideo == true,
+            videoDurations = videoEntry?.model?.video?.availableDurations.orEmpty(),
+            videoSeconds = videoEntry?.model?.let(generation::videoSeconds) ?: 0,
         )
     }
 
@@ -512,6 +534,8 @@ class DefaultChatComponent(
             videoModelName = model.videoModelName,
             videoModelBytes = model.videoModelBytes,
             videoFromPhoto = model.videoFromPhoto,
+            videoDurations = model.videoDurations,
+            videoSeconds = model.videoSeconds,
             draw = model.draw,
             imageModelName = model.imageModelName,
             imageModelBytes = model.imageModelBytes,
@@ -556,6 +580,7 @@ class DefaultChatComponent(
                 videoMode.update { !it }
                 if (videoMode.value) drawMode.value = false
             }
+            is ChatIntent.SelectVideoSeconds -> settingsRepository.setVideoSeconds(intent.seconds)
             ChatIntent.Send -> send()
             ChatIntent.Stop -> generation.stop()
             ChatIntent.ToggleDictation -> toggleDictation()
@@ -574,6 +599,14 @@ class DefaultChatComponent(
     }
 
     override suspend fun imageBytes(fileName: String): ByteArray? = imageStore.read(fileName)
+
+    override suspend fun playAudio(audio: PcmAudio) {
+        try {
+            audioOutput.play(SpeechAudio(audio.monoSamples(), audio.sampleRate))
+        } catch (e: VoiceException) {
+            // Нет устройства вывода звука — ролик играет без звука.
+        }
+    }
 
     private fun send() {
         val current = state.value

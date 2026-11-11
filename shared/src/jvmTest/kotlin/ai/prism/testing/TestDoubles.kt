@@ -53,6 +53,7 @@ import ai.prism.domain.inference.PromptMessage
 import ai.prism.domain.model.MessageRole
 import ai.prism.service.AssistantPersona
 import ai.prism.service.ChatGenerationService
+import ai.prism.core.MjpegAvi
 import ai.prism.service.voice.VoiceService
 import ai.prism.service.documents.DocumentService
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
@@ -161,6 +162,13 @@ class FakeImageGenerator(var supported: Boolean = true) : ImageGenerator {
     /** Байты «видео», которое вернёт [generateVideo]. */
     var avi: ByteArray = byteArrayOf(7, 7, 7)
     var lastVideoRequest: VideoRequest? = null
+    val videoRequests = mutableListOf<VideoRequest>()
+
+    /** Отдавать настоящий MJPEG AVI: кадр — байты «номер куска, номер кадра» (для проверки склейки). */
+    var realVideo = false
+
+    /** Остановить генерацию, когда начнётся этот по счёту кусок (1 — первый). */
+    var cancelOnSegment = 0
 
     override suspend fun generateVideo(
         model: CatalogModel,
@@ -169,14 +177,20 @@ class FakeImageGenerator(var supported: Boolean = true) : ImageGenerator {
         onProgress: (ImageGenerationProgress) -> Unit,
     ): GeneratedVideo {
         lastVideoRequest = request
+        videoRequests += request
         lastFiles = files
-        cancelled = false
+        cancelled = videoRequests.size == cancelOnSegment
         onProgress(ImageGenerationProgress.Loading)
         for (step in 1..request.steps) {
             if (cancelled) throw ImageGenerationException(ImageGenerationError.CANCELLED, "остановлено")
             onProgress(ImageGenerationProgress.Step(step, request.steps))
         }
         error?.let { throw it }
+        if (realVideo) {
+            val segment = videoRequests.size
+            val frames = List(request.frames) { byteArrayOf(segment.toByte(), it.toByte()) }
+            return GeneratedVideo(MjpegAvi.write(frames, request.width, request.height, request.fps), request.width, request.height, request.frames, request.fps, 42)
+        }
         return GeneratedVideo(avi, request.width, request.height, request.frames, request.fps, 42)
     }
 
@@ -507,5 +521,6 @@ class TestApp(
         capabilities = PlatformCapabilities(supportsDynamicColor = false),
         deviceInfo = FakeDeviceInfo(),
         voiceService = voice,
+        audioOutput = audioOutput,
     )
 }

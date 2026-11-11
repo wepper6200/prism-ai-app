@@ -105,6 +105,7 @@ val sharedModule: Module = module {
             capabilities = get(),
             deviceInfo = get(),
             voiceService = get(),
+            audioOutput = get(),
         )
     }
     single { RootComponentFactory(dependencies = get()) }

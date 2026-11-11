@@ -55,7 +55,7 @@ def tree(name):
         files = [f for f in get(f"https://huggingface.co/api/models/{name}/tree/main?recursive=true")
                  if f.get("type") == "file"]
         print("files:", len(files))
-        for f in files[:60]:
+        for f in [f for f in files if not f["path"].startswith("espeak-ng-data/")][:120]:
             lfs = f.get("lfs")
             if lfs:
                 print(f'{f["path"]}\t{lfs.get("size")}\t{lfs.get("oid")}')
@@ -109,11 +109,10 @@ def text(url, limit=1500):
         print("ERROR", e)
 
 
-# Этап «Голос»: лицензии моделей и архивы голосов Piper (модель, tokens.txt и espeak-ng-data в одном архиве).
-HF_GIGA = "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-ctc-punct-giga-am-v3-russian-2025-12-16"
-text(f"{HF_GIGA}/raw/main/LICENSE")
-text(f"{HF_GIGA}/raw/main/README.md")
-text("https://huggingface.co/csukuangfj/vits-piper-ru_RU-irina-medium/raw/main/MODEL_CARD")
-GH = "https://github.com/k2-fsa/sherpa-onnx/releases/download"
-for voice in ["dmitri", "denis", "ruslan"]:
-    asset(f"{GH}/tts-models/vits-piper-ru_RU-{voice}-medium.tar.bz2", listing=True)
+# Видео: LTX-2.5 (stable-diffusion.cpp) — трансформер GGUF, текстовый энкодер Gemma 4 12B с проекцией,
+# видео-VAE (conv), аудио-VAE. Нужны файлы без авторизации (gated: False).
+for q in ["LTX-2.5 gguf", "LTX-2.5", "ltx-2.5 distilled", "gemma4-12b-with-proj", "ltx 2.5 text encoder gguf"]:
+    search(q, limit=20)
+for name in ["Lightricks/LTX-2.5", "vantagewithai/LTX-2.5-GGUF", "unsloth/LTX-2.5-GGUF", "Kijai/LTX2.5_comfy",
+             "QuantStack/LTX-2.5-GGUF", "city96/LTX-2.5-gguf"]:
+    tree(name)

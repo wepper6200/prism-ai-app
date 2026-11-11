@@ -4,6 +4,9 @@ import ai.prism.domain.model.DarkMode
 import ai.prism.domain.model.AppSettings
 import ai.prism.presentation.settings.VoiceModelOption
 import ai.prism.resources.settings_voice
+import ai.prism.resources.settings_video
+import ai.prism.resources.settings_video_desc
+import ai.prism.resources.settings_video_model
 import ai.prism.resources.settings_voice_desc
 import ai.prism.resources.settings_voice_none
 import ai.prism.resources.settings_voice_rate
@@ -280,6 +283,22 @@ fun SettingsScreen(
                         valueRange = AppSettings.MIN_SPEECH_RATE..AppSettings.MAX_SPEECH_RATE,
                         steps = SPEECH_RATE_STEPS,
                         modifier = Modifier.testTag("speech_rate"),
+                    )
+                }
+            }
+
+            if (state.videoModels.size > 1) {
+                SettingsSection(title = stringResource(Res.string.settings_video), modifier = sectionModifier.testTag("video_settings")) {
+                    Text(
+                        text = stringResource(Res.string.settings_video_desc),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    SectionLabel(stringResource(Res.string.settings_video_model))
+                    VoiceModelChoice(
+                        options = state.videoModels,
+                        selectedId = state.selectedVideoModelId,
+                        onSelect = { component.onIntent(SettingsIntent.SelectVideoModel(it)) },
                     )
                 }
             }

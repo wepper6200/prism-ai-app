@@ -44,6 +44,9 @@ data class SettingsState(
     val versionName: String,
     val modelLicenses: List<ModelLicenseInfo> = emptyList(),
     val voice: VoiceSettings = VoiceSettings(),
+    /** Скачанные модели видео (выбор показывается, если их несколько). */
+    val videoModels: List<VoiceModelOption> = emptyList(),
+    val selectedVideoModelId: String? = null,
 )
 
 sealed interface SettingsIntent {
@@ -56,6 +59,7 @@ sealed interface SettingsIntent {
     data class SelectSpeechModel(val modelId: String) : SettingsIntent
     data class SelectVoiceModel(val modelId: String) : SettingsIntent
     data class SetSpeechRate(val rate: Float) : SettingsIntent
+    data class SelectVideoModel(val modelId: String) : SettingsIntent
     data object Back : SettingsIntent
 }
 
@@ -89,7 +93,15 @@ class DefaultSettingsComponent(
                     .map { ModelLicenseInfo(it.model.family, it.model.license.name, it.model.license.url) }
                     .distinctBy { it.family },
                 voice = voiceSettings(models, settings),
-            )
+            ).let { state ->
+                val videos = models
+                    .filter { it.model.kind == ModelKind.VIDEO && it.status == ModelStatus.Downloaded }
+                    .map { VoiceModelOption(it.model.id, it.model.name) }
+                state.copy(
+                    videoModels = videos,
+                    selectedVideoModelId = (videos.firstOrNull { it.id == settings.videoModelId } ?: videos.firstOrNull())?.id,
+                )
+            }
         }.stateIn(
             scope = scope,
             started = SharingStarted.Eagerly,
@@ -122,6 +134,7 @@ class DefaultSettingsComponent(
             is SettingsIntent.SelectSpeechModel -> settingsRepository.setSpeechModel(intent.modelId)
             is SettingsIntent.SelectVoiceModel -> settingsRepository.setVoiceModel(intent.modelId)
             is SettingsIntent.SetSpeechRate -> settingsRepository.setSpeechRate(intent.rate)
+            is SettingsIntent.SelectVideoModel -> settingsRepository.setVideoModel(intent.modelId)
             SettingsIntent.Back -> onBack()
         }
     }

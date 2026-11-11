@@ -1,6 +1,8 @@
 package ai.prism.ui.components
 
 import ai.prism.core.MjpegAvi
+import ai.prism.core.MjpegVideo
+import ai.prism.core.PcmAudio
 import ai.prism.resources.Res
 import ai.prism.resources.video_description
 import ai.prism.resources.video_play
@@ -27,6 +29,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,30 +41,62 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 import org.jetbrains.compose.resources.decodeToImageBitmap
 import org.jetbrains.compose.resources.stringResource
+import kotlin.time.TimeSource
 
-private class DecodedVideo(val frames: List<ImageBitmap>, val fps: Int)
+/** Проигрывает звук ролика и возвращается, когда он доиграл (отмена — остановить). */
+typealias VideoAudioPlayer = suspend (PcmAudio) -> Unit
 
 /**
- * Видео из чата (MJPEG AVI): кадры раскодируются один раз и проигрываются по кругу.
+ * Видео из чата (MJPEG AVI) проигрывается по кругу: кадры раскодируются по одному во время показа (длинные ролики
+ * не держатся в памяти целиком), звук (если он есть и есть чем играть — [playAudio]) идёт вместе с кадрами.
  * Нажатие — пауза/продолжение, кнопка в углу — сохранить файл.
  */
 @Composable
-fun VideoPlayer(fileName: String, load: ImageBytesLoader, onSave: () -> Unit, modifier: Modifier = Modifier) {
-    val video by produceState<DecodedVideo?>(null, fileName) { value = decodeVideo(fileName, load) }
+fun VideoPlayer(
+    fileName: String,
+    load: ImageBytesLoader,
+    onSave: () -> Unit,
+    modifier: Modifier = Modifier,
+    playAudio: VideoAudioPlayer? = null,
+) {
+    val video by produceState<MjpegVideo?>(null, fileName) {
+        value = withContext(Dispatchers.Default) { load(fileName)?.let(MjpegAvi::parse) }
+    }
     var index by remember(fileName) { mutableIntStateOf(0) }
+    var frame by remember(fileName) { mutableStateOf<ImageBitmap?>(null) }
     var playing by remember(fileName) { mutableStateOf(true) }
+    val audioPlayer by rememberUpdatedState(playAudio)
     val current = video
+    LaunchedEffect(current) {
+        if (current != null && frame == null) frame = decodeFrame(current.frames[index.coerceIn(0, current.frames.lastIndex)])
+    }
     LaunchedEffect(current, playing) {
         if (current == null || !playing || current.frames.size < 2) return@LaunchedEffect
-        val frameMs = 1000L / current.fps.coerceAtLeast(1)
-        while (true) {
-            delay(frameMs)
-            index = (index + 1) % current.frames.size
+        val frameMs = 1000.0 / current.fps.coerceAtLeast(1)
+        coroutineScope {
+            while (isActive) {
+                val from = index.coerceIn(0, current.frames.lastIndex)
+                val sound = current.audio?.takeIf { audioPlayer != null }?.from(from.toFloat() / current.fps)
+                val audioJob = sound?.let { launch { audioPlayer?.invoke(it) } }
+                val started = TimeSource.Monotonic.markNow()
+                for (i in from until current.frames.size) {
+                    decodeFrame(current.frames[i])?.let { frame = it }
+                    index = i
+                    val wait = ((i - from + 1) * frameMs).toLong() - started.elapsedNow().inWholeMilliseconds
+                    if (wait > 0) delay(wait)
+                }
+                audioJob?.cancelAndJoin()
+                index = 0
+            }
         }
     }
     val description = stringResource(Res.string.video_description)
@@ -74,11 +109,12 @@ fun VideoPlayer(fileName: String, load: ImageBytesLoader, onSave: () -> Unit, mo
             .testTag("generated_video"),
         contentAlignment = Alignment.Center,
     ) {
-        if (current == null) {
+        val bitmap = frame
+        if (current == null || bitmap == null) {
             CircularProgressIndicator(Modifier.size(32.dp))
         } else {
             Image(
-                bitmap = current.frames[index.coerceIn(0, current.frames.lastIndex)],
+                bitmap = bitmap,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.matchParentSize(),
@@ -105,14 +141,10 @@ fun VideoPlayer(fileName: String, load: ImageBytesLoader, onSave: () -> Unit, mo
 }
 
 @OptIn(ExperimentalResourceApi::class)
-private suspend fun decodeVideo(fileName: String, load: ImageBytesLoader): DecodedVideo? = withContext(Dispatchers.Default) {
-    val parsed = load(fileName)?.let(MjpegAvi::parse) ?: return@withContext null
-    val frames = parsed.frames.mapNotNull { jpeg ->
-        try {
-            jpeg.decodeToImageBitmap()
-        } catch (e: IllegalArgumentException) {
-            null
-        }
+private suspend fun decodeFrame(jpeg: ByteArray): ImageBitmap? = withContext(Dispatchers.Default) {
+    try {
+        jpeg.decodeToImageBitmap()
+    } catch (e: IllegalArgumentException) {
+        null
     }
-    if (frames.isEmpty()) null else DecodedVideo(frames, parsed.fps)
 }

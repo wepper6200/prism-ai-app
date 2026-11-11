@@ -1,5 +1,6 @@
 package ai.prism.service
 
+import ai.prism.core.MjpegAvi
 import ai.prism.domain.imagegen.ImageGenerationError
 import ai.prism.domain.imagegen.ImageGenerationException
 import ai.prism.domain.model.GenerationError
@@ -22,19 +23,30 @@ import kotlin.test.assertTrue
 
 class VideoServiceTest {
 
-    private fun videoModel(imageToVideo: Boolean = true) = testImageModel(id = "wan-test", name = "Wan 2.2 TI2V 5B").copy(
-        kind = ModelKind.VIDEO,
-        image = null,
-        video = VideoModelSettings(width = 832, height = 480, frames = 49, fps = 24, steps = 3, negativePrompt = "статика", imageToVideo = imageToVideo),
-    )
+    private fun videoModel(imageToVideo: Boolean = true, durations: List<Int> = emptyList()) =
+        testImageModel(id = "wan-test", name = "Wan 2.2 TI2V 5B").copy(
+            kind = ModelKind.VIDEO,
+            image = null,
+            video = VideoModelSettings(
+                width = 832,
+                height = 480,
+                frames = 49,
+                fps = 24,
+                steps = 3,
+                negativePrompt = "статика",
+                imageToVideo = imageToVideo,
+                maxFrames = 121,
+                durations = durations,
+            ),
+        )
 
-    private fun app(videoDownloaded: Boolean = true, imageToVideo: Boolean = true) = TestApp(
+    private fun app(videoDownloaded: Boolean = true, imageToVideo: Boolean = true, durations: List<Int> = emptyList()) = TestApp(
         engine = FakeInferenceEngine(reply = listOf("A cat running on the grass")),
         models = FakeModelRepository(
             listOf(
                 ModelEntry(testModel(), ModelStatus.Downloaded, fitsInMemory = true),
                 ModelEntry(
-                    videoModel(imageToVideo),
+                    videoModel(imageToVideo, durations),
                     if (videoDownloaded) ModelStatus.Downloaded else ModelStatus.NotDownloaded,
                     fitsInMemory = true,
                 ),
@@ -97,5 +109,61 @@ class VideoServiceTest {
         val retried = failing.chats.messagesSnapshot(failingChat.id).last()
         assertEquals(MessageStatus.COMPLETE, retried.status)
         assertTrue(retried.images.single().isVideo)
+    }
+
+    /** 10 секунд на Wan 2.2: два куска по 121 кадру, второй — от последнего кадра первого; склейка без повтора кадра. */
+    @Test
+    fun longVideoIsChainedFromTheLastFrame(): Unit = runBlocking {
+        val app = app(durations = listOf(2, 5, 10))
+        app.imageGenerator.realVideo = true
+        app.settings.setVideoSeconds(10)
+        val chat = app.chats.createChat()
+
+        app.generation.animate(chat.id, "Кот бежит по траве")
+
+        val requests = app.imageGenerator.videoRequests
+        assertEquals(listOf(121, 121), requests.map { it.frames })
+        assertNull(requests[0].initImagePath)
+        assertTrue(requests[1].initImagePath != null, "второй кусок продолжает первый")
+        val reply = app.chats.messagesSnapshot(chat.id).last()
+        assertEquals(MessageStatus.COMPLETE, reply.status)
+        val video = checkNotNull(MjpegAvi.parse(checkNotNull(app.images.files[reply.images.single().fileName])))
+        assertEquals(241, video.frames.size)
+        // Кадры первого куска, затем второго без его первого кадра.
+        assertContentEquals(byteArrayOf(1, 120), video.frames[120])
+        assertContentEquals(byteArrayOf(2, 1), video.frames[121])
+        // Временный кадр-продолжение удалён: в хранилище только сам ролик.
+        assertEquals(setOf(reply.images.single().fileName), app.images.files.keys)
+    }
+
+    @Test
+    fun stoppedLongVideoKeepsFinishedParts(): Unit = runBlocking {
+        val app = app(durations = listOf(2, 5, 15))
+        app.imageGenerator.realVideo = true
+        app.imageGenerator.cancelOnSegment = 2
+        app.settings.setVideoSeconds(15)
+        val chat = app.chats.createChat()
+
+        app.generation.animate(chat.id, "Кот бежит по траве")
+
+        assertEquals(2, app.imageGenerator.videoRequests.size)
+        val reply = app.chats.messagesSnapshot(chat.id).last()
+        assertEquals(MessageStatus.STOPPED, reply.status)
+        val video = checkNotNull(MjpegAvi.parse(checkNotNull(app.images.files[reply.images.single().fileName])))
+        assertEquals(121, video.frames.size)
+    }
+
+    @Test
+    fun durationFollowsSettingsAndModel(): Unit = runBlocking {
+        val app = app(durations = listOf(2, 3, 5))
+        val model = checkNotNull(app.generation.videoModel())
+        assertEquals(2, app.generation.videoSeconds(model))
+        app.settings.setVideoSeconds(4)
+        // 4 секунд у модели нет — берётся ближайшая длительность.
+        assertTrue(app.generation.videoSeconds(model) in setOf(3, 5))
+        app.settings.setVideoSeconds(3)
+        val chat = app.chats.createChat()
+        app.generation.animate(chat.id, "Кот бежит по траве")
+        assertEquals(73, app.imageGenerator.lastVideoRequest?.frames)
     }
 }

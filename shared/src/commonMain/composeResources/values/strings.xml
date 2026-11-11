@@ -263,4 +263,13 @@
     <string name="settings_voice_voice">Голос ассистента</string>
     <string name="settings_voice_rate">Скорость речи: %1$s</string>
     <string name="settings_voice_none">Не скачано — скачайте на экране «Модели».</string>
+
+    <!-- Видео: длительность и продолжение кусками, выбор модели. -->
+    <string name="video_duration">Длительность:</string>
+    <string name="video_seconds">%1$d с</string>
+    <string name="video_part">Часть %1$d из %2$d</string>
+    <string name="settings_video">Видео</string>
+    <string name="settings_video_desc">Длинные ролики снимаются кусками: каждый следующий начинается с последнего кадра предыдущего. Длительность выбирается в чате в режиме «Видео».</string>
+    <string name="settings_video_model">Модель видео</string>
+    <string name="models_with_audio">Со звуком</string>
 </resources>
