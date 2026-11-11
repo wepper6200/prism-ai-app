@@ -126,9 +126,11 @@ class ModelCatalogTest {
             assertEquals(expected, roles, model.id)
         }
         models.filter { it.kind == ModelKind.SPEECH_SYNTHESIS }.forEach { model ->
-            assertEquals(SpeechEngineType.PIPER, model.speech?.engine, model.id)
+            assertTrue(model.speech?.engine in setOf(SpeechEngineType.PIPER, SpeechEngineType.SUPERTONIC), model.id)
             assertTrue(model.archive && model.fileName.endsWith(".tar.bz2") && model.mainRole == "voice", model.id)
         }
+        // По умолчанию предлагается Supertonic 3: у Piper хуже ударения и английские слова.
+        assertEquals(SpeechEngineType.SUPERTONIC, models.first { it.kind == ModelKind.SPEECH_SYNTHESIS }.speech?.engine)
         // Русская речь распознаётся GigaAM: он первым предлагается для загрузки.
         assertEquals("GigaAM", models.first { it.kind == ModelKind.SPEECH_RECOGNITION }.family)
     }

@@ -350,13 +350,71 @@
       }
     },
     {
+      "id": "supertonic-3-int8",
+      "name": "Supertonic 3",
+      "family": "Supertonic",
+      "parameters": "140M",
+      "quantization": "INT8",
+      "description": {
+        "ru": "Естественный голос для озвучки ответов: правильнее ставит ударения и читает английские слова, чем Piper. 10 голосов (5 женских и 5 мужских) — выбор в «Настройки → Голос». Говорит на 31 языке, работает на устройстве."
+      },
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/sherpa-onnx-supertonic-3-tts-int8-2026-05-11.tar.bz2",
+      "fileName": "sherpa-onnx-supertonic-3-tts-int8-2026-05-11.tar.bz2",
+      "sizeBytes": 128774318,
+      "sha256": "82fa96f91c4ef8abaae3a14a3f4153facf88bed821d1f7331cec2700f432c427",
+      "minRamMb": 2048,
+      "license": {
+        "name": "OpenRAIL-M",
+        "url": "https://huggingface.co/Supertone/supertonic-3/blob/main/LICENSE"
+      },
+      "recommendedFor": [
+        "android",
+        "desktop"
+      ],
+      "kind": "speech_synthesis",
+      "mainRole": "voice",
+      "archive": true,
+      "speech": {
+        "engine": "supertonic",
+        "language": "ru",
+        "languages": [
+          "ru",
+          "en",
+          "uk",
+          "de",
+          "fr",
+          "es",
+          "it",
+          "pl",
+          "pt",
+          "tr",
+          "ja",
+          "ko"
+        ],
+        "speakers": [
+          "Женский 1",
+          "Женский 2",
+          "Женский 3",
+          "Женский 4",
+          "Женский 5",
+          "Мужской 1",
+          "Мужской 2",
+          "Мужской 3",
+          "Мужской 4",
+          "Мужской 5"
+        ],
+        "steps": 5,
+        "speed": 1.05
+      }
+    },
+    {
       "id": "piper-ru-dmitri-medium",
       "name": "Голос «Дмитрий»",
       "family": "Piper",
       "parameters": "15M",
       "quantization": "FP32",
       "description": {
-        "ru": "Мужской голос для озвучки ответов по-русски (Piper). Работает на устройстве, говорит сразу, пока ответ ещё пишется."
+        "ru": "Лёгкий мужской голос (Piper) для слабых телефонов: говорит мгновенно, но хуже ставит ударения, чем Supertonic 3."
       },
       "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-ru_RU-dmitri-medium.tar.bz2",
       "fileName": "vits-piper-ru_RU-dmitri-medium.tar.bz2",
@@ -367,10 +425,7 @@
         "name": "MIT; запись голоса — CC0",
         "url": "https://huggingface.co/rhasspy/piper-voices/blob/main/ru/ru_RU/dmitri/medium/MODEL_CARD"
       },
-      "recommendedFor": [
-        "android",
-        "desktop"
-      ],
+      "recommendedFor": [],
       "kind": "speech_synthesis",
       "mainRole": "voice",
       "archive": true,

@@ -276,6 +276,13 @@ fun SettingsScreen(
                         selectedId = state.voice.selectedVoiceId,
                         onSelect = { component.onIntent(SettingsIntent.SelectVoiceModel(it)) },
                     )
+                    if (state.voice.speakers.size > 1) {
+                        VoiceModelChoice(
+                            options = state.voice.speakers.mapIndexed { index, name -> VoiceModelOption(index.toString(), name) },
+                            selectedId = state.voice.selectedSpeaker.toString(),
+                            onSelect = { component.onIntent(SettingsIntent.SelectVoiceSpeaker(it.toInt())) },
+                        )
+                    }
                     SectionLabel(stringResource(Res.string.settings_voice_rate, formatRate(state.settings.speechRate)))
                     Slider(
                         value = state.settings.speechRate,

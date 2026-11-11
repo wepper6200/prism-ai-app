@@ -26,6 +26,8 @@ interface SettingsRepository {
 
     fun setSpeechRate(rate: Float)
 
+    fun setVoiceSpeaker(speaker: Int)
+
     fun setVideoModel(modelId: String)
 
     fun setVideoSeconds(seconds: Int)

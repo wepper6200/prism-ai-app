@@ -7,6 +7,7 @@ import ai.prism.domain.voice.RecognizerSpec
 import ai.prism.domain.voice.SPEECH_SAMPLE_RATE
 import ai.prism.domain.voice.SpeechAudio
 import ai.prism.domain.voice.VoiceSpec
+import ai.prism.service.voice.SpeechNormalizer
 import ai.prism.service.voice.VoiceService
 import kotlinx.coroutines.runBlocking
 import org.junit.Assume.assumeTrue
@@ -41,6 +42,43 @@ class SpeechIntegrationTest {
     }
 
     private fun speak(text: String): SpeechAudio = runBlocking { engine.synthesize(voice(), text, 1.0f) }
+
+    /** Supertonic 3 из архива каталога: женский голос 0 и мужской 5, русский. */
+    private fun supertonic(speaker: Int): VoiceSpec {
+        val archive = env("PRISM_TEST_SUPERTONIC_ARCHIVE")
+        assumeTrue("не задан голос PRISM_TEST_SUPERTONIC_ARCHIVE", archive != null)
+        val source = checkNotNull(archive)
+        val dir = Files.createTempDirectory("prism-supertonic").toFile()
+        source.copyTo(File(dir, source.name))
+        val file = ModelFile("https://example.com/${source.name}", source.name, source.length(), "0".repeat(64), archive = true)
+        val unpacked = FileModelStorage(dir).unpackedPath(file)
+        assertTrue(SupertonicFiles.find(unpacked) != null, "в архиве нет файлов Supertonic")
+        return VoiceSpec("supertonic", unpacked, SpeechEngineType.SUPERTONIC, speaker = speaker, language = "ru", steps = 5)
+    }
+
+    @Test
+    fun supertonicSpeaksRussianThatGigaAmUnderstands() = runBlocking {
+        val dir = env("PRISM_TEST_GIGAAM_DIR")
+        assumeTrue("не задана модель PRISM_TEST_GIGAAM_DIR", dir != null)
+        val spec = RecognizerSpec(
+            modelId = "gigaam",
+            engine = SpeechEngineType.NEMO_CTC,
+            files = mapOf("model" to File(dir, "model.int8.onnx").path, "tokens" to File(dir, "tokens.txt").path),
+            language = "ru",
+        )
+        for (speaker in listOf(0, 5)) {
+            val voice = supertonic(speaker)
+            val text = SpeechNormalizer.normalize("В 2026 году вышел Android 17, а его уровень API — 37.", "ru")
+            val audio = engine.synthesize(voice, text, 1.0f)
+            val heard = engine.transcribe(spec, audio)
+            println("Supertonic $speaker: ${audio.durationSeconds} с, ${audio.sampleRate} Гц → «$heard»")
+            assertTrue(audio.durationSeconds in 1.0f..15.0f && audio.samples.any { abs(it) > 0.05f })
+            val words = heard.lowercase()
+            // GigaAM пишет английские слова латиницей: «андроид» он слышит как «Android».
+            assertTrue("году" in words && ("android" in words || "андроид" in words), "GigaAM распознал «$heard»")
+        }
+        engine.release()
+    }
 
     @Test
     fun piperSpeaksRussian() {

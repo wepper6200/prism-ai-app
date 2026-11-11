@@ -39,6 +39,8 @@ data class AppSettings(
     val voiceModelId: String = "",
     /** Скорость озвучки: 1.0 — обычная. */
     val speechRate: Float = 1.0f,
+    /** Номер голоса у модели с несколькими голосами (Supertonic). */
+    val voiceSpeaker: Int = 0,
     /** Выбранная модель видео; пусто — первая скачанная. */
     val videoModelId: String = "",
     /** Длительность видео, секунды; 0 — по умолчанию модели. */

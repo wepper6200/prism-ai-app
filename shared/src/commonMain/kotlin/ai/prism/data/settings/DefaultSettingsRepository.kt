@@ -37,6 +37,8 @@ class DefaultSettingsRepository(
 
     override fun setVoiceModel(modelId: String) = update { it.copy(voiceModelId = modelId) }
 
+    override fun setVoiceSpeaker(speaker: Int) = update { it.copy(voiceSpeaker = speaker.coerceAtLeast(0)) }
+
     override fun setVideoModel(modelId: String) = update { it.copy(videoModelId = modelId) }
 
     override fun setVideoSeconds(seconds: Int) = update { it.copy(videoSeconds = seconds.coerceIn(0, MAX_VIDEO_SECONDS)) }
@@ -63,6 +65,7 @@ class DefaultSettingsRepository(
             speechRate = store.getString(KEY_SPEECH_RATE)?.toFloatOrNull()
                 ?.takeIf { it in AppSettings.MIN_SPEECH_RATE..AppSettings.MAX_SPEECH_RATE }
                 ?: defaults.speechRate,
+            voiceSpeaker = store.getString(KEY_VOICE_SPEAKER)?.toIntOrNull()?.coerceAtLeast(0) ?: defaults.voiceSpeaker,
             videoModelId = store.getString(KEY_VIDEO_MODEL) ?: defaults.videoModelId,
             videoSeconds = store.getString(KEY_VIDEO_SECONDS)?.toIntOrNull()?.coerceIn(0, MAX_VIDEO_SECONDS) ?: defaults.videoSeconds,
         )
@@ -78,6 +81,7 @@ class DefaultSettingsRepository(
         store.putString(KEY_SPEECH_MODEL, settings.speechModelId)
         store.putString(KEY_VOICE_MODEL, settings.voiceModelId)
         store.putString(KEY_SPEECH_RATE, settings.speechRate.toString())
+        store.putString(KEY_VOICE_SPEAKER, settings.voiceSpeaker.toString())
         store.putString(KEY_VIDEO_MODEL, settings.videoModelId)
         store.putString(KEY_VIDEO_SECONDS, settings.videoSeconds.toString())
     }
@@ -95,6 +99,7 @@ class DefaultSettingsRepository(
         const val KEY_SPEECH_MODEL = "speech_model"
         const val KEY_VOICE_MODEL = "voice_model"
         const val KEY_SPEECH_RATE = "speech_rate"
+        const val KEY_VOICE_SPEAKER = "voice_speaker"
         const val KEY_VIDEO_MODEL = "video_model"
         const val KEY_VIDEO_SECONDS = "video_seconds"
         const val MAX_VIDEO_SECONDS = 60

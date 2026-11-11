@@ -6,6 +6,7 @@ import ai.prism.domain.model.MessageStatus
 import ai.prism.domain.model.ModelEntry
 import ai.prism.domain.model.ModelKind
 import ai.prism.domain.model.ModelStatus
+import ai.prism.domain.model.SpeechEngineType
 import ai.prism.domain.repository.ChatRepository
 import ai.prism.domain.repository.ModelRepository
 import ai.prism.domain.repository.SettingsRepository
@@ -272,7 +273,17 @@ class VoiceService(
             ?: throw VoiceException(VoiceError.NO_VOICE, "No voice")
         val files = models.speechModelFiles(model.id) ?: throw VoiceException(VoiceError.NO_VOICE, "Voice ${model.id} is not downloaded")
         val dir = files[ROLE_VOICE] ?: throw VoiceException(VoiceError.ENGINE, "No voice files for ${model.id}")
-        return VoiceSpec(model.id, directory = dir)
+        val speech = model.speech
+        val speakers = speech?.speakers.orEmpty()
+        return VoiceSpec(
+            modelId = model.id,
+            directory = dir,
+            engine = speech?.engine ?: SpeechEngineType.PIPER,
+            speaker = settings.settings.value.voiceSpeaker.takeIf { it in speakers.indices } ?: 0,
+            language = speech?.language.orEmpty(),
+            steps = speech?.steps ?: 0,
+            speed = speech?.speed ?: 1.0f,
+        )
     }
 
     /**
@@ -318,7 +329,8 @@ class VoiceService(
         launch {
             try {
                 for (sentence in sentences) {
-                    audio.send(engine.synthesize(voice, sentence, settings.settings.value.speechRate))
+                    val spoken = SpeechNormalizer.normalize(sentence, voice.language)
+                    audio.send(engine.synthesize(voice, spoken, voice.speed * settings.settings.value.speechRate))
                 }
             } finally {
                 audio.close()

@@ -20,10 +20,20 @@ data class RecognizerSpec(
     val language: String = "",
 )
 
-/** Голос Piper: папка распакованного архива (модель `.onnx`, `tokens.txt` и `espeak-ng-data` в ней или во вложенной папке). */
+/**
+ * Голос: папка распакованного архива модели (Piper — `.onnx`, `tokens.txt` и `espeak-ng-data`; Supertonic — модели
+ * ONNX, `tts.json`, `voice.bin`) в ней или во вложенной папке, номер говорящего, язык и шаги синтеза.
+ */
 data class VoiceSpec(
     val modelId: String,
     val directory: String,
+    val engine: SpeechEngineType = SpeechEngineType.PIPER,
+    val speaker: Int = 0,
+    val language: String = "",
+    /** Шагов синтеза (Supertonic); 0 — по умолчанию. */
+    val steps: Int = 0,
+    /** Обычная скорость модели; итоговая — она, умноженная на скорость из настроек. */
+    val speed: Float = 1.0f,
 )
 
 /**

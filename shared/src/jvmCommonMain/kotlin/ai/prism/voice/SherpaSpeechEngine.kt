@@ -1,5 +1,6 @@
 package ai.prism.voice
 
+import ai.prism.domain.model.SpeechEngineType
 import ai.prism.domain.voice.RecognizerSpec
 import ai.prism.domain.voice.SpeechAudio
 import ai.prism.domain.voice.SpeechEngine
@@ -23,10 +24,13 @@ internal interface NativeRecognizer {
 
 /** Голос sherpa-onnx в памяти. */
 internal interface NativeVoice {
-    fun generate(text: String, speed: Float): SpeechAudio
+    fun generate(text: String, spec: VoiceSpec, speed: Float): SpeechAudio
 
     fun release()
 }
+
+/** Файлы голоса в распакованном архиве. */
+internal sealed interface VoiceFiles
 
 /** Детектор речи sherpa-onnx (Silero VAD). */
 internal interface NativeVad {
@@ -47,7 +51,7 @@ internal interface NativeVad {
 }
 
 /** Файлы голоса Piper в распакованном архиве. */
-internal data class PiperFiles(val model: String, val tokens: String, val dataDir: String) {
+internal data class PiperFiles(val model: String, val tokens: String, val dataDir: String) : VoiceFiles {
     companion object {
         /** Ищет модель `.onnx` с `tokens.txt` и `espeak-ng-data` рядом (в папке архива или вложенной). */
         fun find(directory: String): PiperFiles? = File(directory).walkTopDown()
@@ -65,6 +69,38 @@ internal data class PiperFiles(val model: String, val tokens: String, val dataDi
     }
 }
 
+/** Файлы Supertonic 3 в распакованном архиве: четыре модели ONNX, `tts.json`, `unicode_indexer.bin`, `voice.bin`. */
+internal data class SupertonicFiles(
+    val durationPredictor: String,
+    val textEncoder: String,
+    val vectorEstimator: String,
+    val vocoder: String,
+    val ttsJson: String,
+    val unicodeIndexer: String,
+    val voiceStyle: String,
+) : VoiceFiles {
+    companion object {
+        fun find(directory: String): SupertonicFiles? {
+            val dir = File(directory).walkTopDown().maxDepth(SEARCH_DEPTH)
+                .firstOrNull { it.isFile && it.name == "tts.json" }?.parentFile ?: return null
+            fun model(prefix: String) = dir.listFiles()
+                ?.filter { it.isFile && it.name.startsWith(prefix) && it.name.endsWith(".onnx") }
+                ?.minByOrNull { it.name.length }?.absolutePath
+            return SupertonicFiles(
+                durationPredictor = model("duration_predictor") ?: return null,
+                textEncoder = model("text_encoder") ?: return null,
+                vectorEstimator = model("vector_estimator") ?: return null,
+                vocoder = model("vocoder") ?: return null,
+                ttsJson = File(dir, "tts.json").absolutePath,
+                unicodeIndexer = File(dir, "unicode_indexer.bin").takeIf { it.isFile }?.absolutePath ?: return null,
+                voiceStyle = File(dir, "voice.bin").takeIf { it.isFile }?.absolutePath ?: return null,
+            )
+        }
+
+        private const val SEARCH_DEPTH = 3
+    }
+}
+
 /**
  * Распознавание и озвучка на sherpa-onnx. Общая часть для Android (Kotlin API из AAR) и Desktop (Java API):
  * модели загружаются при первом обращении и остаются в памяти до [release] или смены модели;
@@ -77,13 +113,14 @@ abstract class SherpaSpeechEngine(protected val threads: Int) : SpeechEngine {
     }.asCoroutineDispatcher()
 
     private var recognizer: Pair<RecognizerSpec, NativeRecognizer>? = null
-    private var voice: Pair<VoiceSpec, NativeVoice>? = null
+    /** Загруженный голос по модели и папке (говорящий и скорость меняются без перезагрузки). */
+    private var voice: Pair<String, NativeVoice>? = null
 
     override val isSupported: Boolean = true
 
     internal abstract fun createRecognizer(spec: RecognizerSpec): NativeRecognizer
 
-    internal abstract fun createVoice(files: PiperFiles): NativeVoice
+    internal abstract fun createVoice(files: VoiceFiles): NativeVoice
 
     internal abstract fun createVad(modelPath: String, minSilenceSeconds: Float): NativeVad
 
@@ -97,14 +134,17 @@ abstract class SherpaSpeechEngine(protected val threads: Int) : SpeechEngine {
     }
 
     override suspend fun synthesize(spec: VoiceSpec, text: String, speed: Float): SpeechAudio = withContext(dispatcher) {
-        val loaded = voice?.takeIf { it.first == spec }?.second ?: run {
+        val key = spec.modelId + "|" + spec.directory + "|" + spec.engine
+        val loaded = voice?.takeIf { it.first == key }?.second ?: run {
             voice?.second?.release()
             voice = null
-            val files = PiperFiles.find(spec.directory)
-                ?: throw VoiceException(VoiceError.NO_VOICE, "No Piper voice in ${spec.directory}")
-            native("load ${spec.modelId}") { createVoice(files) }.also { voice = spec to it }
+            val files = when (spec.engine) {
+                SpeechEngineType.SUPERTONIC -> SupertonicFiles.find(spec.directory)
+                else -> PiperFiles.find(spec.directory)
+            } ?: throw VoiceException(VoiceError.NO_VOICE, "No ${spec.engine} voice in ${spec.directory}")
+            native("load ${spec.modelId}") { createVoice(files) }.also { voice = key to it }
         }
-        native("synthesize") { loaded.generate(text, speed) }
+        native("synthesize") { loaded.generate(text, spec, speed) }
     }
 
     override fun voiceDetector(modelPath: String, minSilenceSeconds: Float): VoiceDetector {
@@ -157,5 +197,11 @@ abstract class SherpaSpeechEngine(protected val threads: Int) : SpeechEngine {
         const val VAD_MIN_SPEECH_SECONDS = 0.25f
         const val VAD_THRESHOLD = 0.5f
         const val VAD_WINDOW = 512
+
+        /** Шагов синтеза Supertonic по умолчанию: качество почти как у 8, но быстрее. */
+        const val DEFAULT_SUPERTONIC_STEPS = 5
+
+        /** Ответ обратному вызову синтеза: продолжать. */
+        const val CONTINUE = 1
     }
 }

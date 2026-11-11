@@ -66,6 +66,8 @@ def main():
         env["PRISM_TEST_WHISPER_DIR"] = os.path.join(root, "whisper")
         voice = models["piper-ru-dmitri-medium"]
         env["PRISM_TEST_PIPER_ARCHIVE"] = fetch(voice["url"], voice["sizeBytes"], voice["sha256"], os.path.join(root, voice["fileName"]))
+        st = models["supertonic-3-int8"]
+        env["PRISM_TEST_SUPERTONIC_ARCHIVE"] = fetch(st["url"], st["sizeBytes"], st["sha256"], os.path.join(root, st["fileName"]))
     for name, value in env.items():
         print(f"{name}={value}")
 

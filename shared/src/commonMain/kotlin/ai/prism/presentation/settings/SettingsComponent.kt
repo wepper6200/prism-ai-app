@@ -36,6 +36,9 @@ data class VoiceSettings(
     val selectedRecognizerId: String? = null,
     val voices: List<VoiceModelOption> = emptyList(),
     val selectedVoiceId: String? = null,
+    /** Голоса выбранной модели синтеза (если их несколько) и выбранный. */
+    val speakers: List<String> = emptyList(),
+    val selectedSpeaker: Int = 0,
 )
 
 data class SettingsState(
@@ -60,6 +63,7 @@ sealed interface SettingsIntent {
     data class SelectVoiceModel(val modelId: String) : SettingsIntent
     data class SetSpeechRate(val rate: Float) : SettingsIntent
     data class SelectVideoModel(val modelId: String) : SettingsIntent
+    data class SelectVoiceSpeaker(val speaker: Int) : SettingsIntent
     data object Back : SettingsIntent
 }
 
@@ -114,7 +118,11 @@ class DefaultSettingsComponent(
             .map { VoiceModelOption(it.model.id, it.model.name) }
         val recognizers = downloaded(ModelKind.SPEECH_RECOGNITION)
         val voices = downloaded(ModelKind.SPEECH_SYNTHESIS)
+        val voiceId = (voices.firstOrNull { it.id == settings.voiceModelId } ?: voices.firstOrNull())?.id
+        val speakers = models.firstOrNull { it.model.id == voiceId }?.model?.speech?.speakers.orEmpty()
         return VoiceSettings(
+            speakers = speakers,
+            selectedSpeaker = settings.voiceSpeaker.takeIf { it in speakers.indices } ?: 0,
             available = models.any { it.model.kind == ModelKind.SPEECH_RECOGNITION || it.model.kind == ModelKind.SPEECH_SYNTHESIS },
             recognizers = recognizers,
             selectedRecognizerId = (recognizers.firstOrNull { it.id == settings.speechModelId } ?: recognizers.firstOrNull())?.id,
@@ -135,6 +143,7 @@ class DefaultSettingsComponent(
             is SettingsIntent.SelectVoiceModel -> settingsRepository.setVoiceModel(intent.modelId)
             is SettingsIntent.SetSpeechRate -> settingsRepository.setSpeechRate(intent.rate)
             is SettingsIntent.SelectVideoModel -> settingsRepository.setVideoModel(intent.modelId)
+            is SettingsIntent.SelectVoiceSpeaker -> settingsRepository.setVoiceSpeaker(intent.speaker)
             SettingsIntent.Back -> onBack()
         }
     }

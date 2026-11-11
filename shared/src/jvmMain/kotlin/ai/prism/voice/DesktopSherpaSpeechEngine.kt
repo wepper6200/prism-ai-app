@@ -3,6 +3,10 @@ package ai.prism.voice
 import ai.prism.domain.model.SpeechEngineType
 import ai.prism.domain.voice.RecognizerSpec
 import ai.prism.domain.voice.SpeechAudio
+import ai.prism.domain.voice.VoiceSpec
+import com.k2fsa.sherpa.onnx.GenerationConfig
+import com.k2fsa.sherpa.onnx.OfflineTtsCallback
+import com.k2fsa.sherpa.onnx.OfflineTtsSupertonicModelConfig
 import com.k2fsa.sherpa.onnx.OfflineModelConfig
 import com.k2fsa.sherpa.onnx.OfflineNemoEncDecCtcModelConfig
 import com.k2fsa.sherpa.onnx.OfflineRecognizer
@@ -59,17 +63,42 @@ class DesktopSherpaSpeechEngine(threads: Int) : SherpaSpeechEngine(threads) {
         }
     }
 
-    override fun createVoice(files: PiperFiles): NativeVoice {
-        val vits = OfflineTtsVitsModelConfig.builder()
-            .setModel(files.model)
-            .setTokens(files.tokens)
-            .setDataDir(files.dataDir)
-            .build()
-        val model = OfflineTtsModelConfig.builder().setVits(vits).setNumThreads(threads).setDebug(false).build()
-        val tts = OfflineTts(OfflineTtsConfig.builder().setModel(model).build())
+    override fun createVoice(files: VoiceFiles): NativeVoice {
+        val model = OfflineTtsModelConfig.builder().setNumThreads(threads).setDebug(false)
+        when (files) {
+            is PiperFiles -> model.setVits(
+                OfflineTtsVitsModelConfig.builder()
+                    .setModel(files.model)
+                    .setTokens(files.tokens)
+                    .setDataDir(files.dataDir)
+                    .build(),
+            )
+            is SupertonicFiles -> model.setSupertonic(
+                OfflineTtsSupertonicModelConfig.builder()
+                    .setDurationPredictor(files.durationPredictor)
+                    .setTextEncoder(files.textEncoder)
+                    .setVectorEstimator(files.vectorEstimator)
+                    .setVocoder(files.vocoder)
+                    .setTtsJson(files.ttsJson)
+                    .setUnicodeIndexer(files.unicodeIndexer)
+                    .setVoiceStyle(files.voiceStyle)
+                    .build(),
+            )
+        }
+        val tts = OfflineTts(OfflineTtsConfig.builder().setModel(model.build()).build())
+        val supertonic = files is SupertonicFiles
         return object : NativeVoice {
-            override fun generate(text: String, speed: Float): SpeechAudio {
-                val audio = tts.generate(text, 0, speed)
+            override fun generate(text: String, spec: VoiceSpec, speed: Float): SpeechAudio {
+                val audio = if (supertonic) {
+                    val config = GenerationConfig()
+                    config.setSpeed(speed)
+                    config.setSid(spec.speaker)
+                    config.setNumSteps(spec.steps.takeIf { it > 0 } ?: DEFAULT_SUPERTONIC_STEPS)
+                    if (spec.language.isNotEmpty()) config.setExtra(mapOf("lang" to spec.language))
+                    tts.generateWithConfigAndCallback(text, config, OfflineTtsCallback { CONTINUE })
+                } else {
+                    tts.generate(text, spec.speaker, speed)
+                }
                 return SpeechAudio(audio.samples, audio.sampleRate)
             }
 

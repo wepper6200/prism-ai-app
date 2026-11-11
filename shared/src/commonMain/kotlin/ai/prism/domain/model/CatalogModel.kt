@@ -78,6 +78,10 @@ enum class SpeechEngineType {
     /** Голос Piper (VITS): архив с моделью `.onnx`, `tokens.txt` и `espeak-ng-data`. */
     @SerialName("piper")
     PIPER,
+
+    /** Supertonic 3: архив с моделями ONNX, `tts.json`, `unicode_indexer.bin` и голосами `voice.bin`. */
+    @SerialName("supertonic")
+    SUPERTONIC,
 }
 
 /** Параметры модели речи. */
@@ -88,6 +92,12 @@ data class SpeechModelSettings(
     val language: String = "",
     /** Языки, которые понимает или на которых говорит модель (для подписи в каталоге). */
     val languages: List<String> = emptyList(),
+    /** Голоса модели синтеза (номер в списке — номер говорящего); пусто — один голос. */
+    val speakers: List<String> = emptyList(),
+    /** Шагов синтеза (Supertonic); 0 — по умолчанию движка. */
+    val steps: Int = 0,
+    /** Обычная скорость речи модели: умножается на скорость из настроек. */
+    val speed: Float = 1.0f,
 )
 
 /** Параметры генерации по умолчанию для модели видео (Wan). */
