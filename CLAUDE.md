@@ -129,6 +129,16 @@ Prism AI — полностью офлайн ИИ-ассистент для **Wi
   фото), Android — экспериментально Wan 2.1 T2V 1.3B Q4_K_M + umt5 Q3_K_S + Wan 2.1 VAE. Описание переводится
   моделью чата, как для рисования. Тест: `PRISM_TEST_WAN_DIR` (задание «Video generation (Wan 2.1 1.3B)»).
 
+- **Длительность и LTX-2.5 (после этапа 7):** у моделей видео в каталоге `frameStep` (Wan — 4, LTX — 8), `maxFrames`
+  (кадров за раз), `durations` (секунды на выбор) и `audio`. Длительность выбирается в чате (режим «Видео»,
+  `AppSettings.videoSeconds`); длиннее одного куска — продолжением: `VideoPlan` делит ролик на куски, следующий
+  кусок снимается от последнего кадра предыдущего (оживление фото), `VideoClipBuilder` склеивает их без повтора кадра,
+  при остановке сохраняет снятое. LTX-2.5 distilled (unsloth GGUF UD-Q4_K_XL, 8 шагов, CFG 1) — вторая модель видео
+  на Desktop, со звуком: `prism_imagegen` получает `llm` (Gemma 4 12B с проекцией, bf16 — у сжатого GGUF репозиторий
+  закрыт), `audio_vae`, пишет звук в WAV рядом с AVI, `ProcessImageGenerator` вшивает его вторым потоком
+  (`MjpegAvi.write`, PCM 16 бит), плеер раскодирует кадры на лету и играет звук. Выбор модели — «Настройки → Видео».
+  Лицензия LTX-2 Community License: бесплатно при доходе до $10 млн в год.
+
 - **Голос (Этап 7):** sherpa-onnx 1.13.8 (последняя версия с espeak-ng, без которого не работают голоса Piper;
   в 2.0 его убрали). AAR и jar берутся из релизов GitHub через ivy-репозиторий в `settings.gradle.kts`;
   Android — Kotlin API из AAR (`AndroidSherpaSpeechEngine`), Desktop — Java API и нативные библиотеки ОС сборки
