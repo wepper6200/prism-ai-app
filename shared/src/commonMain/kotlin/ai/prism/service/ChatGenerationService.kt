@@ -1,6 +1,7 @@
 package ai.prism.service
 
 import ai.prism.core.newId
+import ai.prism.core.todayText
 import ai.prism.domain.agent.AgentStep
 import ai.prism.domain.agent.AgentTool
 import ai.prism.domain.agent.CommandRunner
@@ -61,6 +62,11 @@ data class AssistantPersona(
     val primer: List<PromptMessage>,
     /** Короткое напоминание о личности в конце последнего сообщения пользователя. */
     val reminder: String = "",
+    /**
+     * Сегодняшняя дата и справка о свежих версиях (`{date}` — дата на устройстве). Модели знают мир только
+     * до конца своего обучения и без этого считают текущим его год. Пусто — не добавляется.
+     */
+    val currentDateNote: String = "",
     /** Инструкция для перевода описания картинки на английский (генераторы лучше понимают английский). */
     val imagePromptInstruction: String = "",
     /** Безопасный режим: правило для модели чата (добавляется к системному промпту). */
@@ -145,6 +151,8 @@ class ChatGenerationService(
     /** Папки проектов, выбранные для диалогов. */
     private val workspaces: WorkspaceProvider? = null,
     private val commands: CommandRunner = CommandRunner.None,
+    /** Сегодняшняя дата на устройстве для промпта. */
+    private val today: () -> String = ::todayText,
 ) {
     private val mutableActive = MutableStateFlow<ActiveGeneration?>(null)
     val active: StateFlow<ActiveGeneration?> = mutableActive.asStateFlow()
@@ -329,7 +337,7 @@ class ChatGenerationService(
             if (!stopRequested) {
                 val safeRule = persona.safeModeRule.takeIf { settings.settings.value.safeMode && it.isNotBlank() }
                 val request = GenerationRequest(
-                    systemPrompt = listOfNotNull(persona.systemPrompt, safeRule).joinToString("\n\n"),
+                    systemPrompt = listOfNotNull(persona.systemPrompt, dateNote(persona), safeRule).joinToString("\n\n"),
                     messages = history,
                     primer = persona.primer,
                     reminder = persona.reminder,
@@ -460,6 +468,10 @@ class ChatGenerationService(
             newId = ::newId,
         ).takeIf { it.tools.isNotEmpty() }
     }
+
+    /** Дата и справка о свежих версиях для системного промпта; `null`, если в ресурсах её нет. */
+    private fun dateNote(persona: AssistantPersona): String? =
+        persona.currentDateNote.takeIf { it.isNotBlank() }?.replace("{date}", today())
 
     /**
      * Ответ с инструментами: модель пишет вызов `<tool …>`, приложение выполняет его и возвращает результат,

@@ -39,6 +39,20 @@ class ChatGenerationServiceTest {
     }
 
     @Test
+    fun systemPromptTellsTodaysDateBeforeSafeModeRule() = runBlocking {
+        val app = TestApp(currentDateNote = "Сегодня {date}. Знания могут быть устаревшими.")
+        app.settings.setSafeMode(true)
+        val chat = app.chats.createChat()
+
+        app.generation.send(chat.id, "Какой сейчас год?")
+
+        assertEquals(
+            "Ты — Prism AI.\n\nСегодня среда, 11 ноября 2026 г. (2026-11-11). Знания могут быть устаревшими.\n\nБезопасный режим.",
+            app.engine.lastRequest?.systemPrompt,
+        )
+    }
+
+    @Test
     fun blankMessageIsIgnored() = runBlocking {
         val app = TestApp()
         val chat = app.chats.createChat()

@@ -83,8 +83,11 @@ def digest(url, listing=False):
             with tarfile.open(tmp.name, "r:bz2") as tar:
                 members = tar.getmembers()
                 print(f"  archive entries: {len(members)}, unpacked bytes: {sum(m.size for m in members)}")
-                for m in members[:40]:
+                for m in members[:12]:
                     print(f"    {m.name}\t{m.size}")
+                for m in members:
+                    if m.name.endswith(("MODEL_CARD", "LICENSE", "README.md")) and m.isfile():
+                        print(f"  --- {m.name} ---\n" + tar.extractfile(m).read().decode("utf-8", "replace")[:1500])
     return size, sha.hexdigest()
 
 
@@ -97,19 +100,20 @@ def asset(url, listing=False):
         print("ERROR", e)
 
 
-# Этап «Голос»: распознавание речи (GigaAM v3, Whisper), детектор речи Silero VAD, озвучка Piper (русские голоса).
-for q in ["sherpa-onnx giga-am v3", "sherpa-onnx-whisper", "silero vad onnx", "vits-piper-ru_RU"]:
-    search(q)
-tree("csukuangfj/sherpa-onnx-nemo-ctc-punct-giga-am-v3-russian-2025-12-16")
-tree("csukuangfj/sherpa-onnx-whisper-small")
-tree("csukuangfj/sherpa-onnx-whisper-turbo")
-for voice in ["irina", "denis", "dmitri", "ruslan"]:
-    tree(f"csukuangfj/vits-piper-ru_RU-{voice}-medium")
+def text(url, limit=1500):
+    print("\n--- " + url)
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url, headers=HEADERS), timeout=60) as r:
+            print(r.read().decode("utf-8", "replace")[:limit])
+    except Exception as e:  # noqa: BLE001
+        print("ERROR", e)
+
+
+# Этап «Голос»: лицензии моделей и архивы голосов Piper (модель, tokens.txt и espeak-ng-data в одном архиве).
+HF_GIGA = "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-ctc-punct-giga-am-v3-russian-2025-12-16"
+text(f"{HF_GIGA}/raw/main/LICENSE")
+text(f"{HF_GIGA}/raw/main/README.md")
+text("https://huggingface.co/csukuangfj/vits-piper-ru_RU-irina-medium/raw/main/MODEL_CARD")
 GH = "https://github.com/k2-fsa/sherpa-onnx/releases/download"
-asset(f"{GH}/asr-models/silero_vad.onnx")
-asset(f"{GH}/tts-models/espeak-ng-data.tar.bz2", listing=True)
-asset(f"{GH}/tts-models/vits-piper-ru_RU-irina-medium.tar.bz2", listing=True)
-# Библиотеки sherpa-onnx 2.0.1 (Android AAR, Java API, нативные библиотеки Windows/Linux).
-for name in ["sherpa-onnx-2.0.1.aar", "sherpa-onnx-jvm-2.0.1.jar", "sherpa-onnx-native-lib-win-x64-2.0.1.jar",
-             "sherpa-onnx-native-lib-linux-x64-2.0.1.jar"]:
-    asset(f"{GH}/v2.0.1/{name}")
+for voice in ["dmitri", "denis", "ruslan"]:
+    asset(f"{GH}/tts-models/vits-piper-ru_RU-{voice}-medium.tar.bz2", listing=True)

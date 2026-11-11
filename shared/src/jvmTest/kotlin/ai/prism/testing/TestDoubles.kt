@@ -395,6 +395,8 @@ class TestApp(
     val extractor: FakeTextExtractor = FakeTextExtractor(),
     val web: FakeWebClient = FakeWebClient(),
     val commands: FakeCommandRunner = FakeCommandRunner(),
+    /** Справка о дате в персоне; пусто — системный промпт без даты. */
+    currentDateNote: String = "",
 ) {
     val settings = DefaultSettingsRepository(MapKeyValueStore())
     val images = MemoryImageStore()
@@ -417,6 +419,7 @@ class TestApp(
         personaProvider = {
             AssistantPersona(
                 systemPrompt = "Ты — Prism AI.",
+                currentDateNote = currentDateNote,
                 primer = listOf(
                     PromptMessage(MessageRole.USER, "Кто ты?"),
                     PromptMessage(MessageRole.ASSISTANT, "Я Prism AI."),
@@ -440,6 +443,7 @@ class TestApp(
         web = web,
         workspaces = FileWorkspaceProvider(Dispatchers.Unconfined),
         commands = commands,
+        today = { "среда, 11 ноября 2026 г. (2026-11-11)" },
     )
     val dependencies = AppDependencies(
         chatRepository = chats,

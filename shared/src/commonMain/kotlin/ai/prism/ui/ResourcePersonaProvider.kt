@@ -17,6 +17,7 @@ import org.jetbrains.compose.resources.StringResource
 import ai.prism.domain.inference.PromptMessage
 import ai.prism.domain.model.MessageRole
 import ai.prism.resources.Res
+import ai.prism.resources.current_date_note
 import ai.prism.resources.document_context
 import ai.prism.resources.document_page_label
 import ai.prism.resources.image_prompt_instruction
@@ -40,6 +41,7 @@ class ResourcePersonaProvider : PersonaProvider {
             PromptMessage(MessageRole.ASSISTANT, getString(Res.string.persona_answer)),
         ),
         reminder = getString(Res.string.persona_reminder),
+        currentDateNote = getString(Res.string.current_date_note),
         imagePromptInstruction = getString(Res.string.image_prompt_instruction),
         safeModeRule = getString(Res.string.safe_mode_chat_rule),
         imageSafetyInstruction = getString(Res.string.image_safety_instruction),
