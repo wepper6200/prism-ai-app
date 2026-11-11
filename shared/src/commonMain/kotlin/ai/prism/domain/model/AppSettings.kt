@@ -33,4 +33,15 @@ data class AppSettings(
     val internetEnabled: Boolean = false,
     /** Ассистент меняет файлы в папке проекта без подтверждения каждой правки. Команды подтверждаются всегда. */
     val autoApplyEdits: Boolean = false,
-)
+    /** Выбранная модель распознавания речи; пусто — первая скачанная. */
+    val speechModelId: String = "",
+    /** Выбранный голос для озвучки; пусто — первый скачанный. */
+    val voiceModelId: String = "",
+    /** Скорость озвучки: 1.0 — обычная. */
+    val speechRate: Float = 1.0f,
+) {
+    companion object {
+        const val MIN_SPEECH_RATE = 0.7f
+        const val MAX_SPEECH_RATE = 1.5f
+    }
+}

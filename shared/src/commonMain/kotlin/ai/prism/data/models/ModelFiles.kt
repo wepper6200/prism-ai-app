@@ -12,6 +12,13 @@ interface ModelStorage {
 
     fun filePath(file: ModelFile): String
 
+    /**
+     * Распаковывает скачанный архив (если он ещё не распакован этой версией) и возвращает путь к папке
+     * с его содержимым. Долгая операция: вызывать не из главного потока. Бросает `IOException`.
+     */
+    fun unpackedPath(file: ModelFile): String
+
+    /** Удаляет файл, его незавершённую часть и распакованное содержимое архива. */
     fun delete(file: ModelFile)
 
     fun freeSpaceBytes(): Long

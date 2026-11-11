@@ -33,6 +33,14 @@ class DefaultSettingsRepository(
 
     override fun setAutoApplyEdits(enabled: Boolean) = update { it.copy(autoApplyEdits = enabled) }
 
+    override fun setSpeechModel(modelId: String) = update { it.copy(speechModelId = modelId) }
+
+    override fun setVoiceModel(modelId: String) = update { it.copy(voiceModelId = modelId) }
+
+    override fun setSpeechRate(rate: Float) = update {
+        it.copy(speechRate = rate.coerceIn(AppSettings.MIN_SPEECH_RATE, AppSettings.MAX_SPEECH_RATE))
+    }
+
     private fun update(transform: (AppSettings) -> AppSettings) {
         save(state.updateAndGet(transform))
     }
@@ -46,6 +54,11 @@ class DefaultSettingsRepository(
             safeMode = store.getString(KEY_SAFE_MODE)?.toBooleanStrictOrNull() ?: defaults.safeMode,
             internetEnabled = store.getString(KEY_INTERNET)?.toBooleanStrictOrNull() ?: defaults.internetEnabled,
             autoApplyEdits = store.getString(KEY_AUTO_APPLY)?.toBooleanStrictOrNull() ?: defaults.autoApplyEdits,
+            speechModelId = store.getString(KEY_SPEECH_MODEL) ?: defaults.speechModelId,
+            voiceModelId = store.getString(KEY_VOICE_MODEL) ?: defaults.voiceModelId,
+            speechRate = store.getString(KEY_SPEECH_RATE)?.toFloatOrNull()
+                ?.takeIf { it in AppSettings.MIN_SPEECH_RATE..AppSettings.MAX_SPEECH_RATE }
+                ?: defaults.speechRate,
         )
     }
 
@@ -56,6 +69,9 @@ class DefaultSettingsRepository(
         store.putString(KEY_SAFE_MODE, settings.safeMode.toString())
         store.putString(KEY_INTERNET, settings.internetEnabled.toString())
         store.putString(KEY_AUTO_APPLY, settings.autoApplyEdits.toString())
+        store.putString(KEY_SPEECH_MODEL, settings.speechModelId)
+        store.putString(KEY_VOICE_MODEL, settings.voiceModelId)
+        store.putString(KEY_SPEECH_RATE, settings.speechRate.toString())
     }
 
     private inline fun <reified E : Enum<E>> parseEnum(raw: String?, default: E): E =
@@ -68,5 +84,8 @@ class DefaultSettingsRepository(
         const val KEY_SAFE_MODE = "safe_mode"
         const val KEY_INTERNET = "internet_enabled"
         const val KEY_AUTO_APPLY = "auto_apply_edits"
+        const val KEY_SPEECH_MODEL = "speech_model"
+        const val KEY_VOICE_MODEL = "voice_model"
+        const val KEY_SPEECH_RATE = "speech_rate"
     }
 }

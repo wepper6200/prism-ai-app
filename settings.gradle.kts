@@ -25,6 +25,14 @@ dependencyResolutionManagement {
             }
         }
         mavenCentral()
+        // sherpa-onnx (голос) публикует AAR и jar только в релизах GitHub: файл <артефакт>-<версия>.<расширение>.
+        ivy {
+            name = "sherpaOnnxReleases"
+            url = uri("https://github.com/k2-fsa/sherpa-onnx/releases/download/")
+            patternLayout { artifact("v[revision]/[artifact]-[revision].[ext]") }
+            metadataSources { artifact() }
+            content { includeGroup("com.k2fsa.sherpa-onnx") }
+        }
     }
 }
 

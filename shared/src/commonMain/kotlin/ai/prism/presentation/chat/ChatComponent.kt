@@ -26,6 +26,10 @@ import ai.prism.service.ChatGenerationService
 import ai.prism.service.DrawingProgress
 import ai.prism.service.ImagePromptPolicy
 import ai.prism.service.documents.DocumentService
+import ai.prism.service.voice.VoicePhase
+import ai.prism.service.voice.VoiceService
+import ai.prism.domain.voice.VoiceError
+import com.arkivanov.essenty.lifecycle.doOnDestroy
 import com.arkivanov.decompose.ComponentContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -105,6 +109,31 @@ enum class VisionSupport {
     UNSUPPORTED,
 }
 
+/** Голос в диалоге: диктовка, озвучка ответов и разговор голосом. */
+data class ChatVoiceState(
+    /** Голос есть на этой платформе — показывать микрофон. */
+    val supported: Boolean = false,
+    /** Модель распознавания речи скачана. */
+    val canListen: Boolean = false,
+    /** Голос для озвучки скачан. */
+    val canSpeak: Boolean = false,
+    /** Идёт диктовка в поле ввода этого диалога. */
+    val dictating: Boolean = false,
+    /** Идёт разговор голосом в этом диалоге. */
+    val conversation: Boolean = false,
+    val phase: VoicePhase = VoicePhase.IDLE,
+    /** Громкость микрофона (0–1). */
+    val level: Float = 0f,
+    /** Ответ, который сейчас озвучивается. */
+    val speakingMessageId: String? = null,
+    val error: VoiceError? = null,
+    /** Что предложить скачать, если модели нет. */
+    val recognizerName: String? = null,
+    val recognizerBytes: Long = 0,
+    val voiceName: String? = null,
+    val voiceBytes: Long = 0,
+)
+
 /** Почему не удалось приложить изображение. */
 enum class AttachmentError {
     /** Формат не поддерживается или файл повреждён. */
@@ -161,6 +190,7 @@ data class ChatState(
     val isGenerating: Boolean = false,
     /** Ответ сейчас генерируется в другом чате. */
     val busyInOtherChat: Boolean = false,
+    val voice: ChatVoiceState = ChatVoiceState(),
 ) {
     val canSend: Boolean
         get() = when {
@@ -222,6 +252,22 @@ sealed interface ChatIntent {
     data object ToggleVideoMode : ChatIntent
     data object Send : ChatIntent
     data object Stop : ChatIntent
+
+    /** Микрофон: начать диктовку или закончить её (сказанное распознаётся и добавляется в поле ввода). */
+    data object ToggleDictation : ChatIntent
+
+    /** Включает или выключает разговор голосом. */
+    data object ToggleConversation : ChatIntent
+
+    /** Озвучить ответ (повторно — остановить). */
+    data class Speak(val messageId: String) : ChatIntent
+
+    /** Остановить озвучку и запись. */
+    data object StopVoice : ChatIntent
+    data object DismissVoiceError : ChatIntent
+
+    /** Пользователь не разрешил доступ к микрофону. */
+    data object MicrophoneDenied : ChatIntent
     data object Retry : ChatIntent
     data object OpenModels : ChatIntent
     data object Back : ChatIntent
@@ -248,6 +294,7 @@ class DefaultChatComponent(
     private val workspaceProvider: WorkspaceProvider,
     private val settingsRepository: SettingsRepository,
     private val imageStore: ImageStore,
+    private val voice: VoiceService,
     mainContext: CoroutineContext,
     private val onOpenModels: () -> Unit,
     private val onBack: () -> Unit,
@@ -272,6 +319,11 @@ class DefaultChatComponent(
     )
 
     init {
+        // Ушли из диалога — микрофон и озвучка этого диалога выключаются.
+        lifecycle.doOnDestroy {
+            val current = voice.state.value
+            if (current.conversationChatId == chatId || current.dictationChatId == chatId) voice.stop()
+        }
         stateKeeper.register(KEY_DRAFT, String.serializer()) { draft.value }
         stateKeeper.register(KEY_ATTACHMENTS, ATTACHMENTS_SERIALIZER) { draftImages.value.items }
         stateKeeper.register(KEY_DRAW_MODE, Boolean.serializer()) { drawMode.value }
@@ -403,11 +455,32 @@ class DefaultChatComponent(
         settingsRepository.settings.map { it.internetEnabled },
     ) { name, internet -> AgentPart(name, internet) }
 
+    private val voicePart = combine(voice.state, voice.availability) { current, available ->
+        val conversation = current.conversationChatId == chatId
+        val dictating = current.dictationChatId == chatId
+        ChatVoiceState(
+            supported = available.supported,
+            canListen = available.canListen,
+            canSpeak = available.canSpeak,
+            dictating = dictating,
+            conversation = conversation,
+            phase = if (conversation || dictating || current.speakingMessageId != null) current.phase else VoicePhase.IDLE,
+            level = if (conversation || dictating) current.level else 0f,
+            speakingMessageId = current.speakingMessageId,
+            error = current.error,
+            recognizerName = available.suggestedRecognizer?.name,
+            recognizerBytes = available.suggestedRecognizer?.totalSizeBytes ?: 0L,
+            voiceName = available.suggestedVoice?.name,
+            voiceBytes = available.suggestedVoice?.totalSizeBytes ?: 0L,
+        )
+    }
+
     private data class ExtraPart(
         val drawMode: Boolean,
         val videoMode: Boolean,
         val documents: List<DocumentItem>,
         val agent: AgentPart,
+        val voice: ChatVoiceState,
     )
 
     override val state: StateFlow<ChatState> = combine(
@@ -415,8 +488,8 @@ class DefaultChatComponent(
         modelPart,
         draft,
         draftImages,
-        combine(drawMode, videoMode, documentsPart, agentPart) { drawing, video, documents, agent ->
-            ExtraPart(drawing, video, documents, agent)
+        combine(drawMode, videoMode, documentsPart, agentPart, voicePart) { drawing, video, documents, agent, voiceState ->
+            ExtraPart(drawing, video, documents, agent, voiceState)
         },
     ) { chat, model, text, images, extra ->
         val drawing = extra.drawMode
@@ -452,6 +525,7 @@ class DefaultChatComponent(
             modelLoadingProgress = model.loadingProgress?.takeIf { chat.isGenerating },
             isGenerating = chat.isGenerating,
             busyInOtherChat = chat.busyElsewhere,
+            voice = extra.voice,
         )
     }.stateIn(
         scope,
@@ -484,6 +558,15 @@ class DefaultChatComponent(
             }
             ChatIntent.Send -> send()
             ChatIntent.Stop -> generation.stop()
+            ChatIntent.ToggleDictation -> toggleDictation()
+            ChatIntent.ToggleConversation ->
+                if (voice.state.value.conversationChatId == chatId) voice.stop() else voice.startConversation(chatId)
+            is ChatIntent.Speak -> state.value.messages.firstOrNull { it.id == intent.messageId }?.let { message ->
+                voice.speak(message.id, message.text)
+            }
+            ChatIntent.StopVoice -> voice.stop()
+            ChatIntent.DismissVoiceError -> voice.dismissError()
+            ChatIntent.MicrophoneDenied -> voice.reportError(VoiceError.PERMISSION_DENIED)
             ChatIntent.Retry -> generation.retry(chatId)
             ChatIntent.OpenModels -> onOpenModels()
             ChatIntent.Back -> onBack()
@@ -514,6 +597,20 @@ class DefaultChatComponent(
             draft.value = ""
             // Файлы теперь принадлежат сообщению — удалять их нельзя.
             draftImages.update { it.copy(items = emptyList(), error = null) }
+        }
+    }
+
+    /** Первое нажатие — слушать, второе — закончить запись; распознанный текст дописывается в поле ввода. */
+    private fun toggleDictation() {
+        val current = voice.state.value
+        if (current.dictationChatId == chatId) {
+            if (current.phase == VoicePhase.LISTENING) voice.stopListening() else voice.stop()
+            return
+        }
+        if (current.conversationChatId != null) return
+        voice.stop()
+        voice.dictate(chatId) { text ->
+            draft.update { old -> if (old.isBlank()) text else old.trimEnd() + " " + text }
         }
     }
 

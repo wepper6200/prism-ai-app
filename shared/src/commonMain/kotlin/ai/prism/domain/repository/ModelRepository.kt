@@ -30,4 +30,10 @@ interface ModelRepository {
 
     /** Файлы скачанной модели изображений или видео по назначению (`model`, `t5xxl`, `vae`…) или `null`, если скачано не всё. */
     fun imageModelFiles(modelId: String): Map<String, String>?
+
+    /**
+     * Файлы скачанной модели речи по назначению (`model`/`encoder`, `decoder`, `tokens`, `vad`, `voice`)
+     * или `null`, если скачано не всё. Архивы распаковываются, и для них возвращается путь к папке.
+     */
+    suspend fun speechModelFiles(modelId: String): Map<String, String>?
 }

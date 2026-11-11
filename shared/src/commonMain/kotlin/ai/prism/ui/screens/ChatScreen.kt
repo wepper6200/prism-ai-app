@@ -61,6 +61,19 @@ import ai.prism.ui.components.ImageViewer
 import ai.prism.ui.components.InputAttachments
 import ai.prism.ui.components.InputDrawing
 import ai.prism.ui.components.PrismTopBar
+import ai.prism.service.voice.VoicePhase
+import ai.prism.ui.components.ConversationPanel
+import ai.prism.ui.components.InputVoice
+import ai.prism.ui.components.MissingVoiceModel
+import ai.prism.ui.components.SpeakButton
+import ai.prism.ui.components.VoiceErrorBanner
+import ai.prism.ui.components.VoiceModelDialog
+import ai.prism.ui.components.rememberMicrophonePermission
+import ai.prism.resources.chat_conversation_start
+import ai.prism.resources.chat_conversation_stop
+import androidx.compose.material.icons.filled.RecordVoiceOver
+import androidx.compose.material.icons.outlined.RecordVoiceOver
+import androidx.compose.material3.LocalContentColor
 import ai.prism.ui.components.StoredImage
 import ai.prism.ui.components.formatBytes
 import ai.prism.ui.components.formatPercent
@@ -168,6 +181,16 @@ fun ChatScreen(
         onFailed = { component.onIntent(ChatIntent.AttachFailed) },
     )
     var documentDialog by remember { mutableStateOf(false) }
+    var voiceDialog by remember { mutableStateOf<MissingVoiceModel?>(null) }
+    val microphone = rememberMicrophonePermission()
+    // Перед записью: есть ли модели и разрешение на микрофон.
+    fun withMicrophone(needsVoice: Boolean, action: () -> Unit) {
+        when {
+            !state.voice.canListen -> voiceDialog = MissingVoiceModel.RECOGNIZER
+            needsVoice && !state.voice.canSpeak -> voiceDialog = MissingVoiceModel.VOICE
+            else -> microphone.withPermission(onGranted = action, onDenied = { component.onIntent(ChatIntent.MicrophoneDenied) })
+        }
+    }
     val folderPicker = rememberFolderPicker { location -> component.onIntent(ChatIntent.ChooseWorkspace(location)) }
     val documentPicker = rememberDocumentPicker(
         onPicked = { component.onIntent(ChatIntent.AttachDocuments(it)) },
@@ -189,6 +212,28 @@ fun ChatScreen(
             subtitle = state.modelName ?: stringResource(Res.string.chat_no_model),
             onBack = if (expanded) null else ({ component.onIntent(ChatIntent.Back) }),
             actions = {
+                if (state.voice.supported) {
+                    val conversation = state.voice.conversation
+                    IconButton(
+                        onClick = {
+                            if (conversation) {
+                                component.onIntent(ChatIntent.ToggleConversation)
+                            } else {
+                                withMicrophone(needsVoice = true) { component.onIntent(ChatIntent.ToggleConversation) }
+                            }
+                        },
+                        enabled = conversation || (!state.isGenerating && !state.busyInOtherChat),
+                        modifier = Modifier.testTag("conversation_button"),
+                    ) {
+                        Icon(
+                            if (conversation) Icons.Filled.RecordVoiceOver else Icons.Outlined.RecordVoiceOver,
+                            contentDescription = stringResource(
+                                if (conversation) Res.string.chat_conversation_stop else Res.string.chat_conversation_start,
+                            ),
+                            tint = if (conversation) MaterialTheme.colorScheme.primary else LocalContentColor.current,
+                        )
+                    }
+                }
                 IconButton(onClick = { component.onIntent(ChatIntent.OpenModels) }) {
                     Icon(Icons.Outlined.Memory, contentDescription = stringResource(Res.string.nav_models))
                 }
@@ -213,6 +258,13 @@ fun ChatScreen(
                         scope.launch {
                             val bytes = component.imageBytes(fileName)
                             if (bytes == null) saveResult = false else videoExporter.export(bytes, "prism-ai-$fileName")
+                        }
+                    },
+                    onSpeak = { id ->
+                        if (state.voice.canSpeak || state.voice.speakingMessageId == id) {
+                            component.onIntent(ChatIntent.Speak(id))
+                        } else {
+                            voiceDialog = MissingVoiceModel.VOICE
                         }
                     },
                     modifier = Modifier.fillMaxSize(),
@@ -279,6 +331,20 @@ fun ChatScreen(
                 modifier = Modifier.align(Alignment.CenterHorizontally).widthIn(max = 880.dp),
             )
         }
+        state.voice.error?.let { error ->
+            VoiceErrorBanner(
+                error = error,
+                onDismiss = { component.onIntent(ChatIntent.DismissVoiceError) },
+                modifier = Modifier.align(Alignment.CenterHorizontally).widthIn(max = 880.dp).fillMaxWidth(),
+            )
+        }
+        if (state.voice.conversation) {
+            ConversationPanel(
+                voice = state.voice,
+                onStop = { component.onIntent(ChatIntent.ToggleConversation) },
+                modifier = Modifier.align(Alignment.CenterHorizontally).widthIn(max = 880.dp),
+            )
+        }
         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             ChatInputBar(
                 text = state.draft,
@@ -329,6 +395,23 @@ fun ChatScreen(
                     DocumentSupport.READY -> documentPicker::pickDocuments
                     DocumentSupport.NOT_DOWNLOADED -> ({ documentDialog = true })
                     DocumentSupport.UNAVAILABLE -> null
+                },
+                voice = if (!state.voice.supported) {
+                    null
+                } else {
+                    InputVoice(
+                        listening = state.voice.dictating && state.voice.phase == VoicePhase.LISTENING,
+                        recognizing = state.voice.dictating && state.voice.phase == VoicePhase.RECOGNIZING,
+                        level = state.voice.level,
+                        enabled = !state.voice.conversation && !state.drawMode && !state.videoMode,
+                        onToggle = {
+                            if (state.voice.dictating) {
+                                component.onIntent(ChatIntent.ToggleDictation)
+                            } else {
+                                withMicrophone(needsVoice = false) { component.onIntent(ChatIntent.ToggleDictation) }
+                            }
+                        },
+                    )
                 },
                 modifier = Modifier.widthIn(max = 880.dp),
             )
@@ -401,6 +484,17 @@ fun ChatScreen(
                 TextButton(onClick = { videoDialog = false }) { Text(stringResource(Res.string.action_cancel)) }
             },
             modifier = Modifier.testTag("video_dialog"),
+        )
+    }
+    voiceDialog?.let { missing ->
+        VoiceModelDialog(
+            missing = missing,
+            voice = state.voice,
+            onOpenModels = {
+                voiceDialog = null
+                component.onIntent(ChatIntent.OpenModels)
+            },
+            onDismiss = { voiceDialog = null },
         )
     }
     if (documentDialog) {
@@ -536,6 +630,7 @@ private fun MessageList(
     onRetry: () -> Unit,
     onResolve: (String, Boolean) -> Unit,
     onSaveVideo: (String) -> Unit,
+    onSpeak: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
@@ -572,6 +667,13 @@ private fun MessageList(
                         loadingProgress = state.modelLoadingProgress.takeIf { message.isStreaming },
                         canRetry = message.id == lastId && !state.isGenerating && !state.busyInOtherChat,
                         onRetry = onRetry,
+                        speech = if (state.voice.supported && !message.isStreaming && message.text.isNotBlank() &&
+                            message.status == MessageStatus.COMPLETE
+                        ) {
+                            MessageSpeech(speaking = state.voice.speakingMessageId == message.id, onSpeak = { onSpeak(message.id) })
+                        } else {
+                            null
+                        },
                     )
                 }
             }
@@ -645,6 +747,7 @@ private fun AssistantMessage(
     loadingProgress: Float?,
     canRetry: Boolean,
     onRetry: () -> Unit,
+    speech: MessageSpeech?,
 ) {
     Row(Modifier.fillMaxWidth().padding(end = 24.dp)) {
         Image(
@@ -709,9 +812,13 @@ private fun AssistantMessage(
                 MessageStatus.COMPLETE, MessageStatus.GENERATING -> Unit
             }
             if (message.sources.isNotEmpty() && message.text.isNotEmpty()) SourcesLine(message.sources)
+            speech?.let { SpeakButton(speaking = it.speaking, onClick = it.onSpeak) }
         }
     }
 }
+
+/** Кнопка озвучки под готовым ответом. */
+private class MessageSpeech(val speaking: Boolean, val onSpeak: () -> Unit)
 
 @Composable
 private fun ModelLoading(progress: Float) {

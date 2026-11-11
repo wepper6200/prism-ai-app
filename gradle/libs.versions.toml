@@ -1,7 +1,7 @@
 [versions]
 # Версия приложения Prism AI (единый источник для Android, Desktop и экрана «О приложении»).
-prism-versionName = "0.6.0"
-prism-versionCode = "6"
+prism-versionName = "0.7.0"
+prism-versionCode = "7"
 
 android-compileSdk = "37"
 android-targetSdk = "37"
@@ -26,6 +26,11 @@ essenty = "2.7.1"
 # Текст PDF: Apache PDFBox на Desktop и его порт PdfBox-Android на Android (Apache 2.0).
 pdfbox = "3.0.8"
 pdfbox-android = "2.0.27.0"
+# Голос: sherpa-onnx (распознавание и синтез речи на onnxruntime). 1.13.8 — последняя версия с espeak-ng,
+# без которого не работают голоса Piper (в 2.0 его убрали). Файлы — из релизов GitHub (см. settings.gradle.kts).
+sherpa-onnx = "1.13.8"
+# Распаковка архивов голосов Piper (tar.bz2).
+commons-compress = "1.28.0"
 
 [libraries]
 compose-runtime = { module = "org.jetbrains.compose.runtime:runtime", version.ref = "compose-multiplatform" }
@@ -57,6 +62,8 @@ essenty-lifecycle = { module = "com.arkivanov.essenty:lifecycle", version.ref = 
 
 pdfbox = { module = "org.apache.pdfbox:pdfbox", version.ref = "pdfbox" }
 pdfbox-android = { module = "com.tom-roush:pdfbox-android", version.ref = "pdfbox-android" }
+sherpa-onnx-jvm = { module = "com.k2fsa.sherpa-onnx:sherpa-onnx-jvm", version.ref = "sherpa-onnx" }
+commons-compress = { module = "org.apache.commons:commons-compress", version.ref = "commons-compress" }
 
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 

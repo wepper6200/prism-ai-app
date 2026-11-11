@@ -19,4 +19,10 @@ interface SettingsRepository {
     fun setInternetEnabled(enabled: Boolean)
 
     fun setAutoApplyEdits(enabled: Boolean)
+
+    fun setSpeechModel(modelId: String)
+
+    fun setVoiceModel(modelId: String)
+
+    fun setSpeechRate(rate: Float)
 }

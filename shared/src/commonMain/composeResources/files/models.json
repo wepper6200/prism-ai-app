@@ -1,5 +1,5 @@
 {
-  "version": 5,
+  "version": 6,
   "models": [
     {
       "id": "gemma-4-e2b-it-q4_0",
@@ -168,6 +168,248 @@
         "queryTemplate": "task: search result | query: {text}",
         "documentTemplate": "title: {title} | text: {text}",
         "maxTokens": 2048
+      }
+    },
+    {
+      "id": "gigaam-v3-ctc-punct-ru-int8",
+      "name": "GigaAM v3",
+      "family": "GigaAM",
+      "parameters": "220M",
+      "quantization": "INT8",
+      "description": {
+        "ru": "Распознавание русской речи с пунктуацией от Сбера: точнее Whisper на русском и быстро работает даже на телефоне."
+      },
+      "url": "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-ctc-punct-giga-am-v3-russian-2025-12-16/resolve/main/model.int8.onnx",
+      "fileName": "gigaam-v3-ctc-punct-ru.int8.onnx",
+      "sizeBytes": 224893661,
+      "sha256": "d5fea8df94263c285e54b21e5774b707c707192d3bdbeffd7b1eb07fb6743b35",
+      "minRamMb": 3072,
+      "license": {
+        "name": "MIT",
+        "url": "https://github.com/salute-developers/GigaAM/blob/main/LICENSE"
+      },
+      "recommendedFor": [
+        "android",
+        "desktop"
+      ],
+      "kind": "speech_recognition",
+      "mainRole": "model",
+      "components": [
+        {
+          "role": "tokens",
+          "url": "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-ctc-punct-giga-am-v3-russian-2025-12-16/resolve/main/tokens.txt",
+          "fileName": "gigaam-v3-ctc-punct-ru-tokens.txt",
+          "sizeBytes": 2007,
+          "sha256": "142de7570b3de5b3035ce111a89c228e80e6085273731d944093ddf24fa539cd"
+        },
+        {
+          "role": "vad",
+          "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx",
+          "fileName": "silero_vad.onnx",
+          "sizeBytes": 643854,
+          "sha256": "9e2449e1087496d8d4caba907f23e0bd3f78d91fa552479bb9c23ac09cbb1fd6"
+        }
+      ],
+      "speech": {
+        "engine": "nemo_ctc",
+        "language": "ru",
+        "languages": [
+          "ru"
+        ]
+      }
+    },
+    {
+      "id": "whisper-small-int8",
+      "name": "Whisper Small",
+      "family": "Whisper",
+      "parameters": "244M",
+      "quantization": "INT8",
+      "description": {
+        "ru": "Распознаёт речь на 99 языках и сам определяет язык. Для русского точнее GigaAM, Whisper нужен для других языков."
+      },
+      "url": "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-small/resolve/main/small-encoder.int8.onnx",
+      "fileName": "whisper-small-encoder.int8.onnx",
+      "sizeBytes": 112442483,
+      "sha256": "4cbe7b22fa9026b843b60a68640c747de05bafb1a11b57edc0e66c232d9f33a9",
+      "minRamMb": 4096,
+      "license": {
+        "name": "MIT",
+        "url": "https://github.com/openai/whisper/blob/main/LICENSE"
+      },
+      "recommendedFor": [],
+      "kind": "speech_recognition",
+      "mainRole": "encoder",
+      "components": [
+        {
+          "role": "decoder",
+          "url": "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-small/resolve/main/small-decoder.int8.onnx",
+          "fileName": "whisper-small-decoder.int8.onnx",
+          "sizeBytes": 262226114,
+          "sha256": "acad50b5c782696e91b55914cc5ab4f756f1532f76e22aa6fc615f39fb69a8ee"
+        },
+        {
+          "role": "tokens",
+          "url": "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-small/resolve/main/small-tokens.txt",
+          "fileName": "whisper-small-tokens.txt",
+          "sizeBytes": 816730,
+          "sha256": "b34b360dbb493e781e479794586d661700670d65564001f23024971d1f2fa126"
+        },
+        {
+          "role": "vad",
+          "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx",
+          "fileName": "silero_vad.onnx",
+          "sizeBytes": 643854,
+          "sha256": "9e2449e1087496d8d4caba907f23e0bd3f78d91fa552479bb9c23ac09cbb1fd6"
+        }
+      ],
+      "speech": {
+        "engine": "whisper",
+        "language": "",
+        "languages": [
+          "ru",
+          "en",
+          "uk",
+          "de",
+          "fr",
+          "es",
+          "it",
+          "pt",
+          "pl",
+          "tr",
+          "zh",
+          "ja",
+          "ko"
+        ]
+      }
+    },
+    {
+      "id": "whisper-turbo-int8",
+      "name": "Whisper Turbo",
+      "family": "Whisper",
+      "parameters": "809M",
+      "quantization": "INT8",
+      "description": {
+        "ru": "Самое точное распознавание речи на многих языках (large-v3-turbo). Для компьютера: около 1 ГБ, нужна мощная машина."
+      },
+      "url": "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-turbo/resolve/main/turbo-encoder.int8.onnx",
+      "fileName": "whisper-turbo-encoder.int8.onnx",
+      "sizeBytes": 674716297,
+      "sha256": "b02dcdf54f348741e93fe732b67d933c8dcb6735655f710640143081db38878b",
+      "minRamMb": 8192,
+      "license": {
+        "name": "MIT",
+        "url": "https://github.com/openai/whisper/blob/main/LICENSE"
+      },
+      "recommendedFor": [],
+      "kind": "speech_recognition",
+      "platforms": [
+        "desktop"
+      ],
+      "mainRole": "encoder",
+      "components": [
+        {
+          "role": "decoder",
+          "url": "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-turbo/resolve/main/turbo-decoder.int8.onnx",
+          "fileName": "whisper-turbo-decoder.int8.onnx",
+          "sizeBytes": 361080764,
+          "sha256": "20accd02388482eb3a46bd615631adfdc85e1eb2c7db9ea3f02a40ffe6b81547"
+        },
+        {
+          "role": "tokens",
+          "url": "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-turbo/resolve/main/turbo-tokens.txt",
+          "fileName": "whisper-turbo-tokens.txt",
+          "sizeBytes": 816730,
+          "sha256": "b34b360dbb493e781e479794586d661700670d65564001f23024971d1f2fa126"
+        },
+        {
+          "role": "vad",
+          "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx",
+          "fileName": "silero_vad.onnx",
+          "sizeBytes": 643854,
+          "sha256": "9e2449e1087496d8d4caba907f23e0bd3f78d91fa552479bb9c23ac09cbb1fd6"
+        }
+      ],
+      "speech": {
+        "engine": "whisper",
+        "language": "",
+        "languages": [
+          "ru",
+          "en",
+          "uk",
+          "de",
+          "fr",
+          "es",
+          "it",
+          "pt",
+          "pl",
+          "tr",
+          "zh",
+          "ja",
+          "ko"
+        ]
+      }
+    },
+    {
+      "id": "piper-ru-dmitri-medium",
+      "name": "Голос «Дмитрий»",
+      "family": "Piper",
+      "parameters": "15M",
+      "quantization": "FP32",
+      "description": {
+        "ru": "Мужской голос для озвучки ответов по-русски (Piper). Работает на устройстве, говорит сразу, пока ответ ещё пишется."
+      },
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-ru_RU-dmitri-medium.tar.bz2",
+      "fileName": "vits-piper-ru_RU-dmitri-medium.tar.bz2",
+      "sizeBytes": 67188551,
+      "sha256": "c86d0803737de13d441923ff3b3f309482fab8d7af3ec85949942809eb9a3660",
+      "minRamMb": 1024,
+      "license": {
+        "name": "MIT; запись голоса — CC0",
+        "url": "https://huggingface.co/rhasspy/piper-voices/blob/main/ru/ru_RU/dmitri/medium/MODEL_CARD"
+      },
+      "recommendedFor": [
+        "android",
+        "desktop"
+      ],
+      "kind": "speech_synthesis",
+      "mainRole": "voice",
+      "archive": true,
+      "speech": {
+        "engine": "piper",
+        "language": "ru",
+        "languages": [
+          "ru"
+        ]
+      }
+    },
+    {
+      "id": "piper-ru-denis-medium",
+      "name": "Голос «Денис»",
+      "family": "Piper",
+      "parameters": "15M",
+      "quantization": "FP32",
+      "description": {
+        "ru": "Другой мужской голос для озвучки по-русски (Piper) — выберите тот, что нравится больше, в «Настройки → Голос»."
+      },
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-ru_RU-denis-medium.tar.bz2",
+      "fileName": "vits-piper-ru_RU-denis-medium.tar.bz2",
+      "sizeBytes": 67190991,
+      "sha256": "efa4c18e0b5e32b81d1b6df36b9d312831e5d545200e27848ef926a4cd930300",
+      "minRamMb": 1024,
+      "license": {
+        "name": "MIT; запись голоса — CC0",
+        "url": "https://huggingface.co/rhasspy/piper-voices/blob/main/ru/ru_RU/denis/medium/MODEL_CARD"
+      },
+      "recommendedFor": [],
+      "kind": "speech_synthesis",
+      "mainRole": "voice",
+      "archive": true,
+      "speech": {
+        "engine": "piper",
+        "language": "ru",
+        "languages": [
+          "ru"
+        ]
       }
     },
     {

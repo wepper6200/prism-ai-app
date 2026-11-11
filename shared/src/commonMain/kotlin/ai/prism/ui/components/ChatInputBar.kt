@@ -13,6 +13,8 @@ import ai.prism.resources.input_video
 import ai.prism.resources.input_video_placeholder
 import ai.prism.resources.input_redraw_placeholder
 import ai.prism.resources.input_microphone
+import ai.prism.resources.input_dictate_stop
+import ai.prism.resources.input_recognizing
 import ai.prism.resources.input_pick_gallery
 import ai.prism.resources.input_placeholder
 import ai.prism.resources.input_remove_image
@@ -21,6 +23,7 @@ import ai.prism.resources.input_stop
 import ai.prism.resources.input_take_photo
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,6 +41,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.outlined.AttachFile
 import androidx.compose.material.icons.outlined.Brush
@@ -65,6 +69,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isShiftPressed
@@ -89,6 +94,15 @@ class InputAttachments(
     val onRemove: (String) -> Unit,
 )
 
+/** Микрофон: диктовка в поле ввода. [level] — громкость (0–1), пока идёт запись. */
+class InputVoice(
+    val listening: Boolean,
+    val recognizing: Boolean,
+    val level: Float,
+    val enabled: Boolean,
+    val onToggle: () -> Unit,
+)
+
 /** Кнопка режима «Нарисовать»: [active] — сообщение станет описанием картинки. */
 class InputDrawing(
     val active: Boolean,
@@ -98,7 +112,8 @@ class InputDrawing(
 /**
  * Поле ввода сообщения. Enter — отправить, Shift+Enter — новая строка.
  * Во время ответа кнопка отправки превращается в «Стоп».
- * Над полем — миниатюры приложенных изображений. Микрофон появится на этапе «Голос».
+ * Над полем — миниатюры приложенных изображений. Микрофон диктует текст в поле: первое нажатие — запись,
+ * второе — закончить (запись заканчивается и сама после паузы).
  */
 @Composable
 fun ChatInputBar(
@@ -116,6 +131,8 @@ fun ChatInputBar(
     onPickDocuments: (() -> Unit)? = null,
     /** Кнопка режима «Видео»; `null` — видео на этой платформе нет. */
     video: InputDrawing? = null,
+    /** Микрофон; `null` — голоса на этой платформе нет, кнопки нет. */
+    voice: InputVoice? = null,
 ) {
     val drawActive = drawing?.active == true
     val videoActive = video?.active == true
@@ -180,9 +197,7 @@ fun ChatInputBar(
                         }
                     },
                 )
-                IconButton(onClick = {}, enabled = false) {
-                    Icon(Icons.Outlined.Mic, contentDescription = stringResource(Res.string.input_microphone))
-                }
+                if (voice != null) MicButton(voice)
                 AnimatedContent(targetState = isGenerating, label = "sendOrStop") { generating ->
                     if (generating) {
                         FilledIconButton(onClick = onStop, modifier = Modifier.testTag("stop_button")) {
@@ -198,6 +213,43 @@ fun ChatInputBar(
         }
     }
 }
+
+@Composable
+private fun MicButton(voice: InputVoice) {
+    when {
+        voice.recognizing -> {
+            val description = stringResource(Res.string.input_recognizing)
+            Box(
+                Modifier
+                    .size(48.dp)
+                    .semantics { contentDescription = description }
+                    .testTag("mic_recognizing"),
+                contentAlignment = Alignment.Center,
+            ) {
+                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.5.dp)
+            }
+        }
+        voice.listening -> {
+            val level by animateFloatAsState(voice.level, label = "micLevel")
+            FilledIconButton(
+                onClick = voice.onToggle,
+                modifier = Modifier
+                    .graphicsLayer {
+                        scaleX = 1f + level * MIC_PULSE
+                        scaleY = 1f + level * MIC_PULSE
+                    }
+                    .testTag("mic_button"),
+            ) {
+                Icon(Icons.Filled.Mic, contentDescription = stringResource(Res.string.input_dictate_stop))
+            }
+        }
+        else -> IconButton(onClick = voice.onToggle, enabled = voice.enabled, modifier = Modifier.testTag("mic_button")) {
+            Icon(Icons.Outlined.Mic, contentDescription = stringResource(Res.string.input_microphone))
+        }
+    }
+}
+
+private const val MIC_PULSE = 0.25f
 
 @Composable
 private fun DrawButton(drawing: InputDrawing, enabled: Boolean) {

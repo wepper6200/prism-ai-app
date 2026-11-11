@@ -43,6 +43,8 @@ import ai.prism.domain.model.ModelKind
 import ai.prism.domain.model.ModelLicense
 import ai.prism.domain.model.ModelStatus
 import ai.prism.domain.model.PlatformCapabilities
+import ai.prism.domain.model.SpeechEngineType
+import ai.prism.domain.model.SpeechModelSettings
 import ai.prism.domain.repository.ImageException
 import ai.prism.domain.repository.ImageStore
 import ai.prism.domain.repository.ModelRepository
@@ -51,6 +53,7 @@ import ai.prism.domain.inference.PromptMessage
 import ai.prism.domain.model.MessageRole
 import ai.prism.service.AssistantPersona
 import ai.prism.service.ChatGenerationService
+import ai.prism.service.voice.VoiceService
 import ai.prism.service.documents.DocumentService
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import kotlinx.coroutines.CoroutineScope
@@ -101,6 +104,30 @@ fun testImageModel(id: String = "flux-test", name: String = "FLUX.1 [schnell]") 
     sizeBytes = 6_884_606_880,
     components = listOf(ModelComponent("vae", "https://example.com/ae.safetensors", "$id-ae.safetensors", 335_304_388, "2".repeat(64))),
     image = ImageModelSettings(width = 1024, height = 1024, steps = 4),
+)
+
+/** Модель распознавания речи для тестов: модель, словарь и общий детектор речи. */
+fun testRecognizer(id: String = "gigaam-test", name: String = "GigaAM v3") = testModel(id = id, name = name).copy(
+    kind = ModelKind.SPEECH_RECOGNITION,
+    url = "https://example.com/$id.onnx",
+    fileName = "$id.onnx",
+    sizeBytes = 224_893_661,
+    components = listOf(
+        ModelComponent("tokens", "https://example.com/$id-tokens.txt", "$id-tokens.txt", 2007, "3".repeat(64)),
+        ModelComponent("vad", "https://example.com/silero_vad.onnx", "silero_vad.onnx", 643_854, "4".repeat(64)),
+    ),
+    speech = SpeechModelSettings(SpeechEngineType.NEMO_CTC, language = "ru", languages = listOf("ru")),
+)
+
+/** Голос Piper для тестов: один архив с моделью, словарём и espeak-ng-data. */
+fun testVoice(id: String = "piper-test", name: String = "Дмитрий") = testModel(id = id, name = name).copy(
+    kind = ModelKind.SPEECH_SYNTHESIS,
+    url = "https://example.com/$id.tar.bz2",
+    fileName = "$id.tar.bz2",
+    sizeBytes = 67_188_551,
+    archive = true,
+    mainRole = "voice",
+    speech = SpeechModelSettings(SpeechEngineType.PIPER, language = "ru", languages = listOf("ru")),
 )
 
 /** Генератор изображений, который «рисует» заданные байты и сообщает о шагах. */
@@ -289,6 +316,13 @@ class FakeModelRepository(
 
     override fun downloadedProjectorPath(modelId: String): String? =
         models.value.firstOrNull { it.model.id == modelId && it.visionReady }?.model?.vision?.let { "/models/${it.fileName}" }
+
+    override suspend fun speechModelFiles(modelId: String): Map<String, String>? =
+        models.value.firstOrNull {
+            it.model.id == modelId &&
+                it.model.kind in setOf(ModelKind.SPEECH_RECOGNITION, ModelKind.SPEECH_SYNTHESIS) &&
+                it.status == ModelStatus.Downloaded
+        }?.model?.let { model -> resolveImageModelFiles(model) { "/models/${it.fileName}" } }
 }
 
 fun inMemoryDatabase(): PrismDatabase {
@@ -397,6 +431,9 @@ class TestApp(
     val commands: FakeCommandRunner = FakeCommandRunner(),
     /** Справка о дате в персоне; пусто — системный промпт без даты. */
     currentDateNote: String = "",
+    val speechEngine: FakeSpeechEngine = FakeSpeechEngine(),
+    val audioInput: FakeAudioInput = FakeAudioInput(),
+    val audioOutput: FakeAudioOutput = FakeAudioOutput(),
 ) {
     val settings = DefaultSettingsRepository(MapKeyValueStore())
     val images = MemoryImageStore()
@@ -445,6 +482,18 @@ class TestApp(
         commands = commands,
         today = { "среда, 11 ноября 2026 г. (2026-11-11)" },
     )
+    val voice = VoiceService(
+        models = models,
+        settings = settings,
+        engine = speechEngine,
+        input = audioInput,
+        output = audioOutput,
+        generation = generation,
+        chats = chats,
+        scope = scope,
+        platform = "android",
+        idleReleaseMs = 0,
+    )
     val dependencies = AppDependencies(
         chatRepository = chats,
         modelRepository = models,
@@ -457,5 +506,6 @@ class TestApp(
         imageStore = images,
         capabilities = PlatformCapabilities(supportsDynamicColor = false),
         deviceInfo = FakeDeviceInfo(),
+        voiceService = voice,
     )
 }

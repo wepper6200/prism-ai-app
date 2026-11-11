@@ -3,6 +3,8 @@
 
     <!-- Сеть нужна только для скачивания моделей по явному действию пользователя. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Микрофон — для диктовки и режима разговора; запись распознаётся на устройстве и никуда не отправляется. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <application
         android:name=".PrismApplication"

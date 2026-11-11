@@ -1,6 +1,19 @@
 package ai.prism.ui.screens
 
 import ai.prism.domain.model.DarkMode
+import ai.prism.domain.model.AppSettings
+import ai.prism.presentation.settings.VoiceModelOption
+import ai.prism.resources.settings_voice
+import ai.prism.resources.settings_voice_desc
+import ai.prism.resources.settings_voice_none
+import ai.prism.resources.settings_voice_rate
+import ai.prism.resources.settings_voice_recognizer
+import ai.prism.resources.settings_voice_voice
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Slider
+import kotlin.math.roundToInt
 import ai.prism.domain.model.ThemeStyle
 import ai.prism.presentation.settings.SettingsComponent
 import ai.prism.presentation.settings.SettingsIntent
@@ -241,6 +254,36 @@ fun SettingsScreen(
                 )
             }
 
+            if (state.voice.available) {
+                SettingsSection(title = stringResource(Res.string.settings_voice), modifier = sectionModifier.testTag("voice_settings")) {
+                    Text(
+                        text = stringResource(Res.string.settings_voice_desc),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    SectionLabel(stringResource(Res.string.settings_voice_recognizer))
+                    VoiceModelChoice(
+                        options = state.voice.recognizers,
+                        selectedId = state.voice.selectedRecognizerId,
+                        onSelect = { component.onIntent(SettingsIntent.SelectSpeechModel(it)) },
+                    )
+                    SectionLabel(stringResource(Res.string.settings_voice_voice))
+                    VoiceModelChoice(
+                        options = state.voice.voices,
+                        selectedId = state.voice.selectedVoiceId,
+                        onSelect = { component.onIntent(SettingsIntent.SelectVoiceModel(it)) },
+                    )
+                    SectionLabel(stringResource(Res.string.settings_voice_rate, formatRate(state.settings.speechRate)))
+                    Slider(
+                        value = state.settings.speechRate,
+                        onValueChange = { component.onIntent(SettingsIntent.SetSpeechRate(it)) },
+                        valueRange = AppSettings.MIN_SPEECH_RATE..AppSettings.MAX_SPEECH_RATE,
+                        steps = SPEECH_RATE_STEPS,
+                        modifier = Modifier.testTag("speech_rate"),
+                    )
+                }
+            }
+
             SettingsSection(title = stringResource(Res.string.settings_models), modifier = sectionModifier) {
                 val uriHandler = LocalUriHandler.current
                 Text(
@@ -269,6 +312,43 @@ fun SettingsScreen(
         }
     }
 }
+
+/** Выбор одной из скачанных моделей речи; пока ничего не скачано — подсказка про экран «Модели». */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun VoiceModelChoice(
+    options: List<VoiceModelOption>,
+    selectedId: String?,
+    onSelect: (String) -> Unit,
+) {
+    if (options.isEmpty()) {
+        Text(
+            text = stringResource(Res.string.settings_voice_none),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        return
+    }
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        options.forEach { option ->
+            FilterChip(
+                selected = option.id == selectedId,
+                onClick = { onSelect(option.id) },
+                label = { Text(option.name) },
+                modifier = Modifier.testTag("voice_option_${option.id}"),
+            )
+        }
+    }
+}
+
+/** Скорость речи с шагом 0,1: «1,0×». */
+private fun formatRate(rate: Float): String {
+    val tenths = (rate * 10).roundToInt()
+    return "${tenths / 10},${tenths % 10}×"
+}
+
+/** Деления ползунка скорости: от 0,7 до 1,5 с шагом 0,1. */
+private const val SPEECH_RATE_STEPS = 7
 
 @Composable
 private fun SettingsSection(

@@ -31,6 +31,12 @@ import ai.prism.inference.llama.LlamaInferenceEngine
 import ai.prism.inference.llama.LlamaTextEmbedder
 import ai.prism.platform.DesktopDeviceInfo
 import ai.prism.platform.DesktopNativeLibraryLoader
+import ai.prism.domain.voice.AudioInput
+import ai.prism.domain.voice.AudioOutput
+import ai.prism.domain.voice.SpeechEngine
+import ai.prism.voice.DesktopSherpaSpeechEngine
+import ai.prism.voice.JavaSoundAudioInput
+import ai.prism.voice.JavaSoundAudioOutput
 import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import org.koin.core.module.Module
@@ -68,9 +74,15 @@ fun desktopPlatformModule(): Module = module {
     single<WorkspaceProvider> { FileWorkspaceProvider() }
     single<CommandRunner> { ProcessCommandRunner() }
     single<TextEmbedder> { LlamaTextEmbedder(DesktopNativeLibraryLoader(), get()) }
+    single<SpeechEngine> { DesktopSherpaSpeechEngine(threads = get<DeviceInfo>().inferenceThreads.coerceIn(1, MAX_SPEECH_THREADS)) }
+    single<AudioInput> { JavaSoundAudioInput() }
+    single<AudioOutput> { JavaSoundAudioOutput() }
 }
 
 private const val DATABASE_NAME = "prism.db"
 private const val MODELS_DIR = "models"
 private const val IMAGES_DIR = "images"
 private const val IMAGEGEN_DIR = "imagegen"
+
+/** Модели речи небольшие: больше 6 потоков их не ускоряют. */
+private const val MAX_SPEECH_THREADS = 6

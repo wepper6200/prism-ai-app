@@ -29,6 +29,12 @@ import ai.prism.inference.llama.LlamaInferenceEngine
 import ai.prism.inference.llama.LlamaTextEmbedder
 import ai.prism.platform.AndroidDeviceInfo
 import ai.prism.platform.AndroidNativeLibraryLoader
+import ai.prism.domain.voice.AudioInput
+import ai.prism.domain.voice.AudioOutput
+import ai.prism.domain.voice.SpeechEngine
+import ai.prism.voice.AndroidAudioInput
+import ai.prism.voice.AndroidAudioOutput
+import ai.prism.voice.AndroidSherpaSpeechEngine
 import android.content.Context
 import android.os.Build
 import app.cash.sqldelight.db.SqlDriver
@@ -65,9 +71,15 @@ fun androidPlatformModule(context: Context): Module = module {
     single<WorkspaceProvider> { SafWorkspaceProvider(appContext) }
     single<CommandRunner> { CommandRunner.None }
     single<TextEmbedder> { LlamaTextEmbedder(AndroidNativeLibraryLoader(appContext), get()) }
+    single<SpeechEngine> { AndroidSherpaSpeechEngine(threads = get<DeviceInfo>().inferenceThreads.coerceIn(1, MAX_SPEECH_THREADS)) }
+    single<AudioInput> { AndroidAudioInput(appContext) }
+    single<AudioOutput> { AndroidAudioOutput() }
 }
 
 private const val DATABASE_NAME = "prism.db"
 private const val MODELS_DIR = "models"
 private const val IMAGES_DIR = "images"
 private const val IMAGEGEN_DIR = "imagegen"
+
+/** Модели речи небольшие: больше 4 потоков не ускоряют их на телефоне. */
+private const val MAX_SPEECH_THREADS = 4

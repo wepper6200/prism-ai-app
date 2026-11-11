@@ -8,10 +8,13 @@ import ai.prism.domain.imagegen.resolveImageModelFiles
 import ai.prism.domain.model.DownloadError
 import ai.prism.domain.model.ModelKind
 import ai.prism.domain.model.ModelEntry
+import ai.prism.domain.model.ModelFile
 import ai.prism.domain.model.ModelStatus
 import ai.prism.domain.repository.ModelRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -21,7 +24,9 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerializationException
+import kotlin.coroutines.CoroutineContext
 
 /**
  * Каталог моделей + файлы на устройстве + загрузки.
@@ -36,6 +41,8 @@ class DefaultModelRepository(
     private val scope: CoroutineScope,
     /** `android` или `desktop`: модели других платформ скрываются. `null` — показывать все. */
     private val platform: String? = null,
+    /** Где распаковываются архивы моделей. */
+    private val ioContext: CoroutineContext = Dispatchers.IO,
 ) : ModelRepository {
 
     private val catalogModels = MutableStateFlow<List<CatalogModel>>(emptyList())
@@ -95,6 +102,10 @@ class DefaultModelRepository(
                             onProgress = { done, _ -> setStatus(modelId, ModelStatus.Downloading(base + done, total)) },
                             onVerifying = { setStatus(modelId, ModelStatus.Verifying) },
                         )
+                        if (file.archive) {
+                            setStatus(modelId, ModelStatus.Verifying)
+                            unpack(file)
+                        }
                         if (file == model.mainFile) chatReady.update { it + modelId }
                     }
                     completed += file.sizeBytes
@@ -128,7 +139,12 @@ class DefaultModelRepository(
         scope.launch {
             job?.cancel()
             job?.join()
-            model.files.forEach(storage::delete)
+            // Общие файлы (детектор речи у моделей распознавания) остаются, пока они нужны другой модели.
+            val usedElsewhere = catalogModels.value
+                .filter { other -> other.id != modelId && statuses.value[other.id].let { it != null && it != ModelStatus.NotDownloaded } }
+                .flatMap { other -> other.files.map { it.fileName } }
+                .toSet()
+            model.files.filter { it.fileName !in usedElsewhere }.forEach(storage::delete)
             setStatus(modelId, ModelStatus.NotDownloaded)
             chatReady.update { it - modelId }
             if (active.value == modelId) {
@@ -157,6 +173,26 @@ class DefaultModelRepository(
     override fun imageModelFiles(modelId: String): Map<String, String>? {
         val model = catalogModel(modelId)?.takeIf { it.kind == ModelKind.IMAGE || it.kind == ModelKind.VIDEO } ?: return null
         return resolveImageModelFiles(model) { file -> file.takeIf(storage::isDownloaded)?.let(storage::filePath) }
+    }
+
+    override suspend fun speechModelFiles(modelId: String): Map<String, String>? {
+        val model = catalogModel(modelId)
+            ?.takeIf { it.kind == ModelKind.SPEECH_RECOGNITION || it.kind == ModelKind.SPEECH_SYNTHESIS }
+            ?: return null
+        val roles = listOf(model.mainRole to model.mainFile) + model.components.map { it.role to it.file }
+        if (!roles.all { (_, file) -> storage.isDownloaded(file) }) return null
+        return withContext(ioContext) {
+            roles.associate { (role, file) -> role to if (file.archive) unpack(file) else storage.filePath(file) }
+        }
+    }
+
+    /** Распаковывает архив модели; ошибка записи — как ошибка загрузки. */
+    private fun unpack(file: ModelFile): String = try {
+        storage.unpackedPath(file)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        throw DownloadException(DownloadError.STORAGE, "Cannot unpack ${file.fileName}: ${e.message}", e)
     }
 
     private fun current(): String? = active.value?.takeIf { it in chatReady.value }

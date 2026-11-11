@@ -42,6 +42,17 @@ val generateBuildInfo = tasks.register<GenerateBuildInfoTask>("generateBuildInfo
     outputDir.set(layout.buildDirectory.dir("generated/buildInfo/kotlin"))
 }
 
+/** Нативные библиотеки sherpa-onnx для текущей ОС: `win-x64`, `linux-x64`, `osx-aarch64`… */
+val sherpaNativeOs: String = run {
+    val os = System.getProperty("os.name").lowercase()
+    val arm = System.getProperty("os.arch").lowercase().let { it == "aarch64" || it == "arm64" }
+    when {
+        os.startsWith("windows") -> if (arm) "win-arm64" else "win-x64"
+        os.startsWith("mac") -> if (arm) "osx-aarch64" else "osx-x64"
+        else -> if (arm) "linux-aarch64" else "linux-x64"
+    }
+}
+
 kotlin {
     android {
         namespace = "ai.prism.shared"
@@ -101,11 +112,19 @@ kotlin {
             implementation(libs.kotlinx.coroutines.android)
             implementation(libs.sqldelight.android.driver)
             implementation(libs.pdfbox.android)
+            implementation(libs.commons.compress)
+            // AAR sherpa-onnx: Kotlin API и нативные библиотеки (arm64-v8a остаётся по abiFilters приложения).
+            implementation("com.k2fsa.sherpa-onnx:sherpa-onnx:${libs.versions.sherpa.onnx.get()}@aar")
         }
         jvmMain.dependencies {
             implementation(libs.kotlinx.coroutines.swing)
             implementation(libs.sqldelight.sqlite.driver)
             implementation(libs.pdfbox)
+            implementation(libs.commons.compress)
+            implementation(libs.sherpa.onnx.jvm)
+            // Нативные библиотеки sherpa-onnx и onnxruntime для ОС, на которой идёт сборка
+            // (Windows — приложение, Linux — тесты в CI).
+            runtimeOnly("com.k2fsa.sherpa-onnx:sherpa-onnx-native-lib-$sherpaNativeOs:${libs.versions.sherpa.onnx.get()}")
         }
         jvmTest.dependencies {
             implementation(libs.kotlin.test)

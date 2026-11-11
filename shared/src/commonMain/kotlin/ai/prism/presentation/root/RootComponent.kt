@@ -19,6 +19,7 @@ import ai.prism.presentation.models.ModelsComponent
 import ai.prism.presentation.settings.DefaultSettingsComponent
 import ai.prism.presentation.settings.SettingsComponent
 import ai.prism.service.ChatGenerationService
+import ai.prism.service.voice.VoiceService
 import ai.prism.service.documents.DocumentService
 import com.arkivanov.decompose.ComponentContext
 import com.arkivanov.decompose.childContext
@@ -69,6 +70,7 @@ class AppDependencies(
     val imageStore: ImageStore,
     val capabilities: PlatformCapabilities,
     val deviceInfo: DeviceInfo,
+    val voiceService: VoiceService,
 )
 
 class DefaultRootComponent(
@@ -130,6 +132,7 @@ class DefaultRootComponent(
                     workspaceProvider = deps.workspaceProvider,
                     settingsRepository = deps.settingsRepository,
                     imageStore = deps.imageStore,
+                    voice = deps.voiceService,
                     mainContext = mainContext,
                     onOpenModels = { openScreen(Config.Models) },
                     onBack = ::onBack,

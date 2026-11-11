@@ -20,7 +20,7 @@
 
     <string name="input_placeholder">Сообщение</string>
     <string name="input_attach_image">Прикрепить изображение</string>
-    <string name="input_microphone">Голосовой ввод</string>
+    <string name="input_microphone">Диктовать</string>
     <string name="input_send">Отправить</string>
 
     <string name="settings_appearance">Оформление</string>
@@ -230,4 +230,37 @@
     <string name="settings_models">Модели и лицензии</string>
     <string name="settings_identity_note">Ассистент называет себя Prism AI. Ответы создают открытые модели, перечисленные ниже; они работают только на этом устройстве.</string>
     <string name="settings_model_license">%1$s — %2$s</string>
+
+    <!-- Голос: диктовка, озвучка ответов и разговор голосом. -->
+    <string name="input_dictate_stop">Закончить диктовку</string>
+    <string name="input_recognizing">Распознаю речь…</string>
+    <string name="chat_conversation_start">Разговор голосом</string>
+    <string name="chat_conversation_stop">Закончить разговор</string>
+    <string name="voice_phase_listening">Слушаю…</string>
+    <string name="voice_phase_recognizing">Распознаю речь…</string>
+    <string name="voice_phase_thinking">Думаю над ответом…</string>
+    <string name="voice_phase_speaking">Отвечаю…</string>
+    <string name="voice_conversation_hint">Говорите — после паузы вопрос отправится сам. Если долго молчать, разговор закончится.</string>
+    <string name="message_speak">Озвучить</string>
+    <string name="message_speak_stop">Остановить озвучку</string>
+    <string name="voice_recognizer_dialog_title">Модель распознавания речи не скачана</string>
+    <string name="voice_recognizer_dialog_text">Чтобы говорить с ассистентом, скачайте «%1$s» (%2$s) на экране «Модели». Речь распознаётся на устройстве и никуда не отправляется.</string>
+    <string name="voice_voice_dialog_title">Голос не скачан</string>
+    <string name="voice_voice_dialog_text">Чтобы ассистент отвечал вслух, скачайте «%1$s» (%2$s) на экране «Модели». Озвучка работает без интернета.</string>
+    <string name="voice_error_no_recognizer">Скачайте модель распознавания речи на экране «Модели».</string>
+    <string name="voice_error_no_voice">Скачайте голос на экране «Модели».</string>
+    <string name="voice_error_permission">Нет доступа к микрофону. Разрешите его приложению в настройках системы.</string>
+    <string name="voice_error_microphone">Микрофон недоступен: возможно, его занимает другое приложение.</string>
+    <string name="voice_error_nothing_heard">Не расслышал. Попробуйте ещё раз.</string>
+    <string name="voice_error_engine">Модель речи не загрузилась. Возможно, не хватает памяти: закройте другие приложения или скачайте модель заново.</string>
+    <string name="voice_error_playback">Не удалось воспроизвести звук.</string>
+    <string name="models_recognizes_speech">Распознаёт речь</string>
+    <string name="models_speaks">Озвучивает</string>
+    <string name="models_details_speech">%1$s · %2$s</string>
+    <string name="settings_voice">Голос</string>
+    <string name="settings_voice_desc">Микрофон и озвучка работают на устройстве: запись никуда не отправляется.</string>
+    <string name="settings_voice_recognizer">Распознавание речи</string>
+    <string name="settings_voice_voice">Голос ассистента</string>
+    <string name="settings_voice_rate">Скорость речи: %1$s</string>
+    <string name="settings_voice_none">Не скачано — скачайте на экране «Модели».</string>
 </resources>

@@ -27,6 +27,9 @@ import ai.prism.resources.models_engine_ready
 import ai.prism.resources.models_for_desktop
 import ai.prism.resources.models_for_phone
 import ai.prism.resources.models_searches_files
+import ai.prism.resources.models_recognizes_speech
+import ai.prism.resources.models_speaks
+import ai.prism.resources.models_details_speech
 import ai.prism.resources.models_license
 import ai.prism.resources.models_low_ram
 import ai.prism.resources.models_pause
@@ -257,6 +260,8 @@ private fun ModelCard(
                 if (model.kind == ModelKind.IMAGE) Tag(stringResource(Res.string.models_draws))
                 if (model.kind == ModelKind.EMBEDDING) Tag(stringResource(Res.string.models_searches_files))
                 if (model.kind == ModelKind.VIDEO) Tag(stringResource(Res.string.models_makes_video))
+                if (model.kind == ModelKind.SPEECH_RECOGNITION) Tag(stringResource(Res.string.models_recognizes_speech))
+                if (model.kind == ModelKind.SPEECH_SYNTHESIS) Tag(stringResource(Res.string.models_speaks))
             }
             val image = model.image
             Text(
@@ -280,6 +285,8 @@ private fun ModelCard(
                     )
                 } else if (model.kind == ModelKind.EMBEDDING) {
                     stringResource(Res.string.models_details_embedding, model.quantization, formatBytes(model.totalSizeBytes))
+                } else if (model.kind == ModelKind.SPEECH_RECOGNITION || model.kind == ModelKind.SPEECH_SYNTHESIS) {
+                    stringResource(Res.string.models_details_speech, model.quantization, formatBytes(model.totalSizeBytes))
                 } else {
                     stringResource(
                         Res.string.models_details,
@@ -360,7 +367,7 @@ private fun ModelStatusSection(
             LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             Text(stringResource(Res.string.models_verifying), style = MaterialTheme.typography.bodySmall)
         }
-        is ModelStatus.Paused -> if (entry.chatReady) {
+        is ModelStatus.Paused -> if (entry.visionMissing) {
             VisionMissingSection(entry, status, isActive, onIntent, onDeleteRequest)
         } else {
             if (status.totalBytes > 0 && status.downloadedBytes > 0) {

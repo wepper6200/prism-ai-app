@@ -86,6 +86,8 @@ jobs:
           grep -q "libmtmd.so" native-libs.txt
           grep -q "libprism_imagegen.so" native-libs.txt
           grep -q "libggml-cpu-android_armv8.0_1.so" native-libs.txt
+          grep -q "libsherpa-onnx-jni.so" native-libs.txt
+          grep -q "libonnxruntime.so" native-libs.txt
       - name: Show compiler warnings (diagnostics on failure)
         if: failure()
         run: |
@@ -154,6 +156,14 @@ jobs:
           echo "PRISM_TEST_VLM_MMPROJ=$HOME/prism-test-models/vlm-mmproj.gguf" >> "$GITHUB_ENV"
           echo "PRISM_TEST_GEMMA4=$HOME/prism-test-models/gemma4.gguf" >> "$GITHUB_ENV"
           echo "PRISM_TEST_GEMMA4_MMPROJ=$HOME/prism-test-models/gemma4-mmproj.gguf" >> "$GITHUB_ENV"
+      - name: Cache speech models
+        uses: actions/cache@v4
+        with:
+          path: ~/prism-speech-models
+          key: speech-models-${{ hashFiles('shared/src/commonMain/composeResources/files/models.json') }}
+      - name: Download speech models (files and checksums from the catalog)
+        shell: bash
+        run: python3 .github/download_speech_models.py "$HOME/prism-speech-models" >> "$GITHUB_ENV"
       - name: Provision Gradle (retries on network errors)
         shell: bash
         run: |
@@ -223,12 +233,13 @@ jobs:
           curl -fsSL --retry 5 -o tiny.gguf "$TINY_MODEL_URL"
           echo "$TINY_MODEL_SHA256  tiny.gguf" | sha256sum -c -
           echo "PRISM_TEST_MODEL=$(cygpath -w "$HOME/prism-test-models/tiny.gguf")" >> "$GITHUB_ENV"
+          python "$GITHUB_WORKSPACE/.github/download_speech_models.py" "$(cygpath -w "$HOME/prism-test-models")" --only vad >> "$GITHUB_ENV"
       - name: Build Windows app with llama.cpp (CPU + Vulkan)
         shell: bash
         run: ./gradlew --stacktrace --warning-mode=all -Pprism.skipAndroid=true -Pprism.vulkan=true -Pprism.imagegen=true :desktopApp:createDistributable
-      - name: Check DLL loading on Windows (llama.cpp and image generation integration tests)
+      - name: Check DLL loading on Windows (llama.cpp, image generation and speech integration tests)
         shell: bash
-        run: ./gradlew --stacktrace -Pprism.skipAndroid=true -Pprism.nativeTests=true -Pprism.vulkan=true -Pprism.imagegen=true :shared:jvmTest --tests "ai.prism.inference.llama.*" --tests "ai.prism.imagegen.ImageGenerationIntegrationTest"
+        run: ./gradlew --stacktrace -Pprism.skipAndroid=true -Pprism.nativeTests=true -Pprism.vulkan=true -Pprism.imagegen=true :shared:jvmTest --tests "ai.prism.inference.llama.*" --tests "ai.prism.imagegen.ImageGenerationIntegrationTest" --tests "ai.prism.voice.VoiceDetectorNativeTest"
       - name: Check image generator in the Windows app
         shell: bash
         run: test -f desktopApp/build/compose/binaries/main/app/PrismAI/app/resources/prism_imagegen.exe || (find desktopApp/build/compose/binaries -name "prism_imagegen*" ; exit 1)

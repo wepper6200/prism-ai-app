@@ -16,6 +16,7 @@ import ai.prism.presentation.root.RootComponentFactory
 import ai.prism.service.ChatGenerationService
 import ai.prism.service.PersonaProvider
 import ai.prism.service.documents.DocumentService
+import ai.prism.service.voice.VoiceService
 import ai.prism.ui.ResourcePersonaProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -29,7 +30,8 @@ import org.koin.dsl.module
  * Общие зависимости. Платформенный модуль обязан предоставить
  * `KeyValueStore`, `SqlDriver`, `PlatformCapabilities`, `DeviceInfo`,
  * `ModelStorage`, `ModelDownloader`, `ImageStore`, `ImageGenerator`, `InferenceEngine`,
- * `DocumentTextExtractor`, `TextEmbedder`, `WebClient`, `WorkspaceProvider` и `CommandRunner`.
+ * `DocumentTextExtractor`, `TextEmbedder`, `WebClient`, `WorkspaceProvider`, `CommandRunner`,
+ * `SpeechEngine`, `AudioInput` и `AudioOutput`.
  */
 val sharedModule: Module = module {
     // Область приложения: загрузки моделей и генерация ответов живут дольше экранов.
@@ -77,6 +79,19 @@ val sharedModule: Module = module {
         )
     }
     single {
+        VoiceService(
+            models = get(),
+            settings = get(),
+            engine = get(),
+            input = get(),
+            output = get(),
+            generation = get(),
+            chats = get(),
+            scope = get(),
+            platform = get<PlatformCapabilities>().platform,
+        )
+    }
+    single {
         AppDependencies(
             chatRepository = get(),
             modelRepository = get(),
@@ -89,6 +104,7 @@ val sharedModule: Module = module {
             imageStore = get(),
             capabilities = get(),
             deviceInfo = get(),
+            voiceService = get(),
         )
     }
     single { RootComponentFactory(dependencies = get()) }

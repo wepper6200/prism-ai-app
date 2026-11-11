@@ -9,9 +9,12 @@ import ai.prism.domain.model.ModelFile
 import ai.prism.domain.model.ModelStatus
 import ai.prism.testing.FakeDeviceInfo
 import ai.prism.testing.testModel
+import ai.prism.testing.testRecognizer
+import ai.prism.testing.testVoice
 import ai.prism.testing.testVision
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -32,9 +35,17 @@ class DefaultModelRepositoryTest {
         val downloaded = mutableSetOf<String>()
         override fun isDownloaded(file: ModelFile) = file.fileName in downloaded
         override fun partialBytes(file: ModelFile) = 0L
+        val unpacked = mutableSetOf<String>()
+        val deleted = mutableListOf<String>()
         override fun filePath(file: ModelFile) = "/models/${file.fileName}"
+        override fun unpackedPath(file: ModelFile): String {
+            unpacked += file.fileName
+            return "/models/${file.fileName}.d"
+        }
         override fun delete(file: ModelFile) {
             downloaded -= file.fileName
+            unpacked -= file.fileName
+            deleted += file.fileName
         }
         override fun freeSpaceBytes() = freeSpace
     }
@@ -67,6 +78,7 @@ class DefaultModelRepositoryTest {
         store = MapKeyValueStore(),
         deviceInfo = FakeDeviceInfo(),
         scope = CoroutineScope(Dispatchers.Unconfined),
+        ioContext = Dispatchers.Unconfined,
     )
 
     @Test
@@ -166,5 +178,61 @@ class DefaultModelRepositoryTest {
         assertFalse(entry.visionReady)
         assertEquals(DownloadError.NETWORK, (entry.status as ModelStatus.Paused).error)
         assertEquals(visionModel.id, repo.activeModelId.value)
+    }
+
+    @Test
+    fun voiceArchiveIsUnpackedAfterDownload() = runBlocking {
+        val voice = testVoice()
+        val storage = MemoryStorage()
+        val repo = repository(storage, ScriptedDownloader(storage), listOf(model, voice))
+
+        repo.download(voice.id)
+
+        assertEquals(ModelStatus.Downloaded, repo.models.value.first { it.model.id == voice.id }.status)
+        assertEquals(setOf(voice.fileName), storage.unpacked)
+        assertEquals(mapOf("voice" to "/models/${voice.fileName}.d"), repo.speechModelFiles(voice.id))
+        // Модель голоса не становится моделью чата.
+        assertNull(repo.activeModelId.value)
+    }
+
+    @Test
+    fun speechFilesAreResolvedByRoleOnlyWhenAllAreDownloaded() = runBlocking {
+        val recognizer = testRecognizer()
+        val storage = MemoryStorage()
+        val downloader = ScriptedDownloader(storage).apply { failing["silero_vad.onnx"] = DownloadError.NETWORK }
+        val repo = repository(storage, downloader, listOf(recognizer))
+
+        repo.download(recognizer.id)
+        assertNull(repo.speechModelFiles(recognizer.id))
+
+        downloader.failing.clear()
+        repo.download(recognizer.id)
+        assertEquals(
+            mapOf(
+                "model" to "/models/${recognizer.fileName}",
+                "tokens" to "/models/gigaam-test-tokens.txt",
+                "vad" to "/models/silero_vad.onnx",
+            ),
+            repo.speechModelFiles(recognizer.id),
+        )
+        assertNull(repo.speechModelFiles(model.id))
+    }
+
+    @Test
+    fun sharedVoiceDetectorStaysWhileAnotherModelUsesIt() {
+        val first = testRecognizer("gigaam-test")
+        val second = testRecognizer("whisper-test", "Whisper Small")
+        val storage = MemoryStorage()
+        val repo = repository(storage, ScriptedDownloader(storage), listOf(first, second))
+        repo.download(first.id)
+        repo.download(second.id)
+
+        repo.delete(first.id)
+
+        assertFalse("silero_vad.onnx" in storage.deleted)
+        assertEquals(ModelStatus.Downloaded, repo.models.value.first { it.model.id == second.id }.status)
+
+        repo.delete(second.id)
+        assertTrue("silero_vad.onnx" in storage.deleted)
     }
 }

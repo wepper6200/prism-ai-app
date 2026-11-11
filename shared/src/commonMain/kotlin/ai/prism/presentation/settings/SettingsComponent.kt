@@ -4,6 +4,9 @@ import ai.prism.core.BuildInfo
 import ai.prism.core.componentScope
 import ai.prism.domain.model.AppSettings
 import ai.prism.domain.model.DarkMode
+import ai.prism.domain.model.ModelEntry
+import ai.prism.domain.model.ModelKind
+import ai.prism.domain.model.ModelStatus
 import ai.prism.domain.model.PlatformCapabilities
 import ai.prism.domain.model.ThemeStyle
 import ai.prism.domain.repository.ModelRepository
@@ -22,11 +25,25 @@ data class ModelLicenseInfo(
     val licenseUrl: String,
 )
 
+/** Скачанная модель речи для выбора в настройках. */
+data class VoiceModelOption(val id: String, val name: String)
+
+/** Раздел «Голос»: скачанные модели распознавания и голоса и какие из них выбраны. */
+data class VoiceSettings(
+    /** В каталоге есть модели речи — раздел показывается. */
+    val available: Boolean = false,
+    val recognizers: List<VoiceModelOption> = emptyList(),
+    val selectedRecognizerId: String? = null,
+    val voices: List<VoiceModelOption> = emptyList(),
+    val selectedVoiceId: String? = null,
+)
+
 data class SettingsState(
     val settings: AppSettings,
     val supportsDynamicColor: Boolean,
     val versionName: String,
     val modelLicenses: List<ModelLicenseInfo> = emptyList(),
+    val voice: VoiceSettings = VoiceSettings(),
 )
 
 sealed interface SettingsIntent {
@@ -36,6 +53,9 @@ sealed interface SettingsIntent {
     data class SetSafeMode(val enabled: Boolean) : SettingsIntent
     data class SetInternetEnabled(val enabled: Boolean) : SettingsIntent
     data class SetAutoApplyEdits(val enabled: Boolean) : SettingsIntent
+    data class SelectSpeechModel(val modelId: String) : SettingsIntent
+    data class SelectVoiceModel(val modelId: String) : SettingsIntent
+    data class SetSpeechRate(val rate: Float) : SettingsIntent
     data object Back : SettingsIntent
 }
 
@@ -68,12 +88,28 @@ class DefaultSettingsComponent(
                 modelLicenses = models
                     .map { ModelLicenseInfo(it.model.family, it.model.license.name, it.model.license.url) }
                     .distinctBy { it.family },
+                voice = voiceSettings(models, settings),
             )
         }.stateIn(
             scope = scope,
             started = SharingStarted.Eagerly,
             initialValue = toState(settingsRepository.settings.value, capabilities.supportsDynamicColor),
         )
+
+    private fun voiceSettings(models: List<ModelEntry>, settings: AppSettings): VoiceSettings {
+        fun downloaded(kind: ModelKind) = models
+            .filter { it.model.kind == kind && it.status == ModelStatus.Downloaded }
+            .map { VoiceModelOption(it.model.id, it.model.name) }
+        val recognizers = downloaded(ModelKind.SPEECH_RECOGNITION)
+        val voices = downloaded(ModelKind.SPEECH_SYNTHESIS)
+        return VoiceSettings(
+            available = models.any { it.model.kind == ModelKind.SPEECH_RECOGNITION || it.model.kind == ModelKind.SPEECH_SYNTHESIS },
+            recognizers = recognizers,
+            selectedRecognizerId = (recognizers.firstOrNull { it.id == settings.speechModelId } ?: recognizers.firstOrNull())?.id,
+            voices = voices,
+            selectedVoiceId = (voices.firstOrNull { it.id == settings.voiceModelId } ?: voices.firstOrNull())?.id,
+        )
+    }
 
     override fun onIntent(intent: SettingsIntent) {
         when (intent) {
@@ -83,6 +119,9 @@ class DefaultSettingsComponent(
             is SettingsIntent.SetSafeMode -> settingsRepository.setSafeMode(intent.enabled)
             is SettingsIntent.SetInternetEnabled -> settingsRepository.setInternetEnabled(intent.enabled)
             is SettingsIntent.SetAutoApplyEdits -> settingsRepository.setAutoApplyEdits(intent.enabled)
+            is SettingsIntent.SelectSpeechModel -> settingsRepository.setSpeechModel(intent.modelId)
+            is SettingsIntent.SelectVoiceModel -> settingsRepository.setVoiceModel(intent.modelId)
+            is SettingsIntent.SetSpeechRate -> settingsRepository.setSpeechRate(intent.rate)
             SettingsIntent.Back -> onBack()
         }
     }

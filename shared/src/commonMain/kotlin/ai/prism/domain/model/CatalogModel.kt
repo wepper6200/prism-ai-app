@@ -23,13 +23,17 @@ data class ModelLicense(
     val url: String,
 )
 
-/** Один скачиваемый файл модели: адрес, имя на устройстве, размер и SHA-256 (проверяются при загрузке). */
+/**
+ * Один скачиваемый файл модели: адрес, имя на устройстве, размер и SHA-256 (проверяются при загрузке).
+ * [archive] — архив `tar.bz2`: после загрузки он распаковывается в папку рядом (голоса Piper).
+ */
 @Serializable
 data class ModelFile(
     val url: String,
     val fileName: String,
     val sizeBytes: Long,
     val sha256: String,
+    val archive: Boolean = false,
 )
 
 /** Что делает модель. */
@@ -50,7 +54,41 @@ enum class ModelKind {
     /** Генерация видео по описанию (Wan в stable-diffusion.cpp). */
     @SerialName("video")
     VIDEO,
+
+    /** Распознавание речи (sherpa-onnx): GigaAM, Whisper. */
+    @SerialName("speech_recognition")
+    SPEECH_RECOGNITION,
+
+    /** Озвучка ответов (sherpa-onnx): голоса Piper. */
+    @SerialName("speech_synthesis")
+    SPEECH_SYNTHESIS,
 }
+
+/** Какой движок sherpa-onnx работает с моделью речи. */
+@Serializable
+enum class SpeechEngineType {
+    /** Whisper: файлы `encoder`, `decoder`, `tokens`. */
+    @SerialName("whisper")
+    WHISPER,
+
+    /** CTC-модель NeMo (GigaAM): файлы `model`, `tokens`. */
+    @SerialName("nemo_ctc")
+    NEMO_CTC,
+
+    /** Голос Piper (VITS): архив с моделью `.onnx`, `tokens.txt` и `espeak-ng-data`. */
+    @SerialName("piper")
+    PIPER,
+}
+
+/** Параметры модели речи. */
+@Serializable
+data class SpeechModelSettings(
+    val engine: SpeechEngineType,
+    /** Язык распознавания (`ru`) или пусто — модель определяет язык сама (Whisper). */
+    val language: String = "",
+    /** Языки, которые понимает или на которых говорит модель (для подписи в каталоге). */
+    val languages: List<String> = emptyList(),
+)
 
 /** Параметры генерации по умолчанию для модели видео (Wan). */
 @Serializable
@@ -94,8 +132,8 @@ data class EmbeddingSettings(
 }
 
 /**
- * Дополнительный файл модели изображений. [role] — назначение для stable-diffusion.cpp:
- * `t5xxl`, `clip_l`, `clip_g`, `vae`, `taesd`.
+ * Дополнительный файл модели. [role] — назначение: для stable-diffusion.cpp `t5xxl`, `clip_l`, `clip_g`, `vae`,
+ * `taesd`; для моделей речи `decoder`, `tokens`, `vad` (детектор речи Silero VAD).
  */
 @Serializable
 data class ModelComponent(
@@ -104,8 +142,9 @@ data class ModelComponent(
     val fileName: String,
     val sizeBytes: Long,
     val sha256: String,
+    val archive: Boolean = false,
 ) {
-    val file: ModelFile get() = ModelFile(url, fileName, sizeBytes, sha256)
+    val file: ModelFile get() = ModelFile(url, fileName, sizeBytes, sha256, archive)
 }
 
 /** Параметры генерации по умолчанию для модели изображений. */
@@ -155,7 +194,10 @@ data class CatalogModel(
     val kind: ModelKind = ModelKind.CHAT,
     /** Платформы, где модель доступна: `android`, `desktop`. Пусто — везде. */
     val platforms: List<String> = emptyList(),
-    /** Назначение основного файла модели изображений: `model` (целый чекпойнт) или `diffusion_model`. */
+    /**
+     * Назначение основного файла: у моделей изображений `model` (целый чекпойнт) или `diffusion_model`,
+     * у Whisper — `encoder`, у голосов Piper — `voice`.
+     */
     val mainRole: String = "model",
     /** Остальные файлы модели изображений (текстовые энкодеры, VAE). */
     val components: List<ModelComponent> = emptyList(),
@@ -164,9 +206,13 @@ data class CatalogModel(
     val embedding: EmbeddingSettings? = null,
     /** Для моделей видео: размер, кадры, шаги. */
     val video: VideoModelSettings? = null,
+    /** Для моделей речи: движок и язык. */
+    val speech: SpeechModelSettings? = null,
+    /** Основной файл — архив `tar.bz2` (голоса Piper). */
+    val archive: Boolean = false,
 ) {
     /** Основной файл с весами модели. */
-    val mainFile: ModelFile get() = ModelFile(url, fileName, sizeBytes, sha256)
+    val mainFile: ModelFile get() = ModelFile(url, fileName, sizeBytes, sha256, archive)
 
     /** Все файлы модели в порядке загрузки. */
     val files: List<ModelFile> get() = listOfNotNull(mainFile, vision) + components.map { it.file }
