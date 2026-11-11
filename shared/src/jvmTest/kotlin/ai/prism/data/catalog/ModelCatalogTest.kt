@@ -79,19 +79,29 @@ class ModelCatalogTest {
         assertTrue(model.url.startsWith("https://huggingface.co/ggml-org/"))
     }
 
-    /** Видео: Wan 2.2 TI2V 5B на Desktop и Wan 2.1 1.3B на Android, у каждой — umt5 и VAE, кадры вида 4k+1. */
+    /**
+     * Видео: Wan (umt5 и VAE, кадры 4k+1) на обеих платформах — Wan 2.2 TI2V 5B на Desktop, Wan 2.1 1.3B на Android;
+     * на Desktop ещё LTX-2.5 со звуком (Gemma 4, VAE видео и звука, кадры 8k+1). Длительности — в пределах куска
+     * или продолжением, если модель оживляет кадр.
+     */
     @Test
     fun videoModelsCoverBothPlatforms() {
         for (platform in listOf("android", "desktop")) {
-            val video = models.filter { it.kind == ModelKind.VIDEO && it.availableOn(platform) }
-            assertEquals(1, video.size, platform)
-            val model = video.single()
+            val wan = models.filter { it.kind == ModelKind.VIDEO && it.availableOn(platform) && it.family.startsWith("Wan") }
+            assertEquals(1, wan.size, platform)
+        }
+        models.filter { it.kind == ModelKind.VIDEO }.forEach { model ->
             val settings = assertNotNull(model.video, model.id)
             assertEquals("diffusion_model", model.mainRole)
-            assertEquals(setOf("t5xxl", "vae"), model.components.map { it.role }.toSet(), model.id)
-            assertEquals(1, settings.frames % 4, "кадров должно быть 4k+1: ${model.id}")
+            val roles = model.components.map { it.role }.toSet()
+            assertEquals(if (settings.audio) setOf("llm", "vae", "audio_vae") else setOf("t5xxl", "vae"), roles, model.id)
+            assertEquals(1, settings.frames % settings.frameStep, "кадров должно быть ${settings.frameStep}k+1: ${model.id}")
+            assertEquals(1, settings.maxFrames % settings.frameStep, "maxFrames ${model.id}")
             assertTrue(settings.width % 16 == 0 && settings.height % 16 == 0, model.id)
-            assertTrue(settings.negativePrompt.isNotBlank(), model.id)
+            assertTrue(settings.durations.isNotEmpty() && settings.defaultSeconds in settings.availableDurations, model.id)
+            if (!settings.imageToVideo) {
+                assertTrue(settings.durations.all { it * settings.fps + 1 <= settings.maxFrames }, "без продолжения: ${model.id}")
+            }
         }
         assertTrue(models.single { it.id.startsWith("wan2.2-ti2v") }.video!!.imageToVideo)
     }

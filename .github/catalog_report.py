@@ -109,10 +109,7 @@ def text(url, limit=1500):
         print("ERROR", e)
 
 
-# Видео: LTX-2.5 (stable-diffusion.cpp) — трансформер GGUF, текстовый энкодер Gemma 4 12B с проекцией,
-# видео-VAE (conv), аудио-VAE. Нужны файлы без авторизации (gated: False).
-for q in ["LTX-2.5 gguf", "LTX-2.5", "ltx-2.5 distilled", "gemma4-12b-with-proj", "ltx 2.5 text encoder gguf"]:
-    search(q, limit=20)
-for name in ["Lightricks/LTX-2.5", "vantagewithai/LTX-2.5-GGUF", "unsloth/LTX-2.5-GGUF", "Kijai/LTX2.5_comfy",
-             "QuantStack/LTX-2.5-GGUF", "city96/LTX-2.5-gguf"]:
-    tree(name)
+# Видео: LTX-2.5 — текстовый энкодер Gemma 4 12B с проекцией в GGUF (файлы трансформера и VAE — unsloth/LTX-2.5-GGUF).
+tree("elix3r/gemma4-12b-with-proj-ltx-2.5-GGUF")
+text("https://huggingface.co/elix3r/gemma4-12b-with-proj-ltx-2.5-GGUF/raw/main/README.md", limit=3000)
+text("https://huggingface.co/unsloth/LTX-2.5-GGUF/raw/main/README.md", limit=6000)

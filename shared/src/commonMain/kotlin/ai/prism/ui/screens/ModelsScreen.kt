@@ -29,6 +29,7 @@ import ai.prism.resources.models_for_phone
 import ai.prism.resources.models_searches_files
 import ai.prism.resources.models_recognizes_speech
 import ai.prism.resources.models_speaks
+import ai.prism.resources.models_with_audio
 import ai.prism.resources.models_details_speech
 import ai.prism.resources.models_license
 import ai.prism.resources.models_low_ram
@@ -260,6 +261,7 @@ private fun ModelCard(
                 if (model.kind == ModelKind.IMAGE) Tag(stringResource(Res.string.models_draws))
                 if (model.kind == ModelKind.EMBEDDING) Tag(stringResource(Res.string.models_searches_files))
                 if (model.kind == ModelKind.VIDEO) Tag(stringResource(Res.string.models_makes_video))
+                if (model.video?.audio == true) Tag(stringResource(Res.string.models_with_audio))
                 if (model.kind == ModelKind.SPEECH_RECOGNITION) Tag(stringResource(Res.string.models_recognizes_speech))
                 if (model.kind == ModelKind.SPEECH_SYNTHESIS) Tag(stringResource(Res.string.models_speaks))
             }
