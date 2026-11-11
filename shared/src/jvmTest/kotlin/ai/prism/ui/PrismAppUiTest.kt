@@ -16,6 +16,8 @@ import ai.prism.testing.TestApp
 import ai.prism.testing.testEmbeddingModel
 import ai.prism.testing.testImageModel
 import ai.prism.testing.testModel
+import ai.prism.testing.testRecognizer
+import ai.prism.testing.testVoice
 import ai.prism.testing.testVision
 import androidx.compose.ui.graphics.toAwtImage
 import androidx.compose.ui.test.ComposeUiTest
@@ -338,5 +340,66 @@ class PrismAppUiTest {
         onNodeWithTag("generated_video").assertIsDisplayed()
         assertEquals(3, app.imageGenerator.lastVideoRequest?.frames)
         screenshot("compact_16_video")
+    }
+
+    /** Голос: микрофон диктует текст в поле ввода, кнопка под ответом озвучивает его. */
+    @Test
+    fun compactVoiceDictatesAndSpeaks() = runDesktopComposeUiTest(width = 412, height = 892) {
+        DecomposeSettings.update { it.copy(mainThreadCheckEnabled = false) }
+        val app = TestApp(
+            models = FakeModelRepository(
+                entries = listOf(
+                    ModelEntry(testModel(), ModelStatus.Downloaded, fitsInMemory = true),
+                    ModelEntry(testRecognizer(), ModelStatus.Downloaded, fitsInMemory = true),
+                    ModelEntry(testVoice(), ModelStatus.Downloaded, fitsInMemory = true),
+                ),
+            ),
+        )
+        val lifecycle = LifecycleRegistry()
+        val root = DefaultRootComponent(DefaultComponentContext(lifecycle = lifecycle), app.dependencies, Dispatchers.Unconfined)
+        lifecycle.resume()
+        setContent { PrismApp(root) }
+
+        onNodeWithTag("new_chat").performClick()
+        onNodeWithTag("conversation_button").assertIsDisplayed()
+        onNodeWithTag("mic_button").performClick()
+        waitForIdle()
+        onNodeWithText("Какая сегодня погода?").assertIsDisplayed()
+        screenshot("compact_17_dictation")
+
+        onNodeWithTag("send_button").performClick()
+        waitForIdle()
+        onNodeWithTag("speak_button").performClick()
+        waitForIdle()
+        assertEquals(listOf("Привет!", "Я Prism AI."), app.speechEngine.spoken)
+        screenshot("compact_18_spoken_answer")
+    }
+
+    /** Без модели распознавания речи микрофон объясняет, что скачать. */
+    @Test
+    fun voiceDialogAsksToDownloadRecognizer() = runDesktopComposeUiTest(width = 412, height = 892) {
+        DecomposeSettings.update { it.copy(mainThreadCheckEnabled = false) }
+        val app = TestApp(
+            models = FakeModelRepository(
+                entries = listOf(
+                    ModelEntry(testModel(), ModelStatus.Downloaded, fitsInMemory = true),
+                    ModelEntry(testRecognizer(), ModelStatus.NotDownloaded, fitsInMemory = true),
+                    ModelEntry(testVoice(), ModelStatus.NotDownloaded, fitsInMemory = true),
+                ),
+            ),
+        )
+        val lifecycle = LifecycleRegistry()
+        val root = DefaultRootComponent(DefaultComponentContext(lifecycle = lifecycle), app.dependencies, Dispatchers.Unconfined)
+        lifecycle.resume()
+        setContent { PrismApp(root) }
+
+        onNodeWithTag("new_chat").performClick()
+        onNodeWithTag("mic_button").performClick()
+        onNodeWithTag("voice_dialog").assertIsDisplayed()
+        screenshot("compact_19_voice_dialog", tag = "voice_dialog")
+        assertEquals(0, app.audioInput.started)
+
+        onNodeWithTag("voice_open_models").performClick()
+        onNodeWithTag("models_screen").assertIsDisplayed()
     }
 }
