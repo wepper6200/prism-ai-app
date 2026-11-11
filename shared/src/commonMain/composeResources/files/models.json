@@ -413,6 +413,36 @@
       }
     },
     {
+      "id": "piper-ru-irina-medium",
+      "name": "Голос «Ирина»",
+      "family": "Piper",
+      "parameters": "15M",
+      "quantization": "FP32",
+      "description": {
+        "ru": "Женский голос для озвучки ответов по-русски (Piper). Обучен на записях проекта RHVoice: их лицензия не указана, поэтому голос — для личного использования."
+      },
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-ru_RU-irina-medium.tar.bz2",
+      "fileName": "vits-piper-ru_RU-irina-medium.tar.bz2",
+      "sizeBytes": 67153308,
+      "sha256": "1fc0f54e5e084fe287c07909f2f6e0ba6d857864cf800e3ab80286a4e8233008",
+      "minRamMb": 1024,
+      "license": {
+        "name": "MIT; записи RHVoice — лицензия не указана",
+        "url": "https://huggingface.co/rhasspy/piper-voices/blob/main/ru/ru_RU/irina/medium/MODEL_CARD"
+      },
+      "recommendedFor": [],
+      "kind": "speech_synthesis",
+      "mainRole": "voice",
+      "archive": true,
+      "speech": {
+        "engine": "piper",
+        "language": "ru",
+        "languages": [
+          "ru"
+        ]
+      }
+    },
+    {
       "id": "flux1-schnell-q4_0",
       "name": "FLUX.1 [schnell]",
       "family": "FLUX.1",
