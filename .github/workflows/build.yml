@@ -369,10 +369,11 @@ jobs:
   catalog-report:
     name: Model catalog report
     # Облачная среда разработки не видит huggingface.co: размеры, SHA-256 и лицензии файлов для каталога
-    # печатает это задание — для коммита со словом [catalog-report] в сообщении. Ничего не скачивает.
+    # печатает это задание — для коммита со словом [catalog-report] в сообщении. Мелкие файлы и архивы скачивает,
+    # чтобы посчитать SHA-256.
     if: github.event_name == 'push' && contains(github.event.head_commit.message, '[catalog-report]')
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
       - name: Query Hugging Face metadata
