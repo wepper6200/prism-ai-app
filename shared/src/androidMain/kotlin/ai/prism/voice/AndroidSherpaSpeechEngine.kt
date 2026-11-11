@@ -40,7 +40,7 @@ class AndroidSherpaSpeechEngine(threads: Int) : SherpaSpeechEngine(threads) {
                 tokens = files.getValue("tokens"),
                 numThreads = threads,
             )
-            SpeechEngineType.PIPER -> error("${spec.modelId} is a voice, not a recognizer")
+            SpeechEngineType.PIPER, SpeechEngineType.SUPERTONIC -> error("${spec.modelId} is a voice, not a recognizer")
         }
         val recognizer = OfflineRecognizer(assetManager = null, config = OfflineRecognizerConfig(modelConfig = model))
         return object : NativeRecognizer {

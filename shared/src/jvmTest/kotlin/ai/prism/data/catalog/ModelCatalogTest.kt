@@ -121,7 +121,7 @@ class ModelCatalogTest {
             val expected = when (speech.engine) {
                 SpeechEngineType.WHISPER -> setOf("encoder", "decoder", "tokens", "vad")
                 SpeechEngineType.NEMO_CTC -> setOf("model", "tokens", "vad")
-                SpeechEngineType.PIPER -> emptySet()
+                SpeechEngineType.PIPER, SpeechEngineType.SUPERTONIC -> emptySet()
             }
             assertEquals(expected, roles, model.id)
         }

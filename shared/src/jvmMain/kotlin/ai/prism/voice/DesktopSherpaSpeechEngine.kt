@@ -44,7 +44,7 @@ class DesktopSherpaSpeechEngine(threads: Int) : SherpaSpeechEngine(threads) {
                 .setModelType("whisper")
             SpeechEngineType.NEMO_CTC -> model
                 .setNemo(OfflineNemoEncDecCtcModelConfig.builder().setModel(files.getValue("model")).build())
-            SpeechEngineType.PIPER -> error("${spec.modelId} is a voice, not a recognizer")
+            SpeechEngineType.PIPER, SpeechEngineType.SUPERTONIC -> error("${spec.modelId} is a voice, not a recognizer")
         }
         val recognizer = OfflineRecognizer(OfflineRecognizerConfig.builder().setOfflineModelConfig(model.build()).build())
         return object : NativeRecognizer {
