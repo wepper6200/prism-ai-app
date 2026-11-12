@@ -41,6 +41,16 @@ class FileModelStorage(initialDirectory: File) : ModelStorage {
         file(file).delete()
         partFile(file).delete()
         if (file.archive) unpackedDir(file).deleteRecursively()
+        derivedFiles(file).forEach { it.delete() }
+    }
+
+    /** Сжатые копии файла (текстовый энкодер видео, `<файл>.q4_k.gguf`) и их незавершённые части. */
+    private fun derivedFiles(model: ModelFile): List<File> {
+        val prefix = model.fileName + "."
+        return directory.listFiles { candidate ->
+            candidate.isFile && candidate.name.startsWith(prefix) &&
+                (candidate.name.endsWith(DERIVED_SUFFIX) || candidate.name.endsWith(DERIVED_SUFFIX + PART_SUFFIX))
+        }?.toList().orEmpty()
     }
 
     override fun freeSpaceBytes(): Long {
@@ -52,5 +62,6 @@ class FileModelStorage(initialDirectory: File) : ModelStorage {
         const val PART_SUFFIX = ".part"
         const val UNPACKED_SUFFIX = ".d"
         const val UNPACKED_MARK = ".prism-unpacked"
+        const val DERIVED_SUFFIX = ".gguf"
     }
 }

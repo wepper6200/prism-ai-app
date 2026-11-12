@@ -32,6 +32,7 @@ import ai.prism.domain.model.MessageRole
 import ai.prism.domain.model.MessageStatus
 import ai.prism.domain.model.ModelKind
 import ai.prism.domain.model.ModelStatus
+import ai.prism.domain.model.TextEncoderMode
 import ai.prism.domain.repository.ChatRepository
 import ai.prism.domain.repository.ImageException
 import ai.prism.domain.repository.ImageStore
@@ -107,7 +108,14 @@ private sealed interface PreparedPrompt {
 }
 
 /** Этап создания изображения. */
-enum class DrawingStage { TRANSLATING, LOADING, DRAWING }
+enum class DrawingStage {
+    TRANSLATING,
+
+    /** Один раз сжимается текстовый энкодер видео (настройка «Текстовый энкодер»). */
+    COMPRESSING,
+    LOADING,
+    DRAWING,
+}
 
 /** Ход создания изображения: этап и шаг из скольких. */
 data class DrawingProgress(
@@ -158,6 +166,8 @@ class ChatGenerationService(
     private val commands: CommandRunner = CommandRunner.None,
     /** Сегодняшняя дата на устройстве для промпта. */
     private val today: () -> String = ::todayText,
+    /** Объём оперативной памяти: от него зависит текстовый энкодер видео по умолчанию (0 — неизвестен). */
+    private val totalRamBytes: Long = 0L,
 ) {
     private val mutableActive = MutableStateFlow<ActiveGeneration?>(null)
     val active: StateFlow<ActiveGeneration?> = mutableActive.asStateFlow()
@@ -381,6 +391,29 @@ class ChatGenerationService(
         }
     }
 
+    /** Текстовый энкодер видео: выбранный в настройках или по объёму оперативной памяти. */
+    fun textEncoderMode(): TextEncoderMode =
+        settings.settings.value.textEncoderMode ?: TextEncoderMode.auto(totalRamBytes)
+
+    /**
+     * Файлы модели видео с выбранным текстовым энкодером: вместо полного файла — его сжатая копия,
+     * которая создаётся при первом использовании и потом лежит рядом с ним.
+     */
+    private suspend fun withTextEncoder(
+        model: CatalogModel,
+        files: Map<String, String>,
+        onCompressing: () -> Unit,
+    ): Map<String, String> {
+        val path = files[TextEncoderMode.ROLE] ?: return files
+        val component = model.components.firstOrNull { it.role == TextEncoderMode.ROLE } ?: return files
+        if (!TextEncoderMode.canCompress(component.file.fileName)) return files
+        val mode = textEncoderMode()
+        val type = mode.weightType ?: return files
+        val compressed = TextEncoderMode.pathFor(path, mode)
+        imageGenerator.compressWeights(path, compressed, type, onCompressing)
+        return files + (TextEncoderMode.ROLE to compressed)
+    }
+
     private suspend fun videoReply(chatId: String, prompt: String, source: ImageAttachment?) {
         val model = videoModel()
         val reply = chats.addMessage(chatId, MessageRole.ASSISTANT, "", MessageStatus.GENERATING, model?.id)
@@ -414,6 +447,7 @@ class ChatGenerationService(
                 chats.updateMessage(reply.id, "", MessageStatus.STOPPED, null)
                 return
             }
+            val modelFiles = withTextEncoder(model, files) { progress(DrawingProgress(DrawingStage.COMPRESSING)) }
             // Фото оживляет только модель, которая это умеет; размер кадра — как в настройках модели.
             val photo = source?.takeIf { videoSettings.imageToVideo }
             val segments = VideoPlan.segments(videoSettings, videoSeconds(model))
@@ -431,7 +465,7 @@ class ChatGenerationService(
                     val part = if (segments.size > 1) index + 1 else 0
                     val video = imageGenerator.generateVideo(
                         model = model,
-                        files = files,
+                        files = modelFiles,
                         request = VideoRequest(
                             prompt = englishPrompt,
                             negativePrompt = videoSettings.negativePrompt,

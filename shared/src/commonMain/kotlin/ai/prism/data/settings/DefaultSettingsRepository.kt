@@ -2,6 +2,7 @@ package ai.prism.data.settings
 
 import ai.prism.domain.model.AppSettings
 import ai.prism.domain.model.DarkMode
+import ai.prism.domain.model.TextEncoderMode
 import ai.prism.domain.model.ThemeStyle
 import ai.prism.domain.repository.SettingsRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,6 +44,8 @@ class DefaultSettingsRepository(
 
     override fun setVideoSeconds(seconds: Int) = update { it.copy(videoSeconds = seconds.coerceIn(0, MAX_VIDEO_SECONDS)) }
 
+    override fun setTextEncoderMode(mode: TextEncoderMode?) = update { it.copy(textEncoderMode = mode) }
+
     override fun setSpeechRate(rate: Float) = update {
         it.copy(speechRate = rate.coerceIn(AppSettings.MIN_SPEECH_RATE, AppSettings.MAX_SPEECH_RATE))
     }
@@ -68,6 +71,7 @@ class DefaultSettingsRepository(
             voiceSpeaker = store.getString(KEY_VOICE_SPEAKER)?.toIntOrNull()?.coerceAtLeast(0) ?: defaults.voiceSpeaker,
             videoModelId = store.getString(KEY_VIDEO_MODEL) ?: defaults.videoModelId,
             videoSeconds = store.getString(KEY_VIDEO_SECONDS)?.toIntOrNull()?.coerceIn(0, MAX_VIDEO_SECONDS) ?: defaults.videoSeconds,
+            textEncoderMode = enumValues<TextEncoderMode>().firstOrNull { it.name == store.getString(KEY_TEXT_ENCODER) },
         )
     }
 
@@ -84,6 +88,7 @@ class DefaultSettingsRepository(
         store.putString(KEY_VOICE_SPEAKER, settings.voiceSpeaker.toString())
         store.putString(KEY_VIDEO_MODEL, settings.videoModelId)
         store.putString(KEY_VIDEO_SECONDS, settings.videoSeconds.toString())
+        store.putString(KEY_TEXT_ENCODER, settings.textEncoderMode?.name.orEmpty())
     }
 
     private inline fun <reified E : Enum<E>> parseEnum(raw: String?, default: E): E =
@@ -102,6 +107,7 @@ class DefaultSettingsRepository(
         const val KEY_VOICE_SPEAKER = "voice_speaker"
         const val KEY_VIDEO_MODEL = "video_model"
         const val KEY_VIDEO_SECONDS = "video_seconds"
+        const val KEY_TEXT_ENCODER = "text_encoder_mode"
         const val MAX_VIDEO_SECONDS = 60
     }
 }

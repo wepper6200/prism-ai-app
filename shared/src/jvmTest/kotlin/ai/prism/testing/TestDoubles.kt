@@ -163,6 +163,19 @@ class FakeImageGenerator(var supported: Boolean = true) : ImageGenerator {
         return GeneratedImage(png, request.width, request.height, 42)
     }
 
+    /** Файлы, которые уже «сжаты», и вызовы сжатия: вход, выход, тип. */
+    val compressed = mutableSetOf<String>()
+    val compressions = mutableListOf<Triple<String, String, String>>()
+    var compressError: ImageGenerationException? = null
+
+    override suspend fun compressWeights(input: String, output: String, type: String, onStarted: () -> Unit) {
+        if (output in compressed) return
+        onStarted()
+        compressions += Triple(input, output, type)
+        compressError?.let { throw it }
+        compressed += output
+    }
+
     /** Байты «видео», которое вернёт [generateVideo]. */
     var avi: ByteArray = byteArrayOf(7, 7, 7)
     var lastVideoRequest: VideoRequest? = null
@@ -459,6 +472,8 @@ class TestApp(
     val audioInput: FakeAudioInput = FakeAudioInput(),
     val audioOutput: FakeAudioOutput = FakeAudioOutput(),
     val updater: AppUpdater = AppUpdater.None,
+    /** Объём оперативной памяти «устройства» (0 — неизвестен). */
+    totalRamBytes: Long = 0L,
 ) {
     val settings = DefaultSettingsRepository(MapKeyValueStore())
     val images = MemoryImageStore()
@@ -505,6 +520,7 @@ class TestApp(
         web = web,
         workspaces = FileWorkspaceProvider(Dispatchers.Unconfined),
         commands = commands,
+        totalRamBytes = totalRamBytes,
         today = { "среда, 11 ноября 2026 г. (2026-11-11)" },
     )
     val voice = VoiceService(

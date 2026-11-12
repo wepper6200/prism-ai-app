@@ -11,7 +11,8 @@ import kotlin.system.exitProcess
  * Поддельная программа генерации для тестов протокола: отвечает как native/imagegen/prism_imagegen.cpp.
  * Аргумент — файл журнала полученных команд.
  * Модель с «broken» в пути не загружается, описание «crash» завершает процесс как при нехватке памяти,
- * описание «slow» рисует медленно, чтобы его можно было отменить.
+ * описание «slow» рисует медленно, чтобы его можно было отменить. Сжатие (`convert`) занимает основной поток,
+ * как в настоящей программе; вход со «slow» в пути сжимается долго.
  */
 object FakeImageWorker {
     private val cancelled = AtomicBoolean(false)
@@ -33,6 +34,7 @@ object FakeImageWorker {
                     cancelled.set(false)
                     generation = Thread { generate(line) }.apply { start() }
                 }
+                "\"convert\"" in line -> convert(line)
                 "\"cancel\"" in line -> cancelled.set(true)
                 "\"quit\"" in line -> break
             }
@@ -60,6 +62,14 @@ object FakeImageWorker {
         g.dispose()
         ImageIO.write(image, "png", File(output))
         emit("""{"event":"done","output":"$output","width":8,"height":8,"seed":7}""")
+    }
+
+    private fun convert(line: String) {
+        val input = Regex("\"input\":\"([^\"]+)\"").find(line)!!.groupValues[1]
+        val output = Regex("\"output\":\"([^\"]+)\"").find(line)!!.groupValues[1]
+        if ("slow" in input) Thread.sleep(60_000)
+        File(output).writeText("gguf")
+        emit("""{"event":"converted","output":"$output"}""")
     }
 
     @Synchronized

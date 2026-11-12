@@ -6,6 +6,7 @@ import ai.prism.data.db.PrismDatabase
 import ai.prism.data.documents.SqlDocumentRepository
 import ai.prism.data.models.DefaultModelRepository
 import ai.prism.data.settings.DefaultSettingsRepository
+import ai.prism.domain.model.DeviceInfo
 import ai.prism.domain.model.PlatformCapabilities
 import ai.prism.domain.repository.ChatRepository
 import ai.prism.domain.repository.DocumentRepository
@@ -77,6 +78,7 @@ val sharedModule: Module = module {
             web = get(),
             workspaces = get(),
             commands = get(),
+            totalRamBytes = get<DeviceInfo>().totalRamBytes,
         )
     }
     single {

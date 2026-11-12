@@ -22,6 +22,7 @@ import ai.prism.resources.draw_loading
 import ai.prism.resources.draw_needs_translator
 import ai.prism.resources.video_dialog_text
 import ai.prism.resources.video_dialog_title
+import ai.prism.resources.video_compressing_encoder
 import ai.prism.resources.video_loading
 import ai.prism.resources.video_step
 import ai.prism.resources.document_dialog_text
@@ -856,6 +857,7 @@ private fun Drawing(progress: DrawingProgress) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.testTag("drawing_progress")) {
         val stage = when (progress.stage) {
             DrawingStage.TRANSLATING -> stringResource(Res.string.draw_translating)
+            DrawingStage.COMPRESSING -> stringResource(Res.string.video_compressing_encoder)
             DrawingStage.LOADING -> stringResource(if (progress.video) Res.string.video_loading else Res.string.draw_loading)
             DrawingStage.DRAWING ->
                 stringResource(if (progress.video) Res.string.video_step else Res.string.draw_step, progress.step, progress.steps)

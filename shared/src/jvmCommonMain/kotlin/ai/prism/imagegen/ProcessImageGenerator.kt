@@ -59,6 +59,10 @@ class ProcessImageGenerator(
     @Volatile
     private var cancelRequested = false
 
+    /** Идёт сжатие весов: оно не прерывается командой, поэтому отмена завершает процесс. */
+    @Volatile
+    private var compressing = false
+
     override suspend fun generate(
         model: CatalogModel,
         files: Map<String, String>,
@@ -98,6 +102,46 @@ class ProcessImageGenerator(
         }
     }
 
+    override suspend fun compressWeights(input: String, output: String, type: String, onStarted: () -> Unit) =
+        mutex.withLock {
+            withContext(Dispatchers.IO) {
+                if (File(output).isFile) return@withContext
+                cancelRequested = false
+                onStarted()
+                // Сжатие читает файл по одному тензору; освобождаем память от загруженной модели.
+                stopProcess()
+                try {
+                    compressing = true
+                    startProcess()
+                    send(
+                        buildJsonObject {
+                            put("cmd", "convert")
+                            put("input", input)
+                            put("output", output)
+                            put("type", type)
+                        },
+                    )
+                    while (true) {
+                        val event = nextEvent()
+                        when (event.string("event")) {
+                            "converted" -> break
+                            "error" -> throw failure(event, loading = false)
+                        }
+                    }
+                } catch (e: CancellationException) {
+                    withContext(NonCancellable) { stopProcess() }
+                    throw e
+                } finally {
+                    compressing = false
+                    File("$output.part").delete()
+                }
+                stopProcess()
+                if (!File(output).isFile) {
+                    throw ImageGenerationException(ImageGenerationError.FAILED, "Сжатый файл не создан: $output")
+                }
+            }
+        }
+
     /** Как загружать модель: от этого зависит, можно ли переиспользовать уже запущенный процесс. */
     private data class LoadOptions(
         val vaeTiling: Boolean,
@@ -108,6 +152,10 @@ class ProcessImageGenerator(
 
     override fun cancel() {
         cancelRequested = true
+        if (compressing) {
+            process?.destroyForcibly()
+            return
+        }
         val writer = input ?: return
         try {
             synchronized(writer) {

@@ -45,6 +45,8 @@ data class AppSettings(
     val videoModelId: String = "",
     /** Длительность видео, секунды; 0 — по умолчанию модели. */
     val videoSeconds: Int = 0,
+    /** Текстовый энкодер видео (LTX): полный или сжатый; `null` — по объёму оперативной памяти. */
+    val textEncoderMode: TextEncoderMode? = null,
 ) {
     companion object {
         const val MIN_SPEECH_RATE = 0.7f

@@ -8,6 +8,7 @@ import ai.prism.domain.model.ModelEntry
 import ai.prism.domain.model.ModelKind
 import ai.prism.domain.model.ModelStatus
 import ai.prism.domain.model.PlatformCapabilities
+import ai.prism.domain.model.TextEncoderMode
 import ai.prism.domain.model.ThemeStyle
 import ai.prism.domain.repository.ModelRepository
 import ai.prism.domain.repository.SettingsRepository
@@ -57,6 +58,10 @@ data class SettingsState(
     /** Скачанные модели видео (выбор показывается, если их несколько). */
     val videoModels: List<VoiceModelOption> = emptyList(),
     val selectedVideoModelId: String? = null,
+    /** Скачана модель видео с текстовым энкодером, который можно сжать (LTX) — показывается выбор энкодера. */
+    val textEncoderAvailable: Boolean = false,
+    /** Энкодер, который будет использоваться (выбранный или по объёму памяти). */
+    val textEncoderMode: TextEncoderMode = TextEncoderMode.FULL,
     /** Обновление приложения из настроек (Android, Windows). */
     val updatesSupported: Boolean = false,
     val update: UpdateState = UpdateState.Idle,
@@ -76,6 +81,7 @@ sealed interface SettingsIntent {
     data class SetSpeechRate(val rate: Float) : SettingsIntent
     data class SelectVideoModel(val modelId: String) : SettingsIntent
     data class SelectVoiceSpeaker(val speaker: Int) : SettingsIntent
+    data class SelectTextEncoder(val mode: TextEncoderMode) : SettingsIntent
     data object CheckForUpdates : SettingsIntent
     data object InstallUpdate : SettingsIntent
     data object CancelUpdate : SettingsIntent
@@ -100,6 +106,8 @@ class DefaultSettingsComponent(
     private val onBack: () -> Unit,
     private val updates: UpdateService = UpdateService(AppUpdater.None, CoroutineScope(SupervisorJob())),
     private val modelFolder: ModelFolder = ModelFolder.None,
+    /** Объём оперативной памяти: текстовый энкодер по умолчанию (0 — неизвестен). */
+    private val totalRamBytes: Long = 0L,
 ) : SettingsComponent, ComponentContext by componentContext {
 
     private val scope = componentScope(mainContext)
@@ -121,11 +129,14 @@ class DefaultSettingsComponent(
                     .distinctBy { it.family },
                 voice = voiceSettings(models, settings),
             ).let { state ->
-                val videos = models
-                    .filter { it.model.kind == ModelKind.VIDEO && it.status == ModelStatus.Downloaded }
-                    .map { VoiceModelOption(it.model.id, it.model.name) }
+                val downloadedVideos = models.filter { it.model.kind == ModelKind.VIDEO && it.status == ModelStatus.Downloaded }
+                val videos = downloadedVideos.map { VoiceModelOption(it.model.id, it.model.name) }
                 state.copy(
                     videoModels = videos,
+                    textEncoderAvailable = downloadedVideos.any { entry ->
+                        entry.model.components.any { it.role == TextEncoderMode.ROLE && TextEncoderMode.canCompress(it.fileName) }
+                    },
+                    textEncoderMode = settings.textEncoderMode ?: TextEncoderMode.auto(totalRamBytes),
                     selectedVideoModelId = (videos.firstOrNull { it.id == settings.videoModelId } ?: videos.firstOrNull())?.id,
                 )
             }
@@ -167,6 +178,7 @@ class DefaultSettingsComponent(
             is SettingsIntent.SetSpeechRate -> settingsRepository.setSpeechRate(intent.rate)
             is SettingsIntent.SelectVideoModel -> settingsRepository.setVideoModel(intent.modelId)
             is SettingsIntent.SelectVoiceSpeaker -> settingsRepository.setVoiceSpeaker(intent.speaker)
+            is SettingsIntent.SelectTextEncoder -> settingsRepository.setTextEncoderMode(intent.mode)
             SettingsIntent.CheckForUpdates -> updates.check()
             SettingsIntent.InstallUpdate -> updates.install()
             SettingsIntent.CancelUpdate -> updates.cancel()

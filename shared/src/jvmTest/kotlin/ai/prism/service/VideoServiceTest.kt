@@ -5,9 +5,11 @@ import ai.prism.domain.imagegen.ImageGenerationError
 import ai.prism.domain.imagegen.ImageGenerationException
 import ai.prism.domain.model.GenerationError
 import ai.prism.domain.model.MessageStatus
+import ai.prism.domain.model.ModelComponent
 import ai.prism.domain.model.ModelEntry
 import ai.prism.domain.model.ModelKind
 import ai.prism.domain.model.ModelStatus
+import ai.prism.domain.model.TextEncoderMode
 import ai.prism.domain.model.VideoModelSettings
 import ai.prism.testing.FakeInferenceEngine
 import ai.prism.testing.FakeModelRepository
@@ -53,6 +55,69 @@ class VideoServiceTest {
             ),
         ),
     )
+
+    /** LTX: текстовый энкодер Gemma в bf16 (роль `llm`), который можно сжать. */
+    private fun ltxApp(totalRamBytes: Long) = TestApp(
+        engine = FakeInferenceEngine(reply = listOf("A cat running on the grass")),
+        models = FakeModelRepository(
+            listOf(
+                ModelEntry(testModel(), ModelStatus.Downloaded, fitsInMemory = true),
+                ModelEntry(
+                    videoModel().copy(
+                        id = "ltx-test",
+                        components = listOf(
+                            ModelComponent("llm", "https://example.com/gemma.safetensors", "gemma-bf16.safetensors", 26_263_858_182, "5".repeat(64)),
+                        ),
+                    ),
+                    ModelStatus.Downloaded,
+                    fitsInMemory = true,
+                ),
+            ),
+        ),
+        totalRamBytes = totalRamBytes,
+    )
+
+    @Test
+    fun textEncoderIsCompressedOnceAndUsedInsteadOfFullFile(): Unit = runBlocking {
+        val app = ltxApp(totalRamBytes = 32L * GB)
+        val chat = app.chats.createChat()
+        assertEquals(TextEncoderMode.Q4, app.generation.textEncoderMode())
+
+        app.generation.animate(chat.id, "Кот бежит по траве")
+        app.generation.animate(chat.id, "Кот спит")
+
+        val compressed = "/models/gemma-bf16.safetensors.q4_k.gguf"
+        assertEquals(listOf(Triple("/models/gemma-bf16.safetensors", compressed, "q4_k")), app.imageGenerator.compressions)
+        assertEquals(compressed, app.imageGenerator.lastFiles?.get("llm"))
+        assertEquals(MessageStatus.COMPLETE, app.chats.messagesSnapshot(chat.id).last().status)
+
+        // Выбор в настройках важнее объёма памяти: полный энкодер — без сжатия.
+        app.settings.setTextEncoderMode(TextEncoderMode.FULL)
+        app.generation.animate(chat.id, "Кот прыгает")
+        assertEquals(1, app.imageGenerator.compressions.size)
+        assertEquals("/models/gemma-bf16.safetensors", app.imageGenerator.lastFiles?.get("llm"))
+
+        app.settings.setTextEncoderMode(TextEncoderMode.Q8)
+        app.generation.animate(chat.id, "Кот бежит")
+        assertEquals("q8_0", app.imageGenerator.compressions.last().third)
+        assertEquals("/models/gemma-bf16.safetensors.q8_0.gguf", app.imageGenerator.lastFiles?.get("llm"))
+    }
+
+    @Test
+    fun textEncoderDefaultsToFullOnBigMachinesAndFailedCompressionIsReported(): Unit = runBlocking {
+        assertEquals(TextEncoderMode.FULL, ltxApp(totalRamBytes = 64L * GB).generation.textEncoderMode())
+        assertEquals(TextEncoderMode.Q8, ltxApp(totalRamBytes = 48L * GB).generation.textEncoderMode())
+        assertEquals(TextEncoderMode.FULL, ltxApp(totalRamBytes = 0L).generation.textEncoderMode())
+
+        val app = ltxApp(totalRamBytes = 16L * GB)
+        app.imageGenerator.compressError = ImageGenerationException(ImageGenerationError.NOT_ENOUGH_MEMORY, "нет памяти")
+        val chat = app.chats.createChat()
+        app.generation.animate(chat.id, "Кот бежит по траве")
+        val reply = app.chats.messagesSnapshot(chat.id).last()
+        assertEquals(MessageStatus.FAILED, reply.status)
+        assertEquals(GenerationError.NOT_ENOUGH_MEMORY, reply.error)
+        assertNull(app.imageGenerator.lastVideoRequest)
+    }
 
     @Test
     fun videoIsMadeFromTranslatedPromptAndStored(): Unit = runBlocking {
@@ -165,5 +230,9 @@ class VideoServiceTest {
         val chat = app.chats.createChat()
         app.generation.animate(chat.id, "Кот бежит по траве")
         assertEquals(73, app.imageGenerator.lastVideoRequest?.frames)
+    }
+
+    private companion object {
+        const val GB = 1024L * 1024 * 1024
     }
 }

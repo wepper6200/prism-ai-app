@@ -21,12 +21,16 @@
 //                                                  или продолжить ролик от его последнего кадра. flow_shift ≤ 0 —
 //                                                  по умолчанию модели. Результат — MJPEG AVI; звук (LTX) — WAV рядом:
 //                                                  "<output>.wav", путь в событии done ("audio")
+//   {"cmd":"convert","input":"…/encoder.safetensors","output":"…/encoder.q4_k.gguf","type":"q4_k"}
+//                                                — сжать файл весов (например, текстовый энкодер LTX) в GGUF;
+//                                                  пишется во временный "<output>.part", затем переименовывается
 //   {"cmd":"cancel"}   — остановить текущую генерацию
 //   {"cmd":"quit"}
 // События:
 //   {"event":"started"}                          — процесс запущен и ждёт команд
 //   {"event":"loaded","device":"…"}              — модель загружена
 //   {"event":"progress","step":1,"steps":4}
+//   {"event":"converted","output":"…"}          — файл сжат
 //   {"event":"done","output":"…","width":…,"height":…,"seed":…}          — для видео ещё "frames" и "fps"
 //   {"event":"error","code":"…","message":"…"}  — коды: bad_request, load_failed, out_of_memory,
 //                                                  generation_failed, cancelled, write_failed, busy
@@ -433,6 +437,48 @@ public:
         emit({{"event", "loaded"}, {"device", device_name()}});
     }
 
+    void convert_weights(const json & request) {
+        if (busy_.load()) return emit_error("busy", "generation in progress");
+        const std::string input = str(request, "input");
+        const std::string output = str(request, "output");
+        const std::string type_name = str(request, "type");
+        if (input.empty() || output.empty()) return emit_error("bad_request", "no input or output path");
+        const sd_type_t type = str_to_sd_type(type_name.c_str());
+        if (type == SD_TYPE_COUNT) return emit_error("bad_request", "unknown weight type: " + type_name);
+        // Сжатие идёт по одному тензору — модель целиком в память не загружается, но загруженная занимает место.
+        if (ctx_ != nullptr) {
+            free_sd_ctx(ctx_);
+            ctx_ = nullptr;
+        }
+        const std::string temp = output + ".part";
+        std::error_code error;
+        std::filesystem::remove(std::filesystem::u8path(temp), error);
+        clear_last_error();
+        bool ok = false;
+        try {
+            ok = convert(input.c_str(), nullptr, temp.c_str(), type, nullptr, false);
+        } catch (const std::bad_alloc &) {
+            std::filesystem::remove(std::filesystem::u8path(temp), error);
+            return emit_error("out_of_memory", "out of memory while converting");
+        } catch (const std::exception & e) {
+            std::filesystem::remove(std::filesystem::u8path(temp), error);
+            return emit_error("convert_failed", e.what());
+        }
+        if (!ok) {
+            std::filesystem::remove(std::filesystem::u8path(temp), error);
+            const std::string message = last_error();
+            return emit_error(looks_like_oom(message) ? "out_of_memory" : "convert_failed",
+                              message.empty() ? "cannot convert " + input : message);
+        }
+        std::filesystem::remove(std::filesystem::u8path(output), error);
+        std::filesystem::rename(std::filesystem::u8path(temp), std::filesystem::u8path(output), error);
+        if (error) {
+            std::filesystem::remove(std::filesystem::u8path(temp), error);
+            return emit_error("write_failed", "cannot write " + output);
+        }
+        emit({{"event", "converted"}, {"output", output}});
+    }
+
     void generate(const json & request, bool video) {
         if (ctx_ == nullptr) return emit_error("bad_request", "model is not loaded");
         if (busy_.exchange(true)) return emit_error("busy", "generation in progress");
@@ -648,6 +694,8 @@ int main() {
         } else if (cmd == "generate" || cmd == "generate_video") {
             worker.mark_cancelled(false);
             worker.generate(request, cmd == "generate_video");
+        } else if (cmd == "convert") {
+            worker.convert_weights(request);
         } else if (cmd == "cancel") {
             worker.mark_cancelled(true);
             worker.cancel();

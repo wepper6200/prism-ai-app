@@ -2,6 +2,7 @@ package ai.prism.domain.repository
 
 import ai.prism.domain.model.AppSettings
 import ai.prism.domain.model.DarkMode
+import ai.prism.domain.model.TextEncoderMode
 import ai.prism.domain.model.ThemeStyle
 import kotlinx.coroutines.flow.StateFlow
 
@@ -31,4 +32,7 @@ interface SettingsRepository {
     fun setVideoModel(modelId: String)
 
     fun setVideoSeconds(seconds: Int)
+
+    /** Текстовый энкодер видео; `null` — выбирать по объёму оперативной памяти. */
+    fun setTextEncoderMode(mode: TextEncoderMode?)
 }

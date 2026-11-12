@@ -33,6 +33,13 @@ interface ImageGenerator {
         onProgress: (ImageGenerationProgress) -> Unit,
     ): GeneratedVideo
 
+    /**
+     * Сжимает файл весов [input] (например, текстовый энкодер LTX в bf16) в GGUF [output] с типом [type]
+     * (`q8_0`, `q4_k`), если [output] ещё нет. [onStarted] вызывается, только когда сжатие действительно начинается.
+     * Загруженная модель выгружается. Бросает [ImageGenerationException]; отмена через [cancel] — CANCELLED.
+     */
+    suspend fun compressWeights(input: String, output: String, type: String, onStarted: () -> Unit)
+
     /** Останавливает текущую генерацию (из любого потока). */
     fun cancel()
 

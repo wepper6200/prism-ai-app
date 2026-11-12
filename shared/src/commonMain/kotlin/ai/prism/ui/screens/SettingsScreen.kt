@@ -47,9 +47,14 @@ import androidx.compose.material3.OutlinedButton
 import ai.prism.domain.model.AppSettings
 import ai.prism.presentation.settings.VoiceModelOption
 import ai.prism.resources.settings_voice
+import ai.prism.resources.settings_text_encoder
+import ai.prism.resources.settings_text_encoder_desc
 import ai.prism.resources.settings_video
 import ai.prism.resources.settings_video_desc
 import ai.prism.resources.settings_video_model
+import ai.prism.resources.text_encoder_full
+import ai.prism.resources.text_encoder_q4
+import ai.prism.resources.text_encoder_q8
 import ai.prism.resources.settings_voice_desc
 import ai.prism.resources.settings_voice_none
 import ai.prism.resources.settings_voice_rate
@@ -60,6 +65,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Slider
 import kotlin.math.roundToInt
+import ai.prism.domain.model.TextEncoderMode
 import ai.prism.domain.model.ThemeStyle
 import ai.prism.presentation.settings.SettingsComponent
 import ai.prism.presentation.settings.SettingsIntent
@@ -337,19 +343,39 @@ fun SettingsScreen(
                 }
             }
 
-            if (state.videoModels.size > 1) {
+            if (state.videoModels.size > 1 || state.textEncoderAvailable) {
                 SettingsSection(title = stringResource(Res.string.settings_video), modifier = sectionModifier.testTag("video_settings")) {
                     Text(
                         text = stringResource(Res.string.settings_video_desc),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    SectionLabel(stringResource(Res.string.settings_video_model))
-                    VoiceModelChoice(
-                        options = state.videoModels,
-                        selectedId = state.selectedVideoModelId,
-                        onSelect = { component.onIntent(SettingsIntent.SelectVideoModel(it)) },
-                    )
+                    if (state.videoModels.size > 1) {
+                        SectionLabel(stringResource(Res.string.settings_video_model))
+                        VoiceModelChoice(
+                            options = state.videoModels,
+                            selectedId = state.selectedVideoModelId,
+                            onSelect = { component.onIntent(SettingsIntent.SelectVideoModel(it)) },
+                        )
+                    }
+                    if (state.textEncoderAvailable) {
+                        SectionLabel(stringResource(Res.string.settings_text_encoder))
+                        Text(
+                            text = stringResource(Res.string.settings_text_encoder_desc),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        val encoderNames = mapOf(
+                            TextEncoderMode.FULL to stringResource(Res.string.text_encoder_full),
+                            TextEncoderMode.Q8 to stringResource(Res.string.text_encoder_q8),
+                            TextEncoderMode.Q4 to stringResource(Res.string.text_encoder_q4),
+                        )
+                        VoiceModelChoice(
+                            options = TextEncoderMode.entries.map { VoiceModelOption(it.name, encoderNames.getValue(it)) },
+                            selectedId = state.textEncoderMode.name,
+                            onSelect = { component.onIntent(SettingsIntent.SelectTextEncoder(TextEncoderMode.valueOf(it))) },
+                        )
+                    }
                 }
             }
 

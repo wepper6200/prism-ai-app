@@ -173,6 +173,7 @@ class DefaultRootComponent(
                     onBack = ::onBack,
                     updates = deps.updateService,
                     modelFolder = deps.modelFolder,
+                    totalRamBytes = deps.deviceInfo.totalRamBytes,
                 ),
             )
         }

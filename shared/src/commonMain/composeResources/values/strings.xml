@@ -125,6 +125,7 @@
     <string name="video_dialog_title">Модель видео не скачана</string>
     <string name="video_dialog_text">Чтобы снимать видео, скачайте «%1$s» (%2$s) на экране «Модели». Она работает без интернета, но ролик создаётся несколько минут.</string>
     <string name="video_loading">Загружаю модель видео…</string>
+    <string name="video_compressing_encoder">Сжимаю текстовый энкодер — один раз, несколько минут…</string>
     <string name="video_step">Создаю видео… шаг %1$d из %2$d</string>
     <string name="video_description">Видео</string>
     <string name="video_play">Воспроизвести</string>
@@ -271,6 +272,11 @@
     <string name="settings_video">Видео</string>
     <string name="settings_video_desc">Длинные ролики снимаются кусками: каждый следующий начинается с последнего кадра предыдущего. Длительность выбирается в чате в режиме «Видео».</string>
     <string name="settings_video_model">Модель видео</string>
+    <string name="settings_text_encoder">Текстовый энкодер (LTX)</string>
+    <string name="settings_text_encoder_desc">Энкодер понимает описание видео. Полный занимает 26 ГБ оперативной памяти — с 32 ГБ компьютер начинает тормозить. Сжатая копия создаётся один раз при первом видео (несколько минут, ещё 7–13 ГБ на диске) и почти не хуже полного. По умолчанию выбор зависит от объёма памяти.</string>
+    <string name="text_encoder_full">Полный (26 ГБ)</string>
+    <string name="text_encoder_q8">Сжатый Q8 (13 ГБ)</string>
+    <string name="text_encoder_q4">Сжатый Q4 (7 ГБ)</string>
     <string name="models_with_audio">Со звуком</string>
     <string name="settings_updates">Обновления</string>
     <string name="update_note">Проверка обращается к GitHub только по этой кнопке. Новая версия ставится поверх текущей — чаты, настройки и модели остаются.</string>
