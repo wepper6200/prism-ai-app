@@ -13,7 +13,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: build-${{ github.ref }}
+  # Новый пуш отменяет прошлую сборку ветки; долгий замер видео ([phone-video-bench]) — в своей группе.
+  group: ci-${{ github.ref }}${{ contains(github.event.head_commit.message, '[phone-video-bench]') && '-bench' || '' }}
   cancel-in-progress: true
 
 env:

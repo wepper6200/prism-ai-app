@@ -113,3 +113,13 @@ def text(url, limit=1500):
 tree("elix3r/gemma4-12b-with-proj-ltx-2.5-GGUF")
 text("https://huggingface.co/elix3r/gemma4-12b-with-proj-ltx-2.5-GGUF/raw/main/README.md", limit=3000)
 text("https://huggingface.co/unsloth/LTX-2.5-GGUF/raw/main/README.md", limit=6000)
+
+# Qwen3.8-27B: GGUF (основной файл и проектор зрения) и шаблон диалога исходной модели.
+search("Qwen3.8-27B GGUF")
+for name in ("ggml-org/Qwen3.8-27B-GGUF", "Qwen/Qwen3.8-27B-GGUF", "unsloth/Qwen3.8-27B-GGUF",
+             "bartowski/Qwen3.8-27B-GGUF"):
+    repo(name, suffixes=(".gguf",), readme=2500)
+repo("Qwen/Qwen3.8-27B", suffixes=(".json", ".jinja"), readme=4000)
+text("https://huggingface.co/Qwen/Qwen3.8-27B/raw/main/chat_template.jinja", limit=8000)
+text("https://huggingface.co/Qwen/Qwen3.8-27B/raw/main/tokenizer_config.json", limit=3000)
+text("https://huggingface.co/Qwen/Qwen3.8-27B/raw/main/LICENSE", limit=600)
