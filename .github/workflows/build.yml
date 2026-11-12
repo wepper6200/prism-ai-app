@@ -102,15 +102,15 @@ jobs:
             echo "PRISM_KEY_ALIAS=$KEY_ALIAS"
             echo "PRISM_KEY_PASSWORD=$KEY_PASSWORD"
           } >> "$GITHUB_ENV"
-      - name: Build debug APK with llama.cpp (warnings are errors)
-        run: ./gradlew --stacktrace --warning-mode=all -Pprism.ccache=true :androidApp:assembleDebug :store:androidApp:assembleDebug
+      - name: Build release APKs with llama.cpp (warnings are errors)
+        run: ./gradlew --stacktrace --warning-mode=all -Pprism.ccache=true :androidApp:assembleRelease :store:androidApp:assembleRelease
       - name: Show APK signature
         run: |
           apksigner=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
-          "$apksigner" verify --print-certs androidApp/build/outputs/apk/debug/*.apk | grep -E "SHA-256|DN" | head -3
+          "$apksigner" verify --print-certs androidApp/build/outputs/apk/release/*.apk | grep -E "SHA-256|DN" | head -3
       - name: Check native libraries in APK
         run: |
-          apk=$(ls androidApp/build/outputs/apk/debug/*.apk)
+          apk=$(ls androidApp/build/outputs/apk/release/*.apk)
           unzip -l "$apk" | grep -E "lib/arm64-v8a/.*\.so" | tee native-libs.txt
           grep -q "libprism_llama.so" native-libs.txt
           grep -q "libmtmd.so" native-libs.txt
@@ -123,17 +123,17 @@ jobs:
         if: failure()
         run: |
           ./gradlew --console=plain -Pprism.werror=false --rerun-tasks \
-            :shared:compileAndroidMain :androidApp:compileDebugKotlin 2>&1 \
+            :shared:compileAndroidMain :androidApp:compileReleaseKotlin :store:androidApp:compileReleaseKotlin 2>&1 \
             | grep -E '^(w|e): ' || echo "No compiler warnings printed"
       - uses: actions/upload-artifact@v6
         with:
-          name: PrismAI-android-debug-apk
-          path: androidApp/build/outputs/apk/debug/*.apk
+          name: PrismAI-android-apk
+          path: androidApp/build/outputs/apk/release/*.apk
           if-no-files-found: error
       - uses: actions/upload-artifact@v6
         with:
           name: PrismStore-android-apk
-          path: store/androidApp/build/outputs/apk/debug/*.apk
+          path: store/androidApp/build/outputs/apk/release/*.apk
           if-no-files-found: error
 
   desktop:
@@ -503,7 +503,7 @@ jobs:
           echo "VERSION=$version" >> "$GITHUB_ENV"
       - uses: actions/download-artifact@v7
         with:
-          name: PrismAI-android-debug-apk
+          name: PrismAI-android-apk
           path: artifacts/android
       - uses: actions/download-artifact@v7
         with:

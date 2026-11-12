@@ -1,5 +1,7 @@
 package ai.prism.store
 
+import ai.prism.store.data.GitHubAsset
+import ai.prism.store.data.GitHubCatalogSource
 import ai.prism.store.model.AppInstaller
 import ai.prism.store.model.CatalogSource
 import ai.prism.store.model.PackageDownloader
@@ -143,6 +145,26 @@ class StoreTest {
         val catalog = lenientJson.decodeFromString(StoreCatalog.serializer(), json)
         assertEquals("ai.prism.app", catalog.apps.single().android?.packageName)
         assertNull(catalog.apps.single().windows)
+    }
+
+    @Test
+    fun releaseWithoutCatalogIsReadFromItsFiles() {
+        val sha = "a".repeat(64)
+        val catalog = GitHubCatalogSource().fromAssets(
+            listOf(
+                GitHubAsset("PrismAI-0.8.0-android-arm64.apk", "https://example.org/a.apk", 120, "sha256:$sha"),
+                GitHubAsset("PrismAI-0.8.0-windows-x64.zip", "https://example.org/w.zip", 175, "sha256:$sha"),
+                GitHubAsset("SHA256SUMS.txt", "https://example.org/s", 1, null),
+                GitHubAsset("PrismStore-1.0.0-android.apk", "https://example.org/s.apk", 50, null),
+            ),
+        )
+        val ai = catalog!!.apps.single()
+        assertEquals("prism-ai", ai.id)
+        assertEquals("0.8.0", ai.version)
+        assertEquals("ai.prism.app", ai.android?.packageName)
+        assertEquals(sha, ai.android?.file?.sha256)
+        assertEquals("PrismAI.exe", ai.windows?.exe)
+        assertNull(GitHubCatalogSource().fromAssets(emptyList()))
     }
 
     @Test

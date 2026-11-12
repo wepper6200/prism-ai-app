@@ -184,7 +184,9 @@ Prism AI — полностью офлайн ИИ-ассистент для **Wi
 
 - Облачная среда разработки не имеет доступа к `dl.google.com` (Google Maven), поэтому проект собирается
   и проверяется в GitHub Actions (`.github/workflows/build.yml`):
-  - **Android APK** — `:androidApp:assembleDebug`, артефакт `PrismAI-android-debug-apk`;
+  - **Android APK** — `:androidApp:assembleRelease` и `:store:androidApp:assembleRelease` (релизная сборка без
+    отладки — Play Защита строже к отладочным APK, ставящим приложения; R8 выключен, lintVital выключен),
+    артефакты `PrismAI-android-apk` и `PrismStore-android-apk`;
   - **Desktop** — `:desktopApp:compileKotlin :shared:jvmTest`, UI-тесты сохраняют скриншоты (артефакт `PrismAI-screenshots`);
   - **Windows** — `:desktopApp:createDistributable` на `windows-latest`, артефакт `PrismAI-windows`.
 - llama.cpp — git-подмодуль `native/llama.cpp` (закреплён на релизном теге), JNI-мост — `native/prism_llama.cpp`.
@@ -225,7 +227,8 @@ Prism AI — полностью офлайн ИИ-ассистент для **Wi
   версии, ссылки, размеры, SHA-256). `StoreController` + `GitHubCatalogSource` (последний релиз) + `HttpPackageDownloader`
   (докачка, SHA-256) + `AppInstaller`: Android — PackageInstaller, версия из PackageManager (`<queries>`), Windows —
   `%LOCALAPPDATA%\Programs\Prism\<папка>`, версия в `prism-version.txt`, ярлык в «Пуск», себя обновляет скриптом
-  PowerShell. Всё бесплатно, без аккаунтов. Следующий этап — дополнения (роли, темы, инструменты агента).
+  PowerShell. Если в релизе нет каталога (релизы до Store), `GitHubCatalogSource.fromAssets` находит приложения по
+  именам файлов и SHA-256 из поля `digest`. Всё бесплатно, без аккаунтов. Следующий этап — дополнения.
 - Релиз: коммит со словом `[release]` (или тег `vX.Y.Z`) собирает приложение и публикует релиз GitHub
   с тегом `v<prism-versionName>` (APK, zip для Windows, SHA256SUMS); текст — `.github/release-notes.md`.
   Тег из облачной среды не пушится — его создаёт задание release.

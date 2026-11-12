@@ -28,9 +28,23 @@ android {
                 keyPassword = providers.environmentVariable("PRISM_KEY_PASSWORD").get()
             }
         }
-        buildTypes {
-            getByName("debug") { signingConfig = signingConfigs.getByName("prism") }
+    }
+    buildTypes {
+        // Пользователям раздаётся релизная сборка: не отладочная (Play Защита строже к отладочным APK,
+        // которые ставят приложения). Без секретов подписи — отладочным ключом этой машины.
+        getByName("release") {
+            isMinifyEnabled = false
+            signingConfig = signingConfigs.findByName("prism") ?: signingConfigs.getByName("debug")
         }
+        getByName("debug") {
+            signingConfigs.findByName("prism")?.let { signingConfig = it }
+        }
+    }
+
+    lint {
+        // lintVital релиза останавливает сборку на правилах Google Play (доступ ко всем файлам, установка пакетов);
+        // приложения раздаются вне Play, а предупреждения компилятора и так считаются ошибками.
+        checkReleaseBuilds = false
     }
 
     compileOptions {
