@@ -13,8 +13,12 @@ permissions:
   contents: read
 
 concurrency:
-  # Новый пуш отменяет прошлую сборку ветки; долгий замер видео ([phone-video-bench]) — в своей группе.
-  group: ci-${{ github.ref }}${{ (contains(github.event.head_commit.message, '[phone-video-bench]') || contains(github.event.head_commit.message, '[phone-video-arch]')) && '-bench' || '' }}
+  # Новый пуш отменяет прошлую сборку ветки; долгий замер видео ([phone-video-*]) и выпуск релиза ([release])
+  # — в своих группах, их обычный пуш не прерывает.
+  group: >-
+    build-${{ github.ref }}${{ (contains(github.event.head_commit.message, '[phone-video-bench]') ||
+    contains(github.event.head_commit.message, '[phone-video-arch]')) && '-bench' || '' }}${{
+    contains(github.event.head_commit.message, '[release]') && '-release' || '' }}
   cancel-in-progress: true
 
 env:
