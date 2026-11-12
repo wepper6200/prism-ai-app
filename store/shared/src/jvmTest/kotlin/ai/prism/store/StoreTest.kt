@@ -140,7 +140,7 @@ class StoreTest {
               "android":{"packageName":"ai.prism.app","file":{"fileName":"PrismAI-0.9.0-android-arm64.apk",
                 "url":"https://github.com/r/a.apk","sizeBytes":10,"sha256":"ab"}}}]}
         """.trimIndent()
-        val catalog = Json { ignoreUnknownKeys = true }.decodeFromString(StoreCatalog.serializer(), json)
+        val catalog = lenientJson.decodeFromString(StoreCatalog.serializer(), json)
         assertEquals("ai.prism.app", catalog.apps.single().android?.packageName)
         assertNull(catalog.apps.single().windows)
     }
@@ -166,6 +166,10 @@ class StoreTest {
         onNodeWithTag("open_prism-ai").assertExists()
         screenshot("store_2_installed")
         assertEquals(1, installer.installs.size)
+    }
+
+    private companion object {
+        val lenientJson = Json { ignoreUnknownKeys = true }
     }
 
     private fun ComposeUiTest.screenshot(name: String) {
