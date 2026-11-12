@@ -377,6 +377,41 @@ jobs:
           path: shared/build/screenshots/
           if-no-files-found: warn
 
+  phone-video-bench:
+    name: Phone video benchmark (ARM)
+    # Что из видео реально работает на телефоне: prism_imagegen, собранный под ARMv8.2 как для Android, снимает
+    # ролик 512×288 нынешней моделью телефона (Wan 2.1 1.3B), продолжение от кадра Wan 2.1 Fun InP 1.3B и
+    # Wan 2.2 TI2V 5B; печатает время, пик памяти и шов. Только для коммита со словом [phone-video-bench].
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, '[phone-video-bench]')
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+      - name: Fetch ggml for stable-diffusion.cpp
+        run: git -C native/stable-diffusion.cpp submodule update --init --depth 1 ggml
+      - name: Build prism_imagegen for ARMv8.2 (dotprod, fp16 — as on Android)
+        run: |
+          cmake -S native/imagegen -B build/imagegen -DCMAKE_BUILD_TYPE=Release \
+            -DGGML_CPU_ARM_ARCH=armv8.2-a+dotprod+fp16
+          cmake --build build/imagegen --config Release -j "$(nproc)"
+          lscpu | head -20
+          free -g
+      - name: Benchmark video models
+        run: |
+          python3 -m pip install --quiet pillow
+          sudo mkdir -p /mnt/prism-bench && sudo chown "$USER" /mnt/prism-bench
+          df -h /mnt "$HOME" | cat
+          python3 .github/phone_video_bench.py build/imagegen/bin/prism_imagegen /mnt/prism-bench/models bench-out
+      - name: Upload videos and frames
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: PrismAI-phone-video-bench
+          path: bench-out/
+          if-no-files-found: warn
+
   catalog-report:
     name: Model catalog report
     # Облачная среда разработки не видит huggingface.co: размеры, SHA-256 и лицензии файлов для каталога

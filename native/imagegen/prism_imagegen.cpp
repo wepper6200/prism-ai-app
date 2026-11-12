@@ -7,6 +7,8 @@
 // Команды:
 //   {"cmd":"load","diffusion_model":"…","model":"…","t5xxl":"…","clip_l":"…","clip_g":"…","vae":"…","taesd":"…",
 //    "llm":"…","audio_vae":"…","embeddings_connectors":"…",   — LTX: текстовый энкодер (Gemma), звуковой VAE
+//    "clip_vision":"…",                                      — Wan 2.1 I2V (Fun InP): энкодер кадра CLIP Vision H
+//    "weight_type":"q8_0",                                   — необязательно: сжать веса при загрузке
 //    "threads":4,"vae_tiling":false,"mmap":false,"offload_to_cpu":false,"flash_attn":false}
 //                                                — offload_to_cpu: веса в оперативной памяти, в видеопамять — по частям
 //   {"cmd":"generate","prompt":"…","negative":"","width":1024,"height":1024,"steps":4,"cfg":1.0,
@@ -150,7 +152,7 @@ std::string str(const json & request, const char * key) {
 const char * c_str_or_null(const std::string & value) { return value.empty() ? nullptr : value.c_str(); }
 
 struct Paths {
-    std::string model, diffusion_model, t5xxl, clip_l, clip_g, vae, taesd, llm, audio_vae, embeddings_connectors;
+    std::string model, diffusion_model, t5xxl, clip_l, clip_g, vae, taesd, llm, audio_vae, embeddings_connectors, clip_vision;
 };
 
 
@@ -376,7 +378,7 @@ public:
         }
         paths_ = Paths{str(request, "model"), str(request, "diffusion_model"), str(request, "t5xxl"), str(request, "clip_l"),
                        str(request, "clip_g"), str(request, "vae"), str(request, "taesd"), str(request, "llm"),
-                       str(request, "audio_vae"), str(request, "embeddings_connectors")};
+                       str(request, "audio_vae"), str(request, "embeddings_connectors"), str(request, "clip_vision")};
         if (paths_.model.empty() && paths_.diffusion_model.empty()) {
             return emit_error("bad_request", "no model path");
         }
@@ -393,6 +395,14 @@ public:
         params.llm_path = c_str_or_null(paths_.llm);
         params.audio_vae_path = c_str_or_null(paths_.audio_vae);
         params.embeddings_connectors_path = c_str_or_null(paths_.embeddings_connectors);
+        params.clip_vision_path = c_str_or_null(paths_.clip_vision);
+        // Веса в формате bf16/f16 можно сжать при загрузке ("q8_0", "q4_0"…): меньше памяти на телефоне.
+        const std::string weight_type = str(request, "weight_type");
+        if (!weight_type.empty()) {
+            const sd_type_t type = str_to_sd_type(weight_type.c_str());
+            if (type == SD_TYPE_COUNT) return emit_error("bad_request", "unknown weight type: " + weight_type);
+            params.wtype = type;
+        }
         params.enable_mmap = request.value("mmap", false);
         // Веса — в оперативной памяти, в видеопамять попадают по частям: видео Wan не помещается в 8–12 ГБ целиком.
         params_backend_ = request.value("offload_to_cpu", false) ? "*=cpu" : "";

@@ -195,6 +195,9 @@ Prism AI — полностью офлайн ИИ-ассистент для **Wi
   «Image generation (FLUX.1 schnell)»: ~10 ГБ не помещаются в кэш Actions) — модель рисует красный фон, проверяется цвет.
 - Облачная среда разработки не видит huggingface.co: метаданные файлов (размер, SHA-256) печатает задание
   «Model catalog report» (`.github/catalog_report.py`) для коммита со словом `[catalog-report]` в сообщении.
+- Видео на телефоне: коммит со словом `[phone-video-bench]` запускает задание «Phone video benchmark (ARM)»
+  (`.github/phone_video_bench.py`, раннер `ubuntu-24.04-arm`, сборка ARMv8.2 как на Android): время, пик памяти
+  и шов продолжения для Wan 2.1 1.3B, Wan 2.1 Fun InP 1.3B (`clip_vision`, `weight_type`) и Wan 2.2 TI2V 5B.
 - Релиз: коммит со словом `[release]` (или тег `vX.Y.Z`) собирает приложение и публикует релиз GitHub
   с тегом `v<prism-versionName>` (APK, zip для Windows, SHA256SUMS); текст — `.github/release-notes.md`.
   Тег из облачной среды не пушится — его создаёт задание release.
