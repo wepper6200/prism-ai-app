@@ -22,6 +22,7 @@ import ai.prism.service.ChatGenerationService
 import ai.prism.service.voice.VoiceService
 import ai.prism.service.update.UpdateService
 import ai.prism.domain.update.AppUpdater
+import ai.prism.domain.model.ModelFolder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import ai.prism.domain.voice.AudioOutput
@@ -80,6 +81,8 @@ class AppDependencies(
     val audioOutput: AudioOutput,
     /** Обновление приложения по кнопке в настройках. */
     val updateService: UpdateService = UpdateService(AppUpdater.None, CoroutineScope(SupervisorJob())),
+    /** Где хранятся модели (Android: можно в общей папке, которая переживает удаление приложения). */
+    val modelFolder: ModelFolder = ModelFolder.None,
 )
 
 class DefaultRootComponent(
@@ -169,6 +172,7 @@ class DefaultRootComponent(
                     mainContext = mainContext,
                     onBack = ::onBack,
                     updates = deps.updateService,
+                    modelFolder = deps.modelFolder,
                 ),
             )
         }

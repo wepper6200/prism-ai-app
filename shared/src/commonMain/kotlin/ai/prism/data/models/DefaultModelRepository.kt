@@ -161,6 +161,16 @@ class DefaultModelRepository(
         store.putString(KEY_ACTIVE_MODEL, modelId)
     }
 
+    override fun refresh() {
+        val busy = jobs.value.filterValues { it.isActive }.keys
+        statuses.update { current ->
+            catalogModels.value.associate { model ->
+                model.id to if (model.id in busy) current[model.id] ?: initialStatus(model) else initialStatus(model)
+            }
+        }
+        chatReady.value = catalogModels.value.filter { storage.isDownloaded(it.mainFile) }.map { it.id }.toSet()
+    }
+
     override fun catalogModel(modelId: String): CatalogModel? =
         catalogModels.value.firstOrNull { it.id == modelId }
 

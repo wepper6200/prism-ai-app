@@ -211,6 +211,11 @@ Prism AI — полностью офлайн ИИ-ассистент для **Wi
   PackageInstaller, разрешение REQUEST_INSTALL_PACKAGES, ответ — `UpdateInstallReceiver`. Windows — `DesktopAppUpdater`:
   zip распаковывается в `%LOCALAPPDATA%\PrismAI\updates`, скрипт PowerShell ждёт выхода программы, копирует файлы
   (robocopy) в папку `jpackage.app-path` и запускает её снова. Модели и данные не затрагиваются.
+- **Папка моделей (Android 11+):** «Настройки → Хранение моделей» — `SwitchableModelFolder` переносит файлы
+  моделей между `filesDir/models` и `Download/PrismAI/models` (разрешение MANAGE_EXTERNAL_STORAGE,
+  `AndroidSharedStorageAccess`); общая папка остаётся после удаления приложения. Перенос по одному файлу
+  (копия через `.copy`, затем удаление), уже лежащие файлы того же размера не копируются — после переустановки
+  включённая снова настройка находит модели. Выбор хранится в `models_shared_folder`; без доступа — внутренняя папка.
 - Релиз: коммит со словом `[release]` (или тег `vX.Y.Z`) собирает приложение и публикует релиз GitHub
   с тегом `v<prism-versionName>` (APK, zip для Windows, SHA256SUMS); текст — `.github/release-notes.md`.
   Тег из облачной среды не пушится — его создаёт задание release.

@@ -3,7 +3,11 @@ package ai.prism.data.models
 import ai.prism.domain.model.ModelFile
 import java.io.File
 
-class FileModelStorage(private val directory: File) : ModelStorage {
+class FileModelStorage(initialDirectory: File) : ModelStorage {
+
+    /** Папка моделей; меняется, когда пользователь переносит модели ([ai.prism.data.models.SwitchableModelFolder]). */
+    @Volatile
+    var directory: File = initialDirectory
 
     fun file(model: ModelFile): File = File(directory, model.fileName)
 

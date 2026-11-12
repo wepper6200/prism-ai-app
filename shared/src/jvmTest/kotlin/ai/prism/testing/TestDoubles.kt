@@ -321,6 +321,12 @@ class FakeModelRepository(
         activeModelId.value = modelId
     }
 
+    var refreshes = 0
+
+    override fun refresh() {
+        refreshes++
+    }
+
     override fun catalogModel(modelId: String): CatalogModel? = models.value.firstOrNull { it.model.id == modelId }?.model
 
     override fun downloadedFilePath(modelId: String): String? =

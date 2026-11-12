@@ -20,6 +20,9 @@ interface ModelRepository {
 
     fun setActive(modelId: String)
 
+    /** Заново проверяет файлы на диске (например, после смены папки моделей). Идущие загрузки не трогает. */
+    fun refresh()
+
     fun catalogModel(modelId: String): CatalogModel?
 
     /** Путь к полностью скачанному основному файлу модели или `null`. */

@@ -291,4 +291,12 @@
     <string name="update_error_permission">Разрешите Prism AI устанавливать приложения на открывшемся экране и нажмите «Повторить».</string>
     <string name="update_error_cancelled">Установка отменена.</string>
     <string name="update_error_install">Не удалось установить обновление.</string>
+    <string name="settings_model_storage">Хранение моделей</string>
+    <string name="model_folder_shared">Хранить модели в папке %1$s</string>
+    <string name="model_folder_desc">Модели останутся на телефоне, даже если удалить приложение. После переустановки включите настройку снова — скачанные модели найдутся. Нужно разрешение «Доступ ко всем файлам».</string>
+    <string name="model_folder_moving">Переношу модели: %1$s из %2$s</string>
+    <string name="model_folder_error_access">Разрешите Prism AI доступ ко всем файлам на открывшемся экране и включите настройку снова.</string>
+    <string name="model_folder_error_downloads">Сначала дождитесь окончания загрузки модели или поставьте её на паузу.</string>
+    <string name="model_folder_error_space">Не хватает места для переноса.</string>
+    <string name="model_folder_error_failed">Не удалось перенести модели. Файлы, которые уже перенесены, остались в новой папке.</string>
 </resources>

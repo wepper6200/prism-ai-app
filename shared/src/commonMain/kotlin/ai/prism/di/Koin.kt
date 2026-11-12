@@ -109,6 +109,7 @@ val sharedModule: Module = module {
             voiceService = get(),
             audioOutput = get(),
             updateService = get(),
+            modelFolder = get(),
         )
     }
     single { RootComponentFactory(dependencies = get()) }

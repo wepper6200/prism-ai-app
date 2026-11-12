@@ -12,6 +12,8 @@ import ai.prism.domain.model.ThemeStyle
 import ai.prism.domain.repository.ModelRepository
 import ai.prism.domain.repository.SettingsRepository
 import ai.prism.domain.update.AppUpdater
+import ai.prism.domain.model.ModelFolder
+import ai.prism.domain.model.ModelFolderState
 import ai.prism.service.update.UpdateService
 import ai.prism.service.update.UpdateState
 import kotlinx.coroutines.CoroutineScope
@@ -58,6 +60,8 @@ data class SettingsState(
     /** Обновление приложения из настроек (Android, Windows). */
     val updatesSupported: Boolean = false,
     val update: UpdateState = UpdateState.Idle,
+    /** Где хранятся модели (раздел показывается, если выбор поддерживается). */
+    val modelFolder: ModelFolderState = ModelFolderState(),
 )
 
 sealed interface SettingsIntent {
@@ -75,6 +79,7 @@ sealed interface SettingsIntent {
     data object CheckForUpdates : SettingsIntent
     data object InstallUpdate : SettingsIntent
     data object CancelUpdate : SettingsIntent
+    data class SetSharedModelFolder(val shared: Boolean) : SettingsIntent
     data object Back : SettingsIntent
 }
 
@@ -92,6 +97,7 @@ class DefaultSettingsComponent(
     mainContext: CoroutineContext,
     private val onBack: () -> Unit,
     private val updates: UpdateService = UpdateService(AppUpdater.None, CoroutineScope(SupervisorJob())),
+    private val modelFolder: ModelFolder = ModelFolder.None,
 ) : SettingsComponent, ComponentContext by componentContext {
 
     private val scope = componentScope(mainContext)
@@ -104,9 +110,10 @@ class DefaultSettingsComponent(
     )
 
     override val state: StateFlow<SettingsState> =
-        combine(settingsRepository.settings, modelRepository.models, updates.state) { settings, models, update ->
+        combine(settingsRepository.settings, modelRepository.models, updates.state, modelFolder.state) { settings, models, update, folder ->
             toState(settings, capabilities.supportsDynamicColor).copy(
                 update = update,
+                modelFolder = folder,
                 modelLicenses = models
                     .map { ModelLicenseInfo(it.model.family, it.model.license.name, it.model.license.url) }
                     .distinctBy { it.family },
@@ -161,6 +168,7 @@ class DefaultSettingsComponent(
             SettingsIntent.CheckForUpdates -> updates.check()
             SettingsIntent.InstallUpdate -> updates.install()
             SettingsIntent.CancelUpdate -> updates.cancel()
+            is SettingsIntent.SetSharedModelFolder -> modelFolder.setShared(intent.shared)
             SettingsIntent.Back -> onBack()
         }
     }

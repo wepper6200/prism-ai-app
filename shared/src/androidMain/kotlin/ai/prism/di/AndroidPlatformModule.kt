@@ -41,6 +41,10 @@ import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.driver.android.AndroidSqliteDriver
 import ai.prism.domain.update.AppUpdater
 import ai.prism.update.AndroidAppUpdater
+import ai.prism.data.models.SharedStorageAccess
+import ai.prism.data.models.SwitchableModelFolder
+import ai.prism.domain.model.ModelFolder
+import ai.prism.platform.AndroidSharedStorageAccess
 import org.koin.core.module.Module
 import org.koin.dsl.module
 import java.io.File
@@ -53,8 +57,31 @@ fun androidPlatformModule(context: Context): Module = module {
         PlatformCapabilities(supportsDynamicColor = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S, platform = "android")
     }
     single<DeviceInfo> { AndroidDeviceInfo(appContext) }
-    // Модели — во внутреннем хранилище приложения: не видны другим приложениям и удаляются вместе с ним.
-    single { FileModelStorage(File(appContext.filesDir, MODELS_DIR)) }
+    // Модели — во внутреннем хранилище приложения (удаляются вместе с ним) или, по выбору пользователя,
+    // в общей папке Download/PrismAI, которая остаётся после удаления.
+    single<SharedStorageAccess> { AndroidSharedStorageAccess(appContext) }
+    single {
+        FileModelStorage(
+            SwitchableModelFolder.initialDirectory(
+                store = get(),
+                access = get(),
+                internalDir = File(appContext.filesDir, MODELS_DIR),
+                sharedDir = AndroidSharedStorageAccess.sharedModelsDir(),
+            ),
+        )
+    }
+    single<ModelFolder> {
+        SwitchableModelFolder(
+            storage = get(),
+            internalDir = File(appContext.filesDir, MODELS_DIR),
+            sharedDir = AndroidSharedStorageAccess.sharedModelsDir(),
+            sharedLabel = AndroidSharedStorageAccess.SHARED_LABEL,
+            access = get(),
+            store = get(),
+            repository = get(),
+            scope = get(),
+        )
+    }
     single<ModelStorage> { get<FileModelStorage>() }
     single<ModelDownloader> { HttpModelDownloader(get()) }
     single<ImageCodec> { AndroidImageCodec() }

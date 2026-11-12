@@ -2,6 +2,16 @@ package ai.prism.ui.screens
 
 import ai.prism.domain.model.DarkMode
 import ai.prism.domain.update.AppRelease
+import ai.prism.domain.model.ModelFolderError
+import ai.prism.domain.model.ModelFolderState
+import ai.prism.resources.settings_model_storage
+import ai.prism.resources.model_folder_shared
+import ai.prism.resources.model_folder_desc
+import ai.prism.resources.model_folder_moving
+import ai.prism.resources.model_folder_error_access
+import ai.prism.resources.model_folder_error_downloads
+import ai.prism.resources.model_folder_error_space
+import ai.prism.resources.model_folder_error_failed
 import ai.prism.domain.update.UpdateError
 import ai.prism.service.update.UpdateState
 import ai.prism.ui.components.formatBytes
@@ -353,6 +363,12 @@ fun SettingsScreen(
                 }
             }
 
+            if (state.modelFolder.supported) {
+                SettingsSection(title = stringResource(Res.string.settings_model_storage), modifier = sectionModifier) {
+                    ModelFolderBlock(state.modelFolder, component::onIntent)
+                }
+            }
+
             SettingsSection(title = stringResource(Res.string.settings_about), modifier = sectionModifier) {
                 Text(stringResource(Res.string.app_name), style = MaterialTheme.typography.bodyLarge)
                 Text(
@@ -369,6 +385,42 @@ fun SettingsScreen(
             }
             Spacer(Modifier.height(12.dp))
         }
+    }
+}
+
+/** Хранить модели в общей папке, которая остаётся после удаления приложения (Android). */
+@Composable
+private fun ModelFolderBlock(folder: ModelFolderState, onIntent: (SettingsIntent) -> Unit) {
+    SettingSwitch(
+        title = stringResource(Res.string.model_folder_shared, folder.sharedPath),
+        description = stringResource(Res.string.model_folder_desc),
+        checked = folder.shared,
+        onCheckedChange = { if (!folder.moving) onIntent(SettingsIntent.SetSharedModelFolder(it)) },
+        tag = "model_folder_setting",
+    )
+    if (folder.moving) {
+        LinearProgressIndicator(
+            progress = { if (folder.totalBytes > 0) folder.movedBytes.toFloat() / folder.totalBytes else 0f },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Text(
+            text = stringResource(Res.string.model_folder_moving, formatBytes(folder.movedBytes), formatBytes(folder.totalBytes)),
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+    folder.error?.let { error ->
+        Text(
+            text = stringResource(
+                when (error) {
+                    ModelFolderError.NEED_ACCESS -> Res.string.model_folder_error_access
+                    ModelFolderError.DOWNLOADS_ACTIVE -> Res.string.model_folder_error_downloads
+                    ModelFolderError.NOT_ENOUGH_SPACE -> Res.string.model_folder_error_space
+                    ModelFolderError.FAILED -> Res.string.model_folder_error_failed
+                },
+            ),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.error,
+        )
     }
 }
 

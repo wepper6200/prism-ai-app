@@ -41,6 +41,7 @@ import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import ai.prism.domain.update.AppUpdater
 import ai.prism.update.DesktopAppUpdater
+import ai.prism.domain.model.ModelFolder
 import org.koin.core.module.Module
 import org.koin.dsl.module
 import java.io.File
@@ -80,6 +81,8 @@ fun desktopPlatformModule(): Module = module {
     single<AudioInput> { JavaSoundAudioInput() }
     single<AudioOutput> { JavaSoundAudioOutput() }
     single<AppUpdater> { DesktopAppUpdater() }
+    // Модели и так лежат в папке данных, а не в папке программы, — выбор папки не нужен.
+    single<ModelFolder> { ModelFolder.None }
 }
 
 private const val DATABASE_NAME = "prism.db"
