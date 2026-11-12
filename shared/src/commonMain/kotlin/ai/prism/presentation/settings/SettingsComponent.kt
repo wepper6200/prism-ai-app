@@ -11,6 +11,11 @@ import ai.prism.domain.model.PlatformCapabilities
 import ai.prism.domain.model.ThemeStyle
 import ai.prism.domain.repository.ModelRepository
 import ai.prism.domain.repository.SettingsRepository
+import ai.prism.domain.update.AppUpdater
+import ai.prism.service.update.UpdateService
+import ai.prism.service.update.UpdateState
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import com.arkivanov.decompose.ComponentContext
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -50,6 +55,9 @@ data class SettingsState(
     /** Скачанные модели видео (выбор показывается, если их несколько). */
     val videoModels: List<VoiceModelOption> = emptyList(),
     val selectedVideoModelId: String? = null,
+    /** Обновление приложения из настроек (Android, Windows). */
+    val updatesSupported: Boolean = false,
+    val update: UpdateState = UpdateState.Idle,
 )
 
 sealed interface SettingsIntent {
@@ -64,6 +72,9 @@ sealed interface SettingsIntent {
     data class SetSpeechRate(val rate: Float) : SettingsIntent
     data class SelectVideoModel(val modelId: String) : SettingsIntent
     data class SelectVoiceSpeaker(val speaker: Int) : SettingsIntent
+    data object CheckForUpdates : SettingsIntent
+    data object InstallUpdate : SettingsIntent
+    data object CancelUpdate : SettingsIntent
     data object Back : SettingsIntent
 }
 
@@ -80,6 +91,7 @@ class DefaultSettingsComponent(
     capabilities: PlatformCapabilities,
     mainContext: CoroutineContext,
     private val onBack: () -> Unit,
+    private val updates: UpdateService = UpdateService(AppUpdater.None, CoroutineScope(SupervisorJob())),
 ) : SettingsComponent, ComponentContext by componentContext {
 
     private val scope = componentScope(mainContext)
@@ -88,11 +100,13 @@ class DefaultSettingsComponent(
         settings = settings,
         supportsDynamicColor = supportsDynamicColor,
         versionName = BuildInfo.VERSION_NAME,
+        updatesSupported = updates.supported,
     )
 
     override val state: StateFlow<SettingsState> =
-        combine(settingsRepository.settings, modelRepository.models) { settings, models ->
+        combine(settingsRepository.settings, modelRepository.models, updates.state) { settings, models, update ->
             toState(settings, capabilities.supportsDynamicColor).copy(
+                update = update,
                 modelLicenses = models
                     .map { ModelLicenseInfo(it.model.family, it.model.license.name, it.model.license.url) }
                     .distinctBy { it.family },
@@ -144,6 +158,9 @@ class DefaultSettingsComponent(
             is SettingsIntent.SetSpeechRate -> settingsRepository.setSpeechRate(intent.rate)
             is SettingsIntent.SelectVideoModel -> settingsRepository.setVideoModel(intent.modelId)
             is SettingsIntent.SelectVoiceSpeaker -> settingsRepository.setVoiceSpeaker(intent.speaker)
+            SettingsIntent.CheckForUpdates -> updates.check()
+            SettingsIntent.InstallUpdate -> updates.install()
+            SettingsIntent.CancelUpdate -> updates.cancel()
             SettingsIntent.Back -> onBack()
         }
     }

@@ -18,11 +18,14 @@ object ChatPromptFormatter {
         "<|turn>", "<turn|>", "<|channel>", "<channel|>", "<|think|>",
         "<start_of_turn>", "<end_of_turn>", "<bos>", "<eos>",
         "<start_of_image>", "<end_of_image>", "<|image>", "<image|>", MEDIA_MARKER,
+        "<|im_start|>", "<|im_end|>", "<|endoftext|>", "<think>", "</think>",
+        "<|vision_start|>", "<|vision_end|>", "<|image_pad|>",
     )
 
     fun format(format: ChatFormat, systemPrompt: String, messages: List<PromptMessage>): String = when (format) {
         ChatFormat.GEMMA4 -> gemma4(systemPrompt, messages)
         ChatFormat.GEMMA3 -> gemma3(systemPrompt, messages)
+        ChatFormat.QWEN -> qwen(systemPrompt, messages)
         ChatFormat.RAW -> raw(systemPrompt, messages)
     }
 
@@ -69,6 +72,19 @@ object ChatPromptFormatter {
         append("<start_of_turn>model\n")
     }
 
+    // Qwen 3.x (ChatML): системная роль поддерживается; пустой блок <think> в начале ответа — режим без размышлений.
+    private fun qwen(systemPrompt: String, messages: List<PromptMessage>): String = buildString {
+        val system = sanitize(systemPrompt)
+        if (system.isNotEmpty()) {
+            append("<|im_start|>system\n").append(system).append("<|im_end|>\n")
+        }
+        messages.forEach { message ->
+            append("<|im_start|>").append(message.role.chatMlRole()).append('\n')
+            append(mediaMarkers(message)).append(sanitize(message.content)).append("<|im_end|>\n")
+        }
+        append("<|im_start|>assistant\n<think>\n\n</think>\n\n")
+    }
+
     private fun raw(systemPrompt: String, messages: List<PromptMessage>): String = buildString {
         if (systemPrompt.isNotBlank()) append(systemPrompt.trim()).append("\n\n")
         messages.forEach { append(mediaMarkers(it)).append(it.content.trim()).append('\n') }
@@ -77,6 +93,11 @@ object ChatPromptFormatter {
     /** Метки изображений сообщения — перед его текстом, каждая с новой строки. */
     private fun mediaMarkers(message: PromptMessage): String =
         message.images.joinToString("") { MEDIA_MARKER + "\n" }
+
+    private fun MessageRole.chatMlRole(): String = when (this) {
+        MessageRole.USER -> "user"
+        MessageRole.ASSISTANT -> "assistant"
+    }
 
     private fun MessageRole.gemmaRole(): String = when (this) {
         MessageRole.USER -> "user"

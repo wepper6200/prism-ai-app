@@ -11,6 +11,7 @@ import ai.prism.presentation.chat.ChatIntent
 import ai.prism.presentation.chat.PickedDocument
 import ai.prism.presentation.root.DefaultRootComponent
 import ai.prism.presentation.root.RootComponent
+import ai.prism.testing.FakeAppUpdater
 import ai.prism.testing.FakeModelRepository
 import ai.prism.testing.TestApp
 import ai.prism.testing.testEmbeddingModel
@@ -28,6 +29,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.v2.runDesktopComposeUiTest
 import com.arkivanov.decompose.DecomposeSettings
@@ -94,10 +96,9 @@ class PrismAppUiTest {
         ),
     )
 
-    private fun createApp(): Pair<TestApp, RootComponent> {
+    private fun createApp(app: TestApp = TestApp(models = models)): Pair<TestApp, RootComponent> {
         // Compose UI-тест выполняется вне потока Swing, поэтому проверку главного потока Decompose отключаем.
         DecomposeSettings.update { it.copy(mainThreadCheckEnabled = false) }
-        val app = TestApp(models = models)
         val lifecycle = LifecycleRegistry()
         val root = DefaultRootComponent(DefaultComponentContext(lifecycle = lifecycle), app.dependencies, Dispatchers.Unconfined)
         lifecycle.resume()
@@ -340,6 +341,25 @@ class PrismAppUiTest {
         onNodeWithTag("generated_video").assertIsDisplayed()
         assertEquals(3, app.imageGenerator.lastVideoRequest?.frames)
         screenshot("compact_16_video")
+    }
+
+    /** Обновление: по кнопке в настройках находится новая версия, затем скачивается и ставится. */
+    @Test
+    fun compactSettingsInstallsUpdate() = runDesktopComposeUiTest(width = 412, height = 892) {
+        val updater = FakeAppUpdater()
+        val (_, root) = createApp(TestApp(models = models, updater = updater))
+        setContent { PrismApp(root) }
+
+        onNodeWithTag("nav_settings").performClick()
+        onNodeWithTag("update_check").performScrollTo().performClick()
+        waitForIdle()
+        onNodeWithText("Доступна версия 0.9.0").assertExists()
+        onNodeWithTag("update_install").performScrollTo()
+        screenshot("compact_19_update_available")
+
+        onNodeWithTag("update_install").performClick()
+        waitForIdle()
+        assertEquals(listOf("/updates/PrismAI-0.9.0-android-arm64.apk"), updater.installed)
     }
 
     /** Голос: микрофон диктует текст в поле ввода, кнопка под ответом озвучивает его. */

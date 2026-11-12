@@ -1,6 +1,33 @@
 package ai.prism.ui.screens
 
 import ai.prism.domain.model.DarkMode
+import ai.prism.domain.update.AppRelease
+import ai.prism.domain.update.UpdateError
+import ai.prism.service.update.UpdateState
+import ai.prism.ui.components.formatBytes
+import ai.prism.resources.settings_updates
+import ai.prism.resources.update_available
+import ai.prism.resources.update_cancel
+import ai.prism.resources.update_check
+import ai.prism.resources.update_checking
+import ai.prism.resources.update_downloading
+import ai.prism.resources.update_error_cancelled
+import ai.prism.resources.update_error_checksum
+import ai.prism.resources.update_error_install
+import ai.prism.resources.update_error_network
+import ai.prism.resources.update_error_no_package
+import ai.prism.resources.update_error_permission
+import ai.prism.resources.update_error_storage
+import ai.prism.resources.update_install
+import ai.prism.resources.update_installing
+import ai.prism.resources.update_note
+import ai.prism.resources.update_retry
+import ai.prism.resources.update_up_to_date
+import ai.prism.resources.update_whats_new
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.OutlinedButton
 import ai.prism.domain.model.AppSettings
 import ai.prism.presentation.settings.VoiceModelOption
 import ai.prism.resources.settings_voice
@@ -334,10 +361,96 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+
+            if (state.updatesSupported) {
+                SettingsSection(title = stringResource(Res.string.settings_updates), modifier = sectionModifier) {
+                    UpdateBlock(state.update, component::onIntent)
+                }
+            }
             Spacer(Modifier.height(12.dp))
         }
     }
 }
+
+/** Проверка, загрузка и установка новой версии приложения (только по кнопке). */
+@Composable
+private fun UpdateBlock(update: UpdateState, onIntent: (SettingsIntent) -> Unit) {
+    Text(
+        text = stringResource(Res.string.update_note),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    when (update) {
+        UpdateState.Idle -> Button(onClick = { onIntent(SettingsIntent.CheckForUpdates) }, modifier = Modifier.testTag("update_check")) {
+            Text(stringResource(Res.string.update_check))
+        }
+        UpdateState.Checking -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+            Text(stringResource(Res.string.update_checking), style = MaterialTheme.typography.bodyMedium)
+        }
+        is UpdateState.UpToDate -> {
+            Text(stringResource(Res.string.update_up_to_date, update.version), style = MaterialTheme.typography.bodyMedium)
+            OutlinedButton(onClick = { onIntent(SettingsIntent.CheckForUpdates) }) { Text(stringResource(Res.string.update_check)) }
+        }
+        is UpdateState.Available -> {
+            ReleaseInfo(update.release)
+            Button(onClick = { onIntent(SettingsIntent.InstallUpdate) }, modifier = Modifier.testTag("update_install")) {
+                Text(stringResource(Res.string.update_install, formatBytes(update.release.asset?.sizeBytes ?: 0)))
+            }
+        }
+        is UpdateState.Downloading -> {
+            Text(stringResource(Res.string.update_available, update.release.version), style = MaterialTheme.typography.titleSmall)
+            LinearProgressIndicator(
+                progress = { if (update.totalBytes > 0) update.downloadedBytes.toFloat() / update.totalBytes else 0f },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text(
+                text = stringResource(Res.string.update_downloading, formatBytes(update.downloadedBytes), formatBytes(update.totalBytes)),
+                style = MaterialTheme.typography.bodySmall,
+            )
+            OutlinedButton(onClick = { onIntent(SettingsIntent.CancelUpdate) }) { Text(stringResource(Res.string.update_cancel)) }
+        }
+        is UpdateState.Installing -> {
+            Text(stringResource(Res.string.update_installing), style = MaterialTheme.typography.bodyMedium)
+            OutlinedButton(onClick = { onIntent(SettingsIntent.InstallUpdate) }) { Text(stringResource(Res.string.update_retry)) }
+        }
+        is UpdateState.Failed -> {
+            update.release?.let { ReleaseInfo(it) }
+            Text(
+                text = stringResource(
+                    when (update.error) {
+                        UpdateError.NETWORK -> Res.string.update_error_network
+                        UpdateError.NO_PACKAGE -> Res.string.update_error_no_package
+                        UpdateError.CHECKSUM -> Res.string.update_error_checksum
+                        UpdateError.STORAGE -> Res.string.update_error_storage
+                        UpdateError.PERMISSION -> Res.string.update_error_permission
+                        UpdateError.CANCELLED -> Res.string.update_error_cancelled
+                        UpdateError.INSTALL -> Res.string.update_error_install
+                    },
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+            )
+            val retry = if (update.release != null) SettingsIntent.InstallUpdate else SettingsIntent.CheckForUpdates
+            Button(onClick = { onIntent(retry) }) { Text(stringResource(Res.string.update_retry)) }
+        }
+    }
+}
+
+@Composable
+private fun ReleaseInfo(release: AppRelease) {
+    Text(stringResource(Res.string.update_available, release.version), style = MaterialTheme.typography.titleSmall)
+    if (release.notes.isNotBlank()) {
+        Text(stringResource(Res.string.update_whats_new), style = MaterialTheme.typography.labelLarge)
+        Text(
+            text = release.notes.take(RELEASE_NOTES_LIMIT).trimEnd() + if (release.notes.length > RELEASE_NOTES_LIMIT) "…" else "",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+private const val RELEASE_NOTES_LIMIT = 1500
 
 /** Выбор одной из скачанных моделей речи; пока ничего не скачано — подсказка про экран «Модели». */
 @OptIn(ExperimentalLayoutApi::class)

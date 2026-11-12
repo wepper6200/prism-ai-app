@@ -39,6 +39,8 @@ import ai.prism.voice.JavaSoundAudioInput
 import ai.prism.voice.JavaSoundAudioOutput
 import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
+import ai.prism.domain.update.AppUpdater
+import ai.prism.update.DesktopAppUpdater
 import org.koin.core.module.Module
 import org.koin.dsl.module
 import java.io.File
@@ -77,6 +79,7 @@ fun desktopPlatformModule(): Module = module {
     single<SpeechEngine> { DesktopSherpaSpeechEngine(threads = get<DeviceInfo>().inferenceThreads.coerceIn(1, MAX_SPEECH_THREADS)) }
     single<AudioInput> { JavaSoundAudioInput() }
     single<AudioOutput> { JavaSoundAudioOutput() }
+    single<AppUpdater> { DesktopAppUpdater() }
 }
 
 private const val DATABASE_NAME = "prism.db"

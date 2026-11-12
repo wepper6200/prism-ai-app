@@ -20,6 +20,10 @@ import ai.prism.presentation.settings.DefaultSettingsComponent
 import ai.prism.presentation.settings.SettingsComponent
 import ai.prism.service.ChatGenerationService
 import ai.prism.service.voice.VoiceService
+import ai.prism.service.update.UpdateService
+import ai.prism.domain.update.AppUpdater
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import ai.prism.domain.voice.AudioOutput
 import ai.prism.service.documents.DocumentService
 import com.arkivanov.decompose.ComponentContext
@@ -74,6 +78,8 @@ class AppDependencies(
     val voiceService: VoiceService,
     /** Динамик: звук роликов со звуком (LTX). */
     val audioOutput: AudioOutput,
+    /** Обновление приложения по кнопке в настройках. */
+    val updateService: UpdateService = UpdateService(AppUpdater.None, CoroutineScope(SupervisorJob())),
 )
 
 class DefaultRootComponent(
@@ -162,6 +168,7 @@ class DefaultRootComponent(
                     capabilities = deps.capabilities,
                     mainContext = mainContext,
                     onBack = ::onBack,
+                    updates = deps.updateService,
                 ),
             )
         }

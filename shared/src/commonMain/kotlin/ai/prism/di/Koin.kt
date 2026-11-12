@@ -19,6 +19,7 @@ import ai.prism.service.documents.DocumentService
 import ai.prism.service.voice.VoiceService
 import ai.prism.ui.ResourcePersonaProvider
 import kotlinx.coroutines.CoroutineScope
+import ai.prism.service.update.UpdateService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import org.koin.core.KoinApplication
@@ -91,6 +92,7 @@ val sharedModule: Module = module {
             platform = get<PlatformCapabilities>().platform,
         )
     }
+    single { UpdateService(updater = get(), scope = get()) }
     single {
         AppDependencies(
             chatRepository = get(),
@@ -106,6 +108,7 @@ val sharedModule: Module = module {
             deviceInfo = get(),
             voiceService = get(),
             audioOutput = get(),
+            updateService = get(),
         )
     }
     single { RootComponentFactory(dependencies = get()) }

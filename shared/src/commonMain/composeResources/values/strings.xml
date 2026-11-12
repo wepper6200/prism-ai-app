@@ -272,4 +272,23 @@
     <string name="settings_video_desc">Длинные ролики снимаются кусками: каждый следующий начинается с последнего кадра предыдущего. Длительность выбирается в чате в режиме «Видео».</string>
     <string name="settings_video_model">Модель видео</string>
     <string name="models_with_audio">Со звуком</string>
+    <string name="settings_updates">Обновления</string>
+    <string name="update_note">Проверка обращается к GitHub только по этой кнопке. Новая версия ставится поверх текущей — чаты, настройки и модели остаются.</string>
+    <string name="update_check">Проверить обновления</string>
+    <string name="update_checking">Проверяю…</string>
+    <string name="update_up_to_date">Установлена последняя версия (%1$s)</string>
+    <string name="update_available">Доступна версия %1$s</string>
+    <string name="update_whats_new">Что нового</string>
+    <string name="update_install">Скачать и установить (%1$s)</string>
+    <string name="update_downloading">Загрузка: %1$s из %2$s</string>
+    <string name="update_cancel">Остановить</string>
+    <string name="update_installing">Идёт установка. На Android подтвердите её в окне системы.</string>
+    <string name="update_retry">Повторить</string>
+    <string name="update_error_network">Нет связи с GitHub. Проверьте интернет и попробуйте ещё раз.</string>
+    <string name="update_error_no_package">В новом релизе нет файла для этого устройства.</string>
+    <string name="update_error_checksum">Файл повредился при загрузке (не совпала контрольная сумма). Попробуйте ещё раз.</string>
+    <string name="update_error_storage">Не хватает места или нет доступа к файлам.</string>
+    <string name="update_error_permission">Разрешите Prism AI устанавливать приложения на открывшемся экране и нажмите «Повторить».</string>
+    <string name="update_error_cancelled">Установка отменена.</string>
+    <string name="update_error_install">Не удалось установить обновление.</string>
 </resources>

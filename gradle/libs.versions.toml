@@ -1,7 +1,7 @@
 [versions]
 # Версия приложения Prism AI (единый источник для Android, Desktop и экрана «О приложении»).
-prism-versionName = "0.8.0"
-prism-versionCode = "8"
+prism-versionName = "0.9.0"
+prism-versionCode = "9"
 
 android-compileSdk = "37"
 android-targetSdk = "37"

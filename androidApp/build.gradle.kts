@@ -32,6 +32,23 @@ android {
         }
     }
 
+    // Постоянный ключ подписи: с ним новая версия ставится поверх старой и модели остаются на телефоне.
+    // CI берёт его из секретов репозитория (PRISM_KEYSTORE_*); без ключа сборка подписывается отладочным ключом.
+    val keystoreFile = providers.environmentVariable("PRISM_KEYSTORE_FILE").orNull?.let(::file)?.takeIf { it.isFile }
+    if (keystoreFile != null) {
+        signingConfigs {
+            create("prism") {
+                storeFile = keystoreFile
+                storePassword = providers.environmentVariable("PRISM_KEYSTORE_PASSWORD").get()
+                keyAlias = providers.environmentVariable("PRISM_KEY_ALIAS").get()
+                keyPassword = providers.environmentVariable("PRISM_KEY_PASSWORD").get()
+            }
+        }
+        buildTypes {
+            getByName("debug") { signingConfig = signingConfigs.getByName("prism") }
+        }
+    }
+
     externalNativeBuild {
         cmake {
             path = file("../native/CMakeLists.txt")

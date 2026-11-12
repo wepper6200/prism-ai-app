@@ -1,5 +1,5 @@
 {
-  "version": 7,
+  "version": 8,
   "models": [
     {
       "id": "gemma-4-e2b-it-q4_0",
@@ -118,6 +118,37 @@
         "sizeBytes": 806408320,
         "sha256": "cc4e855736da450bf1e162d8cccfe0ad685727d0c9e04ef7dd8d884f3121039b"
       }
+    },
+    {
+      "id": "qwen3.8-27b-q4_k_m",
+      "name": "Qwen3.8 27B",
+      "family": "Qwen3.8",
+      "parameters": "27B",
+      "quantization": "Q4_K_M",
+      "description": {
+        "ru": "Сильная модель Alibaba для мощного компьютера: код, длинные задачи, работа агентом, понимает изображения. Нужны 32 ГБ памяти; с видеокартой от 24 ГБ отвечает заметно быстрее."
+      },
+      "url": "https://huggingface.co/ggml-org/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-Q4_K_M.gguf",
+      "fileName": "Qwen3.8-27B-Q4_K_M.gguf",
+      "sizeBytes": 19403684480,
+      "sha256": "d15d4b6de55f662ac40e867702d31afe738d032fa06b829b2b1a21a49d4a48ee",
+      "contextLength": 16384,
+      "minRamMb": 32768,
+      "chatFormat": "qwen",
+      "license": {
+        "name": "Apache 2.0",
+        "url": "https://www.apache.org/licenses/LICENSE-2.0"
+      },
+      "recommendedFor": [],
+      "vision": {
+        "url": "https://huggingface.co/ggml-org/Qwen3.8-27B-GGUF/resolve/main/mmproj-Qwen3.8-27B-Q8_0.gguf",
+        "fileName": "mmproj-Qwen3.8-27B-Q8_0.gguf",
+        "sizeBytes": 629247008,
+        "sha256": "2e968a6af97ce35d8971890b257b9b7edabf20ad91450501fa53162a19ee33eb"
+      },
+      "platforms": [
+        "desktop"
+      ]
     },
     {
       "id": "gemma-3-1b-it-q4_k_m",

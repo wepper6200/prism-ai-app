@@ -1,5 +1,9 @@
 package ai.prism.testing
 
+import ai.prism.domain.update.AppRelease
+import ai.prism.domain.update.AppUpdater
+import ai.prism.domain.update.ReleaseAsset
+import ai.prism.service.update.UpdateService
 import ai.prism.data.agent.FileWorkspaceProvider
 import ai.prism.data.chat.SqlChatRepository
 import ai.prism.data.documents.SqlDocumentRepository
@@ -448,6 +452,7 @@ class TestApp(
     val speechEngine: FakeSpeechEngine = FakeSpeechEngine(),
     val audioInput: FakeAudioInput = FakeAudioInput(),
     val audioOutput: FakeAudioOutput = FakeAudioOutput(),
+    val updater: AppUpdater = AppUpdater.None,
 ) {
     val settings = DefaultSettingsRepository(MapKeyValueStore())
     val images = MemoryImageStore()
@@ -522,5 +527,28 @@ class TestApp(
         deviceInfo = FakeDeviceInfo(),
         voiceService = voice,
         audioOutput = audioOutput,
+        updateService = UpdateService(updater, scope, currentVersion = "0.8.0"),
     )
+}
+
+/** Релиз 0.9.0 с APK; загрузка и установка только запоминаются. */
+class FakeAppUpdater : AppUpdater {
+    val installed = mutableListOf<String>()
+    override val supported: Boolean = true
+
+    override suspend fun latestRelease(): AppRelease = AppRelease(
+        version = "0.9.0",
+        notes = "- Qwen3.8-27B в каталоге\n- Обновление из приложения",
+        pageUrl = "https://example.org/releases/v0.9.0",
+        asset = ReleaseAsset("PrismAI-0.9.0-android-arm64.apk", "https://example.org/app.apk", 120L * 1024 * 1024, "0".repeat(64)),
+    )
+
+    override suspend fun download(asset: ReleaseAsset, onProgress: (Long, Long) -> Unit): String {
+        onProgress(asset.sizeBytes, asset.sizeBytes)
+        return "/updates/" + asset.name
+    }
+
+    override suspend fun install(path: String, version: String) {
+        installed += path
+    }
 }

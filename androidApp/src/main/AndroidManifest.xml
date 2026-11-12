@@ -1,8 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Сеть нужна только для скачивания моделей по явному действию пользователя. -->
+    <!-- Сеть — только по явному действию пользователя: скачивание моделей, проверка и загрузка обновлений,
+         инструменты ассистента при включённом «Интернете». -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Установка новой версии приложения из релиза (кнопка в настройках; подтверждает пользователь). -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Микрофон — для диктовки и режима разговора; запись распознаётся на устройстве и никуда не отправляется. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
@@ -32,5 +35,10 @@
             android:authorities="${applicationId}.camera"
             android:exported="false"
             android:grantUriPermissions="true" />
+
+        <!-- Ответ системного установщика при обновлении приложения. -->
+        <receiver
+            android:name="ai.prism.update.UpdateInstallReceiver"
+            android:exported="false" />
     </application>
 </manifest>

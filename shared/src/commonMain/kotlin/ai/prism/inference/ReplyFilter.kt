@@ -15,6 +15,7 @@ interface ReplyFilter {
     companion object {
         fun forFormat(format: ChatFormat): ReplyFilter = when (format) {
             ChatFormat.GEMMA4 -> Gemma4ReplyFilter()
+            ChatFormat.QWEN -> ThinkReplyFilter()
             ChatFormat.GEMMA3, ChatFormat.RAW -> PassThrough
         }
     }
@@ -116,5 +117,79 @@ class Gemma4ReplyFilter(private val flushLimit: Int = 4000) : ReplyFilter {
     private companion object {
         const val OPEN = "<|channel>"
         const val CLOSE = "<channel|>"
+    }
+}
+
+/**
+ * Qwen 3.x может размышлять и при пустом блоке `<think></think>` в промпте: пишет `<think>…</think>`, затем ответ.
+ * Фильтр скрывает такие блоки (пока идут — интерфейс показывает «думает…»). Если ответ начался без `<think>`,
+ * текст показывается сразу; незакрытое размышление к концу генерации не показывается.
+ */
+class ThinkReplyFilter : ReplyFilter {
+
+    private var thinking = false
+    private var started = false
+    private val buffer = StringBuilder()
+
+    override fun push(piece: String): String {
+        buffer.append(piece)
+        val out = StringBuilder()
+        while (true) {
+            if (thinking) {
+                val close = buffer.indexOf(CLOSE)
+                if (close < 0) {
+                    val keep = partial(buffer, CLOSE)
+                    buffer.deleteRange(0, buffer.length - keep)
+                    return out.toString()
+                }
+                buffer.deleteRange(0, close + CLOSE.length)
+                thinking = false
+                continue
+            }
+            if (!started) {
+                // Пробелы и переводы строк перед ответом не показываются.
+                val text = buffer.toString().trimStart()
+                buffer.setLength(0)
+                buffer.append(text)
+                if (buffer.isEmpty()) return out.toString()
+                started = true
+            }
+            val open = buffer.indexOf(OPEN)
+            val stray = buffer.indexOf(CLOSE)
+            val tag = listOf(open, stray).filter { it >= 0 }.minOrNull()
+            if (tag == null) {
+                val keep = maxOf(partial(buffer, OPEN), partial(buffer, CLOSE))
+                out.appendRange(buffer, 0, buffer.length - keep)
+                buffer.deleteRange(0, buffer.length - keep)
+                return out.toString()
+            }
+            out.appendRange(buffer, 0, tag)
+            if (tag == open) {
+                buffer.deleteRange(0, tag + OPEN.length)
+                thinking = true
+                if (out.isEmpty()) started = false
+            } else {
+                buffer.deleteRange(0, tag + CLOSE.length)
+            }
+        }
+    }
+
+    override fun finish(): String {
+        val rest = if (thinking) "" else buffer.toString()
+        buffer.clear()
+        return rest
+    }
+
+    /** Длина конца [text], совпадающего с началом [tag]. */
+    private fun partial(text: CharSequence, tag: String): Int {
+        for (length in minOf(text.length, tag.length - 1) downTo 1) {
+            if (tag.startsWith(text.subSequence(text.length - length, text.length).toString())) return length
+        }
+        return 0
+    }
+
+    private companion object {
+        const val OPEN = "<think>"
+        const val CLOSE = "</think>"
     }
 }

@@ -12,6 +12,10 @@ enum class ChatFormat {
     @SerialName("gemma3")
     GEMMA3,
 
+    /** Qwen 3.x: ChatML (`<|im_start|>роль … <|im_end|>`), размышления `<think>…</think>` скрываются. */
+    @SerialName("qwen")
+    QWEN,
+
     /** Без разметки диалога: системный промпт и реплики подряд (тестовые модели). */
     @SerialName("raw")
     RAW,

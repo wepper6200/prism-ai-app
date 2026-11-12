@@ -39,6 +39,8 @@ import android.content.Context
 import android.os.Build
 import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.driver.android.AndroidSqliteDriver
+import ai.prism.domain.update.AppUpdater
+import ai.prism.update.AndroidAppUpdater
 import org.koin.core.module.Module
 import org.koin.dsl.module
 import java.io.File
@@ -74,6 +76,7 @@ fun androidPlatformModule(context: Context): Module = module {
     single<SpeechEngine> { AndroidSherpaSpeechEngine(threads = get<DeviceInfo>().inferenceThreads.coerceIn(1, MAX_SPEECH_THREADS)) }
     single<AudioInput> { AndroidAudioInput(appContext) }
     single<AudioOutput> { AndroidAudioOutput() }
+    single<AppUpdater> { AndroidAppUpdater(appContext) }
 }
 
 private const val DATABASE_NAME = "prism.db"
