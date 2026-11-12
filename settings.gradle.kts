@@ -43,3 +43,10 @@ if (providers.gradleProperty("prism.skipAndroid").orNull != "true") {
 }
 include(":desktopApp")
 include(":native")
+
+// Prism Store — магазин приложений Prism (установка и обновление из релизов GitHub).
+include(":store:shared")
+if (providers.gradleProperty("prism.skipAndroid").orNull != "true") {
+    include(":store:androidApp")
+}
+include(":store:desktopApp")

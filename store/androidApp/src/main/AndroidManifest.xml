@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Сеть — только каталог и файлы приложений из релизов GitHub, когда пользователь открывает магазин. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Установка и обновление приложений Prism (каждую установку подтверждает пользователь). -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <!-- Видеть, установлены ли приложения Prism и какой версии (Android 11+). -->
+    <queries>
+        <package android:name="ai.prism.app" />
+    </queries>
+
+    <application
+        android:allowBackup="false"
+        android:enableOnBackInvokedCallback="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.PrismStore">
+
+        <activity
+            android:name=".StoreActivity"
+            android:exported="true"
+            android:launchMode="singleTask">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <receiver
+            android:name="ai.prism.store.platform.InstallResultReceiver"
+            android:exported="false" />
+    </application>
+</manifest>

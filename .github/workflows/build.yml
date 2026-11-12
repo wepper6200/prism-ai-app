@@ -103,7 +103,7 @@ jobs:
             echo "PRISM_KEY_PASSWORD=$KEY_PASSWORD"
           } >> "$GITHUB_ENV"
       - name: Build debug APK with llama.cpp (warnings are errors)
-        run: ./gradlew --stacktrace --warning-mode=all -Pprism.ccache=true :androidApp:assembleDebug
+        run: ./gradlew --stacktrace --warning-mode=all -Pprism.ccache=true :androidApp:assembleDebug :store:androidApp:assembleDebug
       - name: Show APK signature
         run: |
           apksigner=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
@@ -128,6 +128,11 @@ jobs:
         with:
           name: PrismAI-android-debug-apk
           path: androidApp/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v6
+        with:
+          name: PrismStore-android-apk
+          path: store/androidApp/build/outputs/apk/debug/*.apk
           if-no-files-found: error
 
   desktop:
@@ -203,7 +208,7 @@ jobs:
           done
           exit 1
       - name: Compile desktop app, build llama.cpp and run all tests (warnings are errors)
-        run: ./gradlew --stacktrace --warning-mode=all -Pprism.skipAndroid=true -Pprism.nativeTests=true -Pprism.imagegen=true -Pprism.ccache=true :desktopApp:compileKotlin :shared:jvmTest
+        run: ./gradlew --stacktrace --warning-mode=all -Pprism.skipAndroid=true -Pprism.nativeTests=true -Pprism.imagegen=true -Pprism.ccache=true :desktopApp:compileKotlin :shared:jvmTest :store:desktopApp:compileKotlin :store:shared:jvmTest
       - name: Show compiler warnings (diagnostics on failure)
         if: failure()
         run: |
@@ -215,7 +220,9 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: PrismAI-screenshots
-          path: shared/build/screenshots/
+          path: |
+            shared/build/screenshots/
+            store/shared/build/screenshots/
           if-no-files-found: warn
       - name: Upload test reports
         if: always()
@@ -266,7 +273,7 @@ jobs:
           python "$GITHUB_WORKSPACE/.github/download_speech_models.py" "$(cygpath -w "$HOME/prism-test-models")" --only vad >> "$GITHUB_ENV"
       - name: Build Windows app with llama.cpp (CPU + Vulkan)
         shell: bash
-        run: ./gradlew --stacktrace --warning-mode=all -Pprism.skipAndroid=true -Pprism.vulkan=true -Pprism.imagegen=true :desktopApp:createDistributable
+        run: ./gradlew --stacktrace --warning-mode=all -Pprism.skipAndroid=true -Pprism.vulkan=true -Pprism.imagegen=true :desktopApp:createDistributable :store:desktopApp:createDistributable
       - name: Check DLL loading on Windows (llama.cpp, image generation and speech integration tests)
         shell: bash
         run: ./gradlew --stacktrace -Pprism.skipAndroid=true -Pprism.nativeTests=true -Pprism.vulkan=true -Pprism.imagegen=true :shared:jvmTest --tests "ai.prism.inference.llama.*" --tests "ai.prism.imagegen.ImageGenerationIntegrationTest" --tests "ai.prism.voice.VoiceDetectorNativeTest"
@@ -284,6 +291,10 @@ jobs:
         with:
           name: PrismAI-windows
           path: desktopApp/build/compose/binaries/main/app/PrismAI/
+      - uses: actions/upload-artifact@v6
+        with:
+          name: PrismStore-windows
+          path: store/desktopApp/build/compose/binaries/main/app/PrismStore/
           if-no-files-found: error
 
   flux:
@@ -484,12 +495,26 @@ jobs:
         with:
           name: PrismAI-windows
           path: artifacts/windows/PrismAI
+      - uses: actions/download-artifact@v7
+        with:
+          name: PrismStore-android-apk
+          path: artifacts/store-android
+      - uses: actions/download-artifact@v7
+        with:
+          name: PrismStore-windows
+          path: artifacts/store-windows/PrismStore
       - name: Package
         shell: bash
         run: |
+          store=$(sed -n 's/^store-versionName = "\(.*\)"/\1/p' gradle/libs.versions.toml)
           mkdir dist
           cp artifacts/android/*.apk "dist/PrismAI-$VERSION-android-arm64.apk"
           (cd artifacts/windows && zip -qr9 "$GITHUB_WORKSPACE/dist/PrismAI-$VERSION-windows-x64.zip" PrismAI)
+          cp artifacts/store-android/*.apk "dist/PrismStore-$store-android.apk"
+          (cd artifacts/store-windows && zip -qr9 "$GITHUB_WORKSPACE/dist/PrismStore-$store-windows.zip" PrismStore)
+          # Каталог Prism Store: версии, ссылки, размеры и SHA-256 файлов этого релиза.
+          python3 .github/store_catalog.py dist "v$VERSION" > dist/prism-store-catalog.json
+          cat dist/prism-store-catalog.json
           (cd dist && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt)
       - uses: softprops/action-gh-release@v2
         with:

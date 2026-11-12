@@ -216,6 +216,13 @@ Prism AI — полностью офлайн ИИ-ассистент для **Wi
   `AndroidSharedStorageAccess`); общая папка остаётся после удаления приложения. Перенос по одному файлу
   (копия через `.copy`, затем удаление), уже лежащие файлы того же размера не копируются — после переустановки
   включённая снова настройка находит модели. Выбор хранится в `models_shared_folder`; без доступа — внутренняя папка.
+- **Prism Store** (модули `:store:shared`, `:store:androidApp` — `ai.prism.store`, `:store:desktopApp` — PrismStore.exe;
+  версия `store-versionName`): отдельное приложение, ставит и обновляет приложения Prism. Каталог
+  `prism-store-catalog.json` собирает задание release (`.github/store_catalog.py` из `store/apps.json` и файлов релиза:
+  версии, ссылки, размеры, SHA-256). `StoreController` + `GitHubCatalogSource` (последний релиз) + `HttpPackageDownloader`
+  (докачка, SHA-256) + `AppInstaller`: Android — PackageInstaller, версия из PackageManager (`<queries>`), Windows —
+  `%LOCALAPPDATA%\Programs\Prism\<папка>`, версия в `prism-version.txt`, ярлык в «Пуск», себя обновляет скриптом
+  PowerShell. Всё бесплатно, без аккаунтов. Следующий этап — дополнения (роли, темы, инструменты агента).
 - Релиз: коммит со словом `[release]` (или тег `vX.Y.Z`) собирает приложение и публикует релиз GitHub
   с тегом `v<prism-versionName>` (APK, zip для Windows, SHA256SUMS); текст — `.github/release-notes.md`.
   Тег из облачной среды не пушится — его создаёт задание release.

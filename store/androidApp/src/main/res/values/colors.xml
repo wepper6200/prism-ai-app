@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Prism Store: та же призма, что у Prism AI, на бирюзовом фоне. -->
+    <color name="ic_launcher_background">#FF0F5E63</color>
+    <color name="store_window_background">#FFFCF8FF</color>
+</resources>

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="store_title">Prism Store</string>
+    <string name="store_subtitle">Приложения Prism — бесплатно, без аккаунтов и рекламы</string>
+    <string name="store_refresh">Обновить список</string>
+    <string name="store_loading">Загружаю каталог…</string>
+    <string name="store_empty">Для этого устройства пока нет приложений.</string>
+    <string name="store_retry">Повторить</string>
+    <string name="store_privacy">Магазин обращается к GitHub только чтобы показать список и скачать приложение. Никаких аккаунтов и аналитики.</string>
+    <string name="app_version">Версия %1$s · %2$s</string>
+    <string name="app_installed">Установлена версия %1$s</string>
+    <string name="app_installed_unknown">Установлена (версия неизвестна)</string>
+    <string name="action_install">Установить</string>
+    <string name="action_update">Обновить</string>
+    <string name="action_open">Открыть</string>
+    <string name="action_cancel">Остановить</string>
+    <string name="progress_downloading">Загрузка: %1$s из %2$s</string>
+    <string name="progress_installing">Установка… На Android подтвердите её в окне системы.</string>
+    <string name="error_network">Нет связи с GitHub. Проверьте интернет и попробуйте ещё раз.</string>
+    <string name="error_catalog">Каталог магазина не найден или повреждён.</string>
+    <string name="error_checksum">Файл повредился при загрузке. Попробуйте ещё раз.</string>
+    <string name="error_storage">Не хватает места или нет доступа к папке.</string>
+    <string name="error_permission">Разрешите Prism Store устанавливать приложения на открывшемся экране и нажмите кнопку снова.</string>
+    <string name="error_cancelled">Установка отменена.</string>
+    <string name="error_app_running">Закройте приложение и нажмите кнопку снова.</string>
+    <string name="error_install">Не удалось установить приложение.</string>
+    <string name="bytes_mb">%1$s МБ</string>
+    <string name="bytes_gb">%1$s ГБ</string>
+</resources>

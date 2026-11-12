@@ -39,7 +39,7 @@ class DesktopAppUpdater(
                 unpacked.deleteRecursively()
                 throw UpdateException(UpdateError.STORAGE, "Не удалось распаковать обновление: ${e.message}", e)
             }
-            File(updatesDir, "install-update.ps1").also { it.writeText(script(root, target), Charsets.UTF_8) }
+            File(updatesDir, "install-update.ps1").also { it.writeText(script(root, target, version), Charsets.UTF_8) }
         }
         try {
             ProcessBuilder(
@@ -81,11 +81,14 @@ class DesktopAppUpdater(
         false
     }
 
-    /** Скрипт установки: UTF-8 с BOM, чтобы PowerShell 5 правильно прочитал пути с кириллицей. */
-    private fun script(source: File, target: File): String {
+    /**
+     * Скрипт установки (UTF-8 с BOM, чтобы PowerShell 5 правильно прочитал пути с кириллицей); после копирования
+     * записывает версию в prism-version.txt — её читает Prism Store.
+     */
+    private fun script(source: File, target: File, version: String): String {
         fun quote(file: File) = "'" + file.absolutePath.replace("'", "''") + "'"
         val pid = ProcessHandle.current().pid()
-        return "﻿" + """
+        return "\uFEFF" + """
             |${'$'}ErrorActionPreference = 'Continue'
             |${'$'}source = ${quote(source)}
             |${'$'}target = ${quote(target)}
@@ -95,6 +98,7 @@ class DesktopAppUpdater(
             |if (${'$'}LASTEXITCODE -ge 8) {
             |    "Обновление не установлено: robocopy вернул ${'$'}LASTEXITCODE" | Out-File -Encoding utf8 (Join-Path ${'$'}target '$ERROR_FILE')
             |} else {
+            |    Set-Content -Path (Join-Path ${'$'}target 'prism-version.txt') -Value '$version'
             |    Remove-Item -Recurse -Force (Split-Path ${'$'}source -Parent) -ErrorAction SilentlyContinue
             |}
             |Start-Process -FilePath (Join-Path ${'$'}target '$EXE')
