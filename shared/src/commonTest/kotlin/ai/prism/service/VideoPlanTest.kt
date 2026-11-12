@@ -42,6 +42,10 @@ class VideoPlanTest {
         val ltx = VideoModelSettings(frames = 121, fps = 24, frameStep = 8, imageToVideo = true, maxFrames = 121, durations = listOf(3, 5, 10))
         assertEquals(listOf(73), VideoPlan.segments(ltx, 3))
         assertEquals(listOf(121, 121), VideoPlan.segments(ltx, 10))
+        // 30 секунд — 6 кусков по 5 секунд: 721 кадр без повторов на стыках.
+        val thirty = VideoPlan.segments(ltx, 30)
+        assertEquals(List(6) { 121 }, thirty)
+        assertEquals(721, VideoPlan.totalFrames(thirty))
     }
 
     @Test
