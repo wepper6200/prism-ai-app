@@ -80,16 +80,17 @@ class ModelCatalogTest {
     }
 
     /**
-     * Видео: Wan (umt5 и VAE, кадры 4k+1) на обеих платформах — Wan 2.2 TI2V 5B на Desktop, Wan 2.1 1.3B на Android;
+     * Видео: Wan (umt5 и VAE, кадры 4k+1) на обеих платформах — Wan 2.2 TI2V 5B на Desktop, Wan 2.1 1.3B и Wan 2.2 на Android;
      * на Desktop ещё LTX-2.5 со звуком (Gemma 4, VAE видео и звука, кадры 8k+1). Длительности — в пределах куска
      * или продолжением, если модель оживляет кадр.
      */
     @Test
     fun videoModelsCoverBothPlatforms() {
-        for (platform in listOf("android", "desktop")) {
-            val wan = models.filter { it.kind == ModelKind.VIDEO && it.availableOn(platform) && it.family.startsWith("Wan") }
-            assertEquals(1, wan.size, platform)
-        }
+        val wan = { platform: String -> models.filter { it.kind == ModelKind.VIDEO && it.availableOn(platform) && it.family.startsWith("Wan") } }
+        assertEquals(1, wan("desktop").size)
+        // На телефоне: Wan 2.1 1.3B (12 ГБ, без продолжения) и Wan 2.2 TI2V 5B (16 ГБ, с продолжением).
+        assertEquals(setOf("Wan 2.1", "Wan 2.2"), wan("android").map { it.family }.toSet())
+        assertTrue(wan("android").single { it.family == "Wan 2.2" }.let { it.minRamMb >= 16384 && it.video!!.imageToVideo })
         models.filter { it.kind == ModelKind.VIDEO }.forEach { model ->
             val settings = assertNotNull(model.video, model.id)
             assertEquals("diffusion_model", model.mainRole)
@@ -103,7 +104,7 @@ class ModelCatalogTest {
                 assertTrue(settings.durations.all { it * settings.fps + 1 <= settings.maxFrames }, "без продолжения: ${model.id}")
             }
         }
-        assertTrue(models.single { it.id.startsWith("wan2.2-ti2v") }.video!!.imageToVideo)
+        assertTrue(models.filter { it.id.startsWith("wan2.2-ti2v") }.all { it.video!!.imageToVideo })
     }
 
     /** Голос: на обеих платформах есть распознавание речи с детектором речи и голос Piper. */

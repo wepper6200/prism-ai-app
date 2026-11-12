@@ -12,6 +12,7 @@
 Ролики и кадры — в каталоге out/ (артефакт задания).
 
 Использование: python3 phone_video_bench.py <prism_imagegen> <каталог моделей> <out>
+               python3 phone_video_bench.py --compare <каталог моделей> <out> <prism_imagegen>... — сравнение сборок
 """
 
 import hashlib
@@ -177,7 +178,8 @@ def run(name, binary, out, load, generate):
                      "sampler": "euler", **generate})
         done = worker.expect("done")
         result["generate_s"] = time.time() - started
-        result["step_s"] = sum(worker.step_times) / max(1, len(worker.step_times))
+        steps = worker.step_times[1:] or worker.step_times
+        result["step_s"] = sum(steps) / max(1, len(steps))
         result["frames"] = done.get("frames")
         result["fps"] = done.get("fps")
         result["output"] = done["output"]
@@ -191,7 +193,40 @@ def run(name, binary, out, load, generate):
     return result
 
 
+def compare_builds(binaries, models, out):
+    """Короткое сравнение сборок (базовая ARMv8.2 и с i8mm): Wan 2.2 TI2V 5B, 3 шага."""
+    wan22, files = catalog_files("wan2.2-ti2v-5b", models)
+    video = wan22["video"]
+    results = []
+    for binary in binaries:
+        name = os.path.basename(os.path.dirname(os.path.dirname(binary))) + " Wan2.2-TI2V-5B"
+        results.append(run(name, binary, out,
+                           {"diffusion_model": files["diffusion_model"], "t5xxl": files["t5xxl"], "vae": files["vae"],
+                            "mmap": True, "vae_tiling": True},
+                           {"prompt": PROMPT, "negative": video.get("negativePrompt", ""), "steps": 3,
+                            "cfg": video["cfg"], "flow_shift": video["flowShift"], "fps": video["fps"],
+                            "output": os.path.join(out, name.split()[0] + ".avi")}))
+    lines = [f"## Сборки prism_imagegen на ARM ({os.cpu_count()} ядер), Wan 2.2 TI2V 5B, {WIDTH}×{HEIGHT}, 3 шага", "",
+             "| Сборка | Шаг, с (без первого) | Генерация, с | Пик памяти, ГиБ | Ошибка |", "|---|---|---|---|---|"]
+    for r in results:
+        lines.append("| {} | {} | {} | {} | {} |".format(
+            r["name"], f"{r['step_s']:.1f}" if "step_s" in r else "—",
+            f"{r['generate_s']:.0f}" if "generate_s" in r else "—",
+            f"{r['peak_gib']:.2f}" if r.get("peak_gib") else "—", r.get("error", "")[:200]))
+    summary = "\n".join(lines)
+    log(summary)
+    if os.environ.get("GITHUB_STEP_SUMMARY"):
+        with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as f:
+            f.write(summary + "\n")
+
+
 def main():
+    if sys.argv[1] == "--compare":
+        # --compare <models> <out> <binary>...
+        os.makedirs(sys.argv[2], exist_ok=True)
+        os.makedirs(sys.argv[3], exist_ok=True)
+        compare_builds(sys.argv[4:], sys.argv[2], sys.argv[3])
+        return
     binary, models, out = sys.argv[1:4]
     os.makedirs(models, exist_ok=True)
     os.makedirs(out, exist_ok=True)

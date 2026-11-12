@@ -129,7 +129,10 @@ Prism AI — полностью офлайн ИИ-ассистент для **Wi
   таблице `message_image` (файл `….avi`, `ImageAttachment.isVideo`). Каталог: `kind: video`, поле `video` (размер,
   кадры 4k+1, fps, шаги, cfg, flow shift, отрицательное описание, `offloadToCpu` — веса в ОЗУ через
   `params_backend="*=cpu"`, `imageToVideo`). Windows — Wan 2.2 TI2V 5B Q4_0 + umt5 Q4_K_M + Wan2.2 VAE (умеет оживлять
-  фото), Android — экспериментально Wan 2.1 T2V 1.3B Q4_K_M + umt5 Q3_K_S + Wan 2.1 VAE. Описание переводится
+  фото), Android — экспериментально Wan 2.1 T2V 1.3B Q4_K_M + umt5 Q3_K_S + Wan 2.1 VAE (12 ГБ, без продолжения)
+  и Wan 2.2 TI2V 5B 512×288 (16 ГБ, с продолжением; замер на 4 ядрах ARM: ~68 мин на 17 кадров, пик 10,4 ГБ, шов 1,1).
+  `prism_imagegen` для Android собирается дважды: ARMv8.2 (dotprod, fp16) и с i8mm (`libprism_imagegen_i8mm.so`),
+  `AndroidImageGenBinary` выбирает по /proc/cpuinfo (i8mm должен быть у всех ядер). Описание переводится
   моделью чата, как для рисования. Тест: `PRISM_TEST_WAN_DIR` (задание «Video generation (Wan 2.1 1.3B)»).
 
 - **Длительность и LTX-2.5 (после этапа 7):** у моделей видео в каталоге `frameStep` (Wan — 4, LTX — 8), `maxFrames`

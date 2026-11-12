@@ -73,9 +73,9 @@ android {
 }
 
 // Программа генерации изображений (stable-diffusion.cpp) — отдельная CMake-сборка тулчейном NDK.
-// Результат упаковывается как libprism_imagegen.so: только файлы lib*.so Android устанавливает
-// в каталог нативных библиотек и разрешает запускать.
-val imagegenBuildDir = layout.buildDirectory.dir("cmake-imagegen")
+// Результат упаковывается как lib*.so: только такие файлы Android устанавливает в каталог нативных библиотек
+// и разрешает запускать. Две сборки: базовая ARMv8.2 (dotprod, fp16) и с i8mm (матричные инструкции int8
+// процессоров последних лет — быстрее на рисовании и видео); приложение выбирает по /proc/cpuinfo.
 val imagegenJniLibs = layout.buildDirectory.dir("imagegen-jniLibs")
 val sdkDirectory = androidComponents.sdkComponents.sdkDirectory
 val ndkDirectory = androidComponents.sdkComponents.ndkDirectory
@@ -83,40 +83,53 @@ val cmakeVersion = libs.versions.android.cmake.get()
 val minSdkVersion = libs.versions.android.minSdk.get()
 val useCcache = providers.gradleProperty("prism.ccache").map { it.toBoolean() }.getOrElse(false)
 
-val configureImageGen = tasks.register<Exec>("configureImageGenAndroid") {
-    group = "native"
-    description = "Конфигурирует сборку программы генерации изображений для Android (arm64-v8a)."
-    val cmakeBin = sdkDirectory.map { it.dir("cmake/$cmakeVersion/bin") }
-    val args = listOf(
-        cmakeBin.get().file("cmake").asFile.absolutePath,
-        "-S", rootProject.file("native/imagegen").absolutePath,
-        "-B", imagegenBuildDir.get().asFile.absolutePath,
-        "-G", "Ninja",
-        "-DCMAKE_MAKE_PROGRAM=${cmakeBin.get().file("ninja").asFile.absolutePath}",
-        "-DCMAKE_TOOLCHAIN_FILE=${ndkDirectory.get().file("build/cmake/android.toolchain.cmake").asFile.absolutePath}",
-        "-DANDROID_ABI=arm64-v8a",
-        "-DANDROID_PLATFORM=android-$minSdkVersion",
-        "-DCMAKE_BUILD_TYPE=Release",
-    ) + if (useCcache) listOf("-DCMAKE_C_COMPILER_LAUNCHER=ccache", "-DCMAKE_CXX_COMPILER_LAUNCHER=ccache") else emptyList()
-    commandLine(args)
-}
+data class ImageGenVariant(val suffix: String, val armArch: String, val libName: String)
 
-val buildImageGen = tasks.register<Exec>("buildImageGenAndroid") {
-    group = "native"
-    description = "Собирает программу генерации изображений для Android."
-    dependsOn(configureImageGen)
-    val cmake = sdkDirectory.map { it.file("cmake/$cmakeVersion/bin/cmake") }
-    val jobs = Runtime.getRuntime().availableProcessors().toString()
-    commandLine(
-        cmake.get().asFile.absolutePath, "--build", imagegenBuildDir.get().asFile.absolutePath,
-        "--target", "prism_imagegen", "--parallel", jobs,
-    )
+val imagegenVariants = listOf(
+    ImageGenVariant("", "armv8.2-a+dotprod+fp16", "prism_imagegen"),
+    ImageGenVariant("I8mm", "armv8.2-a+dotprod+fp16+i8mm", "prism_imagegen_i8mm"),
+)
+
+val buildImageGenTasks = imagegenVariants.map { variant ->
+    val buildDir = layout.buildDirectory.dir("cmake-imagegen${variant.suffix.lowercase()}")
+    val configure = tasks.register<Exec>("configureImageGen${variant.suffix}Android") {
+        group = "native"
+        description = "Конфигурирует программу генерации изображений для Android (${variant.armArch})."
+        val cmakeBin = sdkDirectory.map { it.dir("cmake/$cmakeVersion/bin") }
+        val args = listOf(
+            cmakeBin.get().file("cmake").asFile.absolutePath,
+            "-S", rootProject.file("native/imagegen").absolutePath,
+            "-B", buildDir.get().asFile.absolutePath,
+            "-G", "Ninja",
+            "-DCMAKE_MAKE_PROGRAM=${cmakeBin.get().file("ninja").asFile.absolutePath}",
+            "-DCMAKE_TOOLCHAIN_FILE=${ndkDirectory.get().file("build/cmake/android.toolchain.cmake").asFile.absolutePath}",
+            "-DANDROID_ABI=arm64-v8a",
+            "-DANDROID_PLATFORM=android-$minSdkVersion",
+            "-DCMAKE_BUILD_TYPE=Release",
+            "-DPRISM_IMAGEGEN_ARM_ARCH=${variant.armArch}",
+            "-DPRISM_IMAGEGEN_NAME=${variant.libName}",
+        ) + if (useCcache) listOf("-DCMAKE_C_COMPILER_LAUNCHER=ccache", "-DCMAKE_CXX_COMPILER_LAUNCHER=ccache") else emptyList()
+        commandLine(args)
+    }
+    tasks.register<Exec>("buildImageGen${variant.suffix}Android") {
+        group = "native"
+        description = "Собирает программу генерации изображений для Android (${variant.armArch})."
+        dependsOn(configure)
+        val cmake = sdkDirectory.map { it.file("cmake/$cmakeVersion/bin/cmake") }
+        val jobs = Runtime.getRuntime().availableProcessors().toString()
+        commandLine(
+            cmake.get().asFile.absolutePath, "--build", buildDir.get().asFile.absolutePath,
+            "--target", "prism_imagegen", "--parallel", jobs,
+        )
+    }
 }
 
 val syncImageGen = tasks.register<Sync>("syncImageGenAndroid") {
     group = "native"
-    dependsOn(buildImageGen)
-    from(imagegenBuildDir) { include("libprism_imagegen.so") }
+    dependsOn(buildImageGenTasks)
+    imagegenVariants.forEach { variant ->
+        from(layout.buildDirectory.dir("cmake-imagegen${variant.suffix.lowercase()}")) { include("lib${variant.libName}.so") }
+    }
     into(imagegenJniLibs.map { it.dir("arm64-v8a") })
 }
 

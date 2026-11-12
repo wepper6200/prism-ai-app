@@ -45,6 +45,7 @@ import ai.prism.data.models.SharedStorageAccess
 import ai.prism.data.models.SwitchableModelFolder
 import ai.prism.domain.model.ModelFolder
 import ai.prism.platform.AndroidSharedStorageAccess
+import ai.prism.platform.AndroidImageGenBinary
 import org.koin.core.module.Module
 import org.koin.dsl.module
 import java.io.File
@@ -89,7 +90,7 @@ fun androidPlatformModule(context: Context): Module = module {
     single<ImageGenerator> {
         // Программа генерации упакована как lib*.so: только такие файлы Android разрешает запускать.
         ProcessImageGenerator(
-            executable = { File(appContext.applicationInfo.nativeLibraryDir, "libprism_imagegen.so") },
+            executable = { AndroidImageGenBinary.pick(File(appContext.applicationInfo.nativeLibraryDir)) },
             workDir = File(appContext.cacheDir, IMAGEGEN_DIR),
             threads = get<DeviceInfo>().inferenceThreads,
         )

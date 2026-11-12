@@ -14,7 +14,7 @@ permissions:
 
 concurrency:
   # Новый пуш отменяет прошлую сборку ветки; долгий замер видео ([phone-video-bench]) — в своей группе.
-  group: ci-${{ github.ref }}${{ contains(github.event.head_commit.message, '[phone-video-bench]') && '-bench' || '' }}
+  group: ci-${{ github.ref }}${{ (contains(github.event.head_commit.message, '[phone-video-bench]') || contains(github.event.head_commit.message, '[phone-video-arch]')) && '-bench' || '' }}
   cancel-in-progress: true
 
 env:
@@ -115,6 +115,7 @@ jobs:
           grep -q "libprism_llama.so" native-libs.txt
           grep -q "libmtmd.so" native-libs.txt
           grep -q "libprism_imagegen.so" native-libs.txt
+          grep -q "libprism_imagegen_i8mm.so" native-libs.txt
           grep -q "libggml-cpu-android_armv8.0_1.so" native-libs.txt
           grep -q "libsherpa-onnx-jni.so" native-libs.txt
           grep -q "libonnxruntime.so" native-libs.txt
@@ -423,7 +424,10 @@ jobs:
     # Что из видео реально работает на телефоне: prism_imagegen, собранный под ARMv8.2 как для Android, снимает
     # ролик 512×288 нынешней моделью телефона (Wan 2.1 1.3B), продолжение от кадра Wan 2.1 Fun InP 1.3B и
     # Wan 2.2 TI2V 5B; печатает время, пик памяти и шов. Только для коммита со словом [phone-video-bench].
-    if: github.event_name == 'push' && contains(github.event.head_commit.message, '[phone-video-bench]')
+    # [phone-video-arch] — короткое сравнение сборок: базовая ARMv8.2 и с i8mm (Wan 2.2 TI2V 5B, 3 шага).
+    if: >-
+      github.event_name == 'push' && (contains(github.event.head_commit.message, '[phone-video-bench]') ||
+      contains(github.event.head_commit.message, '[phone-video-arch]'))
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 340
     steps:
@@ -437,14 +441,24 @@ jobs:
           cmake -S native/imagegen -B build/imagegen -DCMAKE_BUILD_TYPE=Release \
             -DGGML_CPU_ARM_ARCH=armv8.2-a+dotprod+fp16
           cmake --build build/imagegen --config Release -j "$(nproc)"
+          cmake -S native/imagegen -B build/imagegen-i8mm -DCMAKE_BUILD_TYPE=Release \
+            -DGGML_CPU_ARM_ARCH=armv8.2-a+dotprod+fp16+i8mm
+          cmake --build build/imagegen-i8mm --config Release -j "$(nproc)"
           lscpu | head -20
           free -g
       - name: Benchmark video models
+        env:
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
           python3 -m pip install --quiet pillow
           sudo mkdir -p /mnt/prism-bench && sudo chown "$USER" /mnt/prism-bench
           df -h /mnt "$HOME" | cat
-          python3 .github/phone_video_bench.py build/imagegen/bin/prism_imagegen /mnt/prism-bench/models bench-out
+          if [[ "$COMMIT_MESSAGE" == *"[phone-video-arch]"* ]]; then
+            python3 .github/phone_video_bench.py --compare /mnt/prism-bench/models bench-out \
+              build/imagegen/bin/prism_imagegen build/imagegen-i8mm/bin/prism_imagegen
+          else
+            python3 .github/phone_video_bench.py build/imagegen/bin/prism_imagegen /mnt/prism-bench/models bench-out
+          fi
       - name: Upload videos and frames
         if: always()
         uses: actions/upload-artifact@v6
