@@ -214,7 +214,7 @@ jobs:
         if: failure()
         run: |
           ./gradlew --console=plain -Pprism.skipAndroid=true -Pprism.werror=false --rerun-tasks \
-            :shared:compileKotlinJvm :shared:compileTestKotlinJvm :desktopApp:compileKotlin 2>&1 \
+            :shared:compileKotlinJvm :shared:compileTestKotlinJvm :desktopApp:compileKotlin :store:shared:compileKotlinJvm :store:shared:compileTestKotlinJvm :store:desktopApp:compileKotlin 2>&1 \
             | grep -E '^(w|e): ' || echo "No compiler warnings printed"
       - name: Upload screenshots
         if: always()
