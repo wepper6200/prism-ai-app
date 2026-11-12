@@ -14,6 +14,9 @@ enum class ModelFolderError {
 
     /** Не удалось скопировать файлы. */
     FAILED,
+
+    /** Desktop: выбранная раньше папка недоступна (диск отключён) — сейчас используется стандартная. */
+    FOLDER_UNAVAILABLE,
 }
 
 data class ModelFolderState(
@@ -23,6 +26,12 @@ data class ModelFolderState(
     val shared: Boolean = false,
     /** Общая папка, понятная пользователю (`Download/PrismAI`). */
     val sharedPath: String = "",
+    /** Desktop: папку моделей можно выбрать любую (например, на другом диске). */
+    val canChoose: Boolean = false,
+    /** Папка, где сейчас лежат модели. */
+    val currentPath: String = "",
+    /** Модели в стандартной папке приложения. */
+    val isDefault: Boolean = true,
     val moving: Boolean = false,
     val movedBytes: Long = 0,
     val totalBytes: Long = 0,
@@ -38,6 +47,12 @@ interface ModelFolder {
 
     /** Переносит скачанные модели в общую папку ([shared] = true) или обратно во внутреннюю память. */
     fun setShared(shared: Boolean)
+
+    /** Desktop: переносит модели в выбранную папку (внутри неё — своя папка «PrismAI Models»). */
+    fun choose(path: String) = Unit
+
+    /** Desktop: возвращает модели в стандартную папку приложения. */
+    fun resetToDefault() = Unit
 
     /** Платформа без выбора папки (Desktop: модели и так лежат вне программы). */
     object None : ModelFolder {

@@ -221,6 +221,10 @@ Prism AI — полностью офлайн ИИ-ассистент для **Wi
   `AndroidSharedStorageAccess`); общая папка остаётся после удаления приложения. Перенос по одному файлу
   (копия через `.copy`, затем удаление), уже лежащие файлы того же размера не копируются — после переустановки
   включённая снова настройка находит модели. Выбор хранится в `models_shared_folder`; без доступа — внутренняя папка.
+  Desktop: `ChoosableModelFolder` — любая папка (например, другой диск), внутри неё своя `PrismAI Models`;
+  ключ `models_folder`, недоступная папка при запуске → стандартная и ошибка `FOLDER_UNAVAILABLE`. Перед переносом
+  модели выгружаются (Windows не перемещает открытые файлы). Перенос — `ModelFolderMover` (на одном диске
+  переименованием, между дисками — копией по файлу, место проверяется заранее).
 - **Prism Store** (модули `:store:shared`, `:store:androidApp` — `ai.prism.store`, `:store:desktopApp` — PrismStore.exe;
   версия `store-versionName`): отдельное приложение, ставит и обновляет приложения Prism. Каталог
   `prism-store-catalog.json` собирает задание release (`.github/store_catalog.py` из `store/apps.json` и файлов релиза:

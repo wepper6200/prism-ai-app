@@ -299,4 +299,9 @@
     <string name="model_folder_error_downloads">Сначала дождитесь окончания загрузки модели или поставьте её на паузу.</string>
     <string name="model_folder_error_space">Не хватает места для переноса.</string>
     <string name="model_folder_error_failed">Не удалось перенести модели. Файлы, которые уже перенесены, остались в новой папке.</string>
+    <string name="model_folder_desktop_desc">Модели занимают десятки гигабайт — их можно держать, например, на другом диске. Скачанные модели перенесутся в выбранную папку (в ней появится папка «PrismAI Models»).</string>
+    <string name="model_folder_current">Сейчас: %1$s</string>
+    <string name="model_folder_choose">Выбрать папку…</string>
+    <string name="model_folder_reset">Вернуть стандартную</string>
+    <string name="model_folder_error_unavailable">Выбранная папка моделей недоступна (диск отключён?) — сейчас используется стандартная. Подключите диск и перезапустите Prism AI или выберите папку снова.</string>
 </resources>

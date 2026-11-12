@@ -42,6 +42,7 @@ import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import ai.prism.domain.update.AppUpdater
 import ai.prism.update.DesktopAppUpdater
 import ai.prism.domain.model.ModelFolder
+import ai.prism.data.models.ChoosableModelFolder
 import org.koin.core.module.Module
 import org.koin.dsl.module
 import java.io.File
@@ -59,7 +60,8 @@ fun desktopPlatformModule(): Module = module {
     }
     single { PlatformCapabilities(supportsDynamicColor = false) }
     single<DeviceInfo> { DesktopDeviceInfo() }
-    single { FileModelStorage(File(AppDirectories.dataDir(), MODELS_DIR)) }
+    // Папку моделей можно выбрать в настройках (например, на другом диске); по умолчанию — папка данных.
+    single { FileModelStorage(ChoosableModelFolder.initialDirectory(get(), defaultModelsDir()).first) }
     single<ModelStorage> { get<FileModelStorage>() }
     single<ModelDownloader> { HttpModelDownloader(get()) }
     single<ImageCodec> { DesktopImageCodec() }
@@ -81,8 +83,27 @@ fun desktopPlatformModule(): Module = module {
     single<AudioInput> { JavaSoundAudioInput() }
     single<AudioOutput> { JavaSoundAudioOutput() }
     single<AppUpdater> { DesktopAppUpdater() }
-    // Модели и так лежат в папке данных, а не в папке программы, — выбор папки не нужен.
-    single<ModelFolder> { ModelFolder.None }
+    single<ModelFolder> {
+        val engine = get<InferenceEngine>()
+        val imageGenerator = get<ImageGenerator>()
+        val speech = get<SpeechEngine>()
+        val embedder = get<TextEmbedder>()
+        ChoosableModelFolder(
+            storage = get(),
+            defaultDir = defaultModelsDir(),
+            store = get(),
+            repository = get(),
+            scope = get(),
+            unavailable = ChoosableModelFolder.initialDirectory(get(), defaultModelsDir()).second,
+            // Windows не даёт переместить открытый файл: перед переносом модели выгружаются из памяти.
+            beforeMove = {
+                engine.unload()
+                imageGenerator.release()
+                speech.release()
+                embedder.release()
+            },
+        )
+    }
 }
 
 private const val DATABASE_NAME = "prism.db"
@@ -92,3 +113,5 @@ private const val IMAGEGEN_DIR = "imagegen"
 
 /** Модели речи небольшие: больше 6 потоков их не ускоряют. */
 private const val MAX_SPEECH_THREADS = 6
+
+private fun defaultModelsDir(): File = File(AppDirectories.dataDir(), MODELS_DIR)

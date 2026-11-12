@@ -12,6 +12,12 @@ import ai.prism.resources.model_folder_error_access
 import ai.prism.resources.model_folder_error_downloads
 import ai.prism.resources.model_folder_error_space
 import ai.prism.resources.model_folder_error_failed
+import ai.prism.resources.model_folder_error_unavailable
+import ai.prism.resources.model_folder_desktop_desc
+import ai.prism.resources.model_folder_current
+import ai.prism.resources.model_folder_choose
+import ai.prism.resources.model_folder_reset
+import ai.prism.ui.components.rememberFolderPicker
 import ai.prism.domain.update.UpdateError
 import ai.prism.service.update.UpdateState
 import ai.prism.ui.components.formatBytes
@@ -363,7 +369,7 @@ fun SettingsScreen(
                 }
             }
 
-            if (state.modelFolder.supported) {
+            if (state.modelFolder.supported || state.modelFolder.canChoose) {
                 SettingsSection(title = stringResource(Res.string.settings_model_storage), modifier = sectionModifier) {
                     ModelFolderBlock(state.modelFolder, component::onIntent)
                 }
@@ -391,13 +397,39 @@ fun SettingsScreen(
 /** Хранить модели в общей папке, которая остаётся после удаления приложения (Android). */
 @Composable
 private fun ModelFolderBlock(folder: ModelFolderState, onIntent: (SettingsIntent) -> Unit) {
-    SettingSwitch(
-        title = stringResource(Res.string.model_folder_shared, folder.sharedPath),
-        description = stringResource(Res.string.model_folder_desc),
-        checked = folder.shared,
-        onCheckedChange = { if (!folder.moving) onIntent(SettingsIntent.SetSharedModelFolder(it)) },
-        tag = "model_folder_setting",
-    )
+    if (folder.canChoose) {
+        val picker = rememberFolderPicker { path -> onIntent(SettingsIntent.ChooseModelFolder(path)) }
+        Text(
+            text = stringResource(Res.string.model_folder_desktop_desc),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = stringResource(Res.string.model_folder_current, folder.currentPath),
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.testTag("model_folder_path"),
+        )
+        if (!folder.moving) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = picker::pickFolder, modifier = Modifier.testTag("model_folder_choose")) {
+                    Text(stringResource(Res.string.model_folder_choose))
+                }
+                if (!folder.isDefault) {
+                    OutlinedButton(onClick = { onIntent(SettingsIntent.ResetModelFolder) }) {
+                        Text(stringResource(Res.string.model_folder_reset))
+                    }
+                }
+            }
+        }
+    } else {
+        SettingSwitch(
+            title = stringResource(Res.string.model_folder_shared, folder.sharedPath),
+            description = stringResource(Res.string.model_folder_desc),
+            checked = folder.shared,
+            onCheckedChange = { if (!folder.moving) onIntent(SettingsIntent.SetSharedModelFolder(it)) },
+            tag = "model_folder_setting",
+        )
+    }
     if (folder.moving) {
         LinearProgressIndicator(
             progress = { if (folder.totalBytes > 0) folder.movedBytes.toFloat() / folder.totalBytes else 0f },
@@ -416,6 +448,7 @@ private fun ModelFolderBlock(folder: ModelFolderState, onIntent: (SettingsIntent
                     ModelFolderError.DOWNLOADS_ACTIVE -> Res.string.model_folder_error_downloads
                     ModelFolderError.NOT_ENOUGH_SPACE -> Res.string.model_folder_error_space
                     ModelFolderError.FAILED -> Res.string.model_folder_error_failed
+                    ModelFolderError.FOLDER_UNAVAILABLE -> Res.string.model_folder_error_unavailable
                 },
             ),
             style = MaterialTheme.typography.bodyMedium,

@@ -29,9 +29,8 @@ interface SharedStorageAccess {
 }
 
 /**
- * Перенос моделей между внутренней папкой приложения и общей папкой (`Download/PrismAI/models`): файлы
- * копируются по одному и удаляются из старой папки сразу после копии, поэтому места нужно не больше самого
- * большого файла. Уже лежащие в новой папке файлы того же размера не копируются — так после переустановки
+ * Перенос моделей между внутренней папкой приложения и общей папкой (`Download/PrismAI/models`)
+ * ([ModelFolderMover]). Уже лежащие в новой папке файлы того же размера не копируются — так после переустановки
  * приложение находит модели, скачанные раньше.
  */
 class SwitchableModelFolder(
@@ -75,8 +74,10 @@ class SwitchableModelFolder(
                 try {
                     move(from, to)
                     null
+                } catch (e: ModelFolderMover.NotEnoughSpaceException) {
+                    ModelFolderError.NOT_ENOUGH_SPACE
                 } catch (e: IOException) {
-                    if (to.usableSpace < SPACE_MARGIN_BYTES) ModelFolderError.NOT_ENOUGH_SPACE else ModelFolderError.FAILED
+                    ModelFolderError.FAILED
                 }
             }
             if (error == null) {
@@ -91,50 +92,17 @@ class SwitchableModelFolder(
     }
 
     private fun move(from: File, to: File) {
-        to.mkdirs()
-        if (!to.isDirectory) throw IOException("Не удалось создать папку ${to.absolutePath}")
-        val files = if (from.isDirectory) from.walkTopDown().filter { it.isFile }.toList() else emptyList()
-        _state.update { it.copy(totalBytes = files.sumOf { file -> file.length() }) }
-        var moved = 0L
-        for (file in files) {
-            val target = File(to, file.relativeTo(from).path)
-            if (!(target.isFile && target.length() == file.length())) {
-                target.parentFile?.mkdirs()
-                copy(file, target) { bytes -> _state.update { it.copy(movedBytes = moved + bytes) } }
-            }
-            moved += file.length()
-            file.delete()
-            _state.update { it.copy(movedBytes = moved) }
-        }
-        from.walkBottomUp().filter { it.isDirectory && it != from }.forEach { it.delete() }
-    }
-
-    /** Копия через временный файл: прерванная копия не выглядит скачанной моделью. */
-    private fun copy(source: File, target: File, onProgress: (Long) -> Unit) {
-        val temp = File(target.parentFile, target.name + COPY_SUFFIX)
-        source.inputStream().use { input ->
-            temp.outputStream().use { output ->
-                val buffer = ByteArray(BUFFER_SIZE)
-                var copied = 0L
-                while (true) {
-                    val read = input.read(buffer)
-                    if (read < 0) break
-                    output.write(buffer, 0, read)
-                    copied += read
-                    onProgress(copied)
-                }
-            }
-        }
-        target.delete()
-        if (!temp.renameTo(target)) throw IOException("Не удалось сохранить ${target.absolutePath}")
+        ModelFolderMover.move(
+            from = from,
+            to = to,
+            onTotal = { total -> _state.update { it.copy(totalBytes = total) } },
+            onProgress = { moved -> _state.update { it.copy(movedBytes = moved) } },
+        )
     }
 
     companion object {
         /** Ключ настройки: модели в общей папке. */
         const val KEY_SHARED = "models_shared_folder"
-        private const val COPY_SUFFIX = ".copy"
-        private const val BUFFER_SIZE = 1024 * 1024
-        private const val SPACE_MARGIN_BYTES = 64L * 1024 * 1024
 
         /** Папка моделей при запуске: общая, если её выбрали и доступ всё ещё есть. */
         fun initialDirectory(store: KeyValueStore, access: SharedStorageAccess, internalDir: File, sharedDir: File): File =

@@ -80,6 +80,8 @@ sealed interface SettingsIntent {
     data object InstallUpdate : SettingsIntent
     data object CancelUpdate : SettingsIntent
     data class SetSharedModelFolder(val shared: Boolean) : SettingsIntent
+    data class ChooseModelFolder(val path: String) : SettingsIntent
+    data object ResetModelFolder : SettingsIntent
     data object Back : SettingsIntent
 }
 
@@ -169,6 +171,8 @@ class DefaultSettingsComponent(
             SettingsIntent.InstallUpdate -> updates.install()
             SettingsIntent.CancelUpdate -> updates.cancel()
             is SettingsIntent.SetSharedModelFolder -> modelFolder.setShared(intent.shared)
+            is SettingsIntent.ChooseModelFolder -> modelFolder.choose(intent.path)
+            SettingsIntent.ResetModelFolder -> modelFolder.resetToDefault()
             SettingsIntent.Back -> onBack()
         }
     }
