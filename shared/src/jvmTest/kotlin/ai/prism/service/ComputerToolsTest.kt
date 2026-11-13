@@ -4,9 +4,15 @@ import ai.prism.domain.agent.AgentStepStatus
 import ai.prism.domain.agent.AgentTool
 import ai.prism.domain.agent.Shell
 import ai.prism.domain.model.MessageStatus
+import ai.prism.domain.model.ModelEntry
+import ai.prism.domain.model.ModelStatus
 import ai.prism.testing.FakeComputer
 import ai.prism.testing.FakeInferenceEngine
+import ai.prism.testing.FakeModelRepository
+import ai.prism.testing.FakeScreenControl
 import ai.prism.testing.TestApp
+import ai.prism.testing.testModel
+import ai.prism.testing.testVision
 import kotlinx.coroutines.runBlocking
 import java.io.File
 import java.nio.file.Files
@@ -163,5 +169,73 @@ class ComputerToolsTest {
         val reply = app.chats.messagesSnapshot(chat.id).last()
         assertEquals(listOf(AgentTool.SYSTEM_INFO, AgentTool.OPEN_PROGRAM), reply.steps.map { it.tool })
         assertTrue(reply.steps.all { it.status == AgentStepStatus.DONE })
+    }
+
+    private fun screenApp(screen: FakeScreenControl, vision: Boolean, vararg replies: String): TestApp {
+        val engine = FakeInferenceEngine()
+        replies.forEach { engine.queuedReplies += listOf(it) }
+        val model = testModel(vision = testVision())
+        val status = if (vision) ModelStatus.Downloaded else ModelStatus.Paused(model.sizeBytes, model.totalSizeBytes, null)
+        val models = FakeModelRepository(listOf(ModelEntry(model, status, fitsInMemory = true, chatReady = true)), model.id)
+        return TestApp(engine = engine, models = models, computer = FakeComputer(home), screen = screen)
+            .also { it.settings.setComputerEnabled(true) }
+    }
+
+    @Test
+    fun screenshotReachesTheModelAndClicksAreScaledToTheScreen(): Unit = runBlocking {
+        val screen = FakeScreenControl()
+        val app = screenApp(
+            screen,
+            vision = true,
+            call("screenshot"),
+            call("click", "x" to "320", "y" to "240", "button" to "double"),
+            call("type_text", "text" to "Привет, мир"),
+            call("press_keys", "keys" to "ctrl+s"),
+            "Сохранил файл.",
+        )
+        val chat = app.chats.createChat()
+
+        app.generation.send(chat.id, "Напиши в блокноте «Привет, мир» и сохрани")
+        repeat(4) {
+            val pending = assertNotNull(app.generation.active.value?.pending, "каждое действие на экране подтверждается")
+            app.generation.resolvePending(pending.id, approved = true)
+        }
+
+        // Снимок 640×480 (MemoryImageStore), экран 1920×1080: координаты снимка переводятся в точки экрана.
+        assertEquals(listOf("capture", "click 960,540 LEFT double", "type Привет, мир", "press ctrl+s"), screen.actions)
+        val afterScreenshot = app.engine.requests[1].messages.last()
+        assertEquals(1, afterScreenshot.images.size, "снимок экрана уходит модели изображением")
+        assertTrue("640×480" in afterScreenshot.content)
+        assertTrue("Экран доступен" in app.engine.requests[0].systemPrompt)
+        val reply = app.chats.messagesSnapshot(chat.id).last()
+        assertEquals("Сохранил файл.", reply.content)
+        assertEquals(
+            listOf(AgentTool.SCREENSHOT, AgentTool.CLICK, AgentTool.TYPE_TEXT, AgentTool.PRESS_KEYS),
+            reply.steps.map { it.tool },
+        )
+    }
+
+    @Test
+    fun clickBeforeScreenshotIsRefusedAndRejectedActionsDoNothing(): Unit = runBlocking {
+        val screen = FakeScreenControl()
+        val app = screenApp(screen, vision = true, call("click", "x" to "10", "y" to "10"), call("screenshot"), "Ладно.")
+        val chat = app.chats.createChat()
+
+        app.generation.send(chat.id, "Нажми что-нибудь")
+        assertTrue("take a screenshot first" in app.engine.requests[1].messages.last().content)
+        app.generation.resolvePending(checkNotNull(app.generation.active.value?.pending).id, approved = false)
+
+        assertTrue(screen.actions.isEmpty())
+        assertEquals(listOf(AgentStepStatus.FAILED, AgentStepStatus.REJECTED), app.chats.messagesSnapshot(chat.id).last().steps.map { it.status })
+    }
+
+    @Test
+    fun screenToolsNeedAModelThatSeesImages(): Unit = runBlocking {
+        val app = screenApp(FakeScreenControl(), vision = false, "Ответ.")
+        val chat = app.chats.createChat()
+        app.generation.send(chat.id, "Что на экране?")
+        val prompt = app.engine.lastRequest!!.systemPrompt
+        assertFalse("screenshot" in prompt, prompt)
+        assertTrue("system_info" in prompt)
     }
 }

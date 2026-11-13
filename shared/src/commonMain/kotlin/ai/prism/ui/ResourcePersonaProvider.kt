@@ -5,6 +5,12 @@ import ai.prism.resources.agent_instructions
 import ai.prism.resources.agent_workspace_note
 import ai.prism.resources.agent_internet_note
 import ai.prism.resources.agent_computer_note
+import ai.prism.resources.agent_screen_note
+import ai.prism.resources.agent_tool_click
+import ai.prism.resources.agent_tool_press_keys
+import ai.prism.resources.agent_tool_screenshot
+import ai.prism.resources.agent_tool_scroll
+import ai.prism.resources.agent_tool_type_text
 import ai.prism.resources.agent_step_limit
 import ai.prism.resources.agent_step_limit_notice
 import ai.prism.resources.memory_extraction
@@ -61,6 +67,7 @@ class ResourcePersonaProvider : PersonaProvider {
         agentWorkspaceNote = getString(Res.string.agent_workspace_note),
         agentInternetNote = getString(Res.string.agent_internet_note),
         agentComputerNote = getString(Res.string.agent_computer_note),
+        agentScreenNote = getString(Res.string.agent_screen_note),
         toolDescriptions = AgentTool.entries.associateWith { tool -> getString(tool.description()) },
         agentStepLimit = getString(Res.string.agent_step_limit),
         agentStepLimitNotice = getString(Res.string.agent_step_limit_notice),
@@ -84,4 +91,9 @@ internal fun AgentTool.description(): StringResource = when (this) {
     AgentTool.RUN_COMMAND -> Res.string.agent_tool_run_command
     AgentTool.SYSTEM_INFO -> Res.string.agent_tool_system_info
     AgentTool.OPEN_PROGRAM -> Res.string.agent_tool_open_program
+    AgentTool.SCREENSHOT -> Res.string.agent_tool_screenshot
+    AgentTool.CLICK -> Res.string.agent_tool_click
+    AgentTool.TYPE_TEXT -> Res.string.agent_tool_type_text
+    AgentTool.PRESS_KEYS -> Res.string.agent_tool_press_keys
+    AgentTool.SCROLL -> Res.string.agent_tool_scroll
 }

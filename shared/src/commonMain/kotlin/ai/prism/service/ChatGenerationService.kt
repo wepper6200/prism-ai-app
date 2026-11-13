@@ -8,6 +8,7 @@ import ai.prism.domain.agent.CommandRunner
 import ai.prism.domain.agent.Computer
 import ai.prism.domain.agent.PendingAction
 import ai.prism.domain.agent.RunningTool
+import ai.prism.domain.agent.ScreenControl
 import ai.prism.domain.agent.WebClient
 import ai.prism.domain.agent.WorkspaceProvider
 import ai.prism.domain.documents.DocumentChunk
@@ -105,6 +106,8 @@ data class AssistantPersona(
     val agentInternetNote: String = "",
     /** Про доступ к компьютеру (файлы вне проекта, команды, программы); `{home}` — домашняя папка. */
     val agentComputerNote: String = "",
+    /** Про управление экраном (снимки, мышь, клавиатура). */
+    val agentScreenNote: String = "",
     /** Описание каждого инструмента для модели. */
     val toolDescriptions: Map<AgentTool, String> = emptyMap(),
     /** Добавляется к результату последнего разрешённого шага: инструментов больше нет, нужно подвести итог. */
@@ -194,6 +197,8 @@ class ChatGenerationService(
     private val commands: CommandRunner = CommandRunner.None,
     /** Компьютер пользователя вне папки проекта (Desktop; используется, только если включён «Компьютер»). */
     private val computer: Computer? = null,
+    /** Управление экраном (Desktop; с «Компьютер» и моделью, которая видит изображения). */
+    private val screen: ScreenControl? = null,
     /** Сегодняшняя дата на устройстве для промпта. */
     private val today: () -> String = ::todayText,
     /** Объём оперативной памяти: от него зависит текстовый энкодер видео по умолчанию (0 — неизвестен). */
@@ -414,7 +419,7 @@ class ChatGenerationService(
                     reminder = persona.reminder,
                     thinkingBudget = settings.settings.value.thinkingLevel.budgetTokens,
                 )
-                val toolbox = agentToolbox(chatId, reply.id)
+                val toolbox = agentToolbox(chatId, reply.id, vision = projectorPath != null)
                 if (toolbox == null) {
                     engine.generate(request).collect { piece ->
                         live.append(piece)
@@ -658,7 +663,7 @@ class ChatGenerationService(
      * Инструменты для ответа: папка проекта диалога (если выбрана и доступна) и интернет (если включён).
      * `null` — инструментов нет, ассистент отвечает обычным текстом.
      */
-    private suspend fun agentToolbox(chatId: String, replyId: String): AgentToolbox? {
+    private suspend fun agentToolbox(chatId: String, replyId: String, vision: Boolean): AgentToolbox? {
         val current = settings.settings.value
         val internet = web?.takeIf { current.internetEnabled }
         val folder = chats.workspaceOf(chatId)?.let { location -> workspaces?.open(location) }
@@ -671,6 +676,9 @@ class ChatGenerationService(
             autoApplyEdits = current.autoApplyEdits,
             folderDepth = current.folderDepth,
             computer = pc,
+            // Экран без зрения модели бесполезен: она не увидит снимок.
+            screen = screen?.takeIf { pc != null && vision },
+            imageStore = images,
             onRunning = { running -> mutableActive.update { it?.copy(running = running) } },
             approve = { action -> askApproval(chatId, replyId, action) },
             newId = ::newId,
@@ -701,6 +709,7 @@ class ChatGenerationService(
             persona.agentInternetNote.takeIf { AgentTool.WEB_SEARCH in toolbox.tools && it.isNotBlank() },
             persona.agentComputerNote.takeIf { AgentTool.SYSTEM_INFO in toolbox.tools && it.isNotBlank() }
                 ?.replace("{home}", computer?.homePath.orEmpty()),
+            persona.agentScreenNote.takeIf { AgentTool.SCREENSHOT in toolbox.tools && it.isNotBlank() },
         ).joinToString("\n")
         val tools = toolbox.tools.joinToString("\n") { tool -> "- " + (persona.toolDescriptions[tool] ?: tool.toolName) }
         val instructions = persona.agentInstructions.replace("{context}", context).replace("{tools}", tools)
@@ -756,7 +765,7 @@ class ChatGenerationService(
             }
             dialog = dialog +
                 PromptMessage(MessageRole.ASSISTANT, ToolCallProtocol.callText(raw.toString())) +
-                PromptMessage(MessageRole.USER, ToolCallProtocol.result(call.name, outcome.result) + limitNote)
+                PromptMessage(MessageRole.USER, ToolCallProtocol.result(call.name, outcome.result) + limitNote, outcome.images)
         }
     }
 

@@ -17,6 +17,16 @@ import ai.prism.resources.agent_approval_edit_outside
 import ai.prism.resources.agent_approval_list_outside
 import ai.prism.resources.agent_approval_open
 import ai.prism.resources.agent_approval_read_outside
+import ai.prism.resources.agent_approval_click
+import ai.prism.resources.agent_approval_keys
+import ai.prism.resources.agent_approval_screenshot
+import ai.prism.resources.agent_approval_scroll
+import ai.prism.resources.agent_approval_type
+import ai.prism.resources.agent_step_click
+import ai.prism.resources.agent_step_press_keys
+import ai.prism.resources.agent_step_screenshot
+import ai.prism.resources.agent_step_scroll
+import ai.prism.resources.agent_step_type_text
 import ai.prism.resources.agent_open
 import ai.prism.resources.agent_running
 import ai.prism.resources.agent_step_open_program
@@ -61,7 +71,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Computer
+import androidx.compose.material.icons.outlined.Keyboard
 import androidx.compose.material.icons.outlined.Memory
+import androidx.compose.material.icons.outlined.Mouse
+import androidx.compose.material.icons.outlined.Screenshot
+import androidx.compose.material.icons.outlined.SwapVert
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Folder
@@ -184,6 +198,11 @@ fun PendingActionCard(action: PendingAction, onResolve: (Boolean) -> Unit, modif
 private fun PendingAction.question(): StringResource = when (tool) {
     AgentTool.RUN_COMMAND -> Res.string.agent_approval_command
     AgentTool.OPEN_PROGRAM -> Res.string.agent_approval_open
+    AgentTool.SCREENSHOT -> Res.string.agent_approval_screenshot
+    AgentTool.CLICK -> Res.string.agent_approval_click
+    AgentTool.TYPE_TEXT -> Res.string.agent_approval_type
+    AgentTool.PRESS_KEYS -> Res.string.agent_approval_keys
+    AgentTool.SCROLL -> Res.string.agent_approval_scroll
     AgentTool.DOWNLOAD_FILE -> if (outsideProject) Res.string.agent_approval_download_outside else Res.string.agent_approval_download
     AgentTool.READ_FILE -> Res.string.agent_approval_read_outside
     AgentTool.LIST_FILES, AgentTool.SEARCH_FILES -> Res.string.agent_approval_list_outside
@@ -194,6 +213,7 @@ private fun PendingAction.approveLabel(): StringResource = when (tool) {
     AgentTool.RUN_COMMAND -> Res.string.agent_run
     AgentTool.OPEN_PROGRAM -> Res.string.agent_open
     AgentTool.READ_FILE, AgentTool.LIST_FILES, AgentTool.SEARCH_FILES -> Res.string.agent_allow
+    AgentTool.SCREENSHOT, AgentTool.CLICK, AgentTool.TYPE_TEXT, AgentTool.PRESS_KEYS, AgentTool.SCROLL -> Res.string.agent_allow
     else -> Res.string.agent_apply
 }
 
@@ -348,6 +368,10 @@ private fun AgentTool.icon(): ImageVector = when (this) {
     AgentTool.RUN_COMMAND -> Icons.Outlined.Terminal
     AgentTool.SYSTEM_INFO -> Icons.Outlined.Memory
     AgentTool.OPEN_PROGRAM -> Icons.AutoMirrored.Outlined.OpenInNew
+    AgentTool.SCREENSHOT -> Icons.Outlined.Screenshot
+    AgentTool.CLICK -> Icons.Outlined.Mouse
+    AgentTool.TYPE_TEXT, AgentTool.PRESS_KEYS -> Icons.Outlined.Keyboard
+    AgentTool.SCROLL -> Icons.Outlined.SwapVert
 }
 
 private fun AgentTool.label(): StringResource = when (this) {
@@ -362,4 +386,9 @@ private fun AgentTool.label(): StringResource = when (this) {
     AgentTool.RUN_COMMAND -> Res.string.agent_step_run_command
     AgentTool.SYSTEM_INFO -> Res.string.agent_step_system_info
     AgentTool.OPEN_PROGRAM -> Res.string.agent_step_open_program
+    AgentTool.SCREENSHOT -> Res.string.agent_step_screenshot
+    AgentTool.CLICK -> Res.string.agent_step_click
+    AgentTool.TYPE_TEXT -> Res.string.agent_step_type_text
+    AgentTool.PRESS_KEYS -> Res.string.agent_step_press_keys
+    AgentTool.SCROLL -> Res.string.agent_step_scroll
 }

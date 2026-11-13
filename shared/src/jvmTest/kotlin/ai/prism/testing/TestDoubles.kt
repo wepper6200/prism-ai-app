@@ -16,6 +16,9 @@ import ai.prism.data.agent.DesktopComputer
 import ai.prism.domain.agent.CommandResult
 import ai.prism.domain.agent.CommandRunner
 import ai.prism.domain.agent.Computer
+import ai.prism.domain.agent.MouseButton
+import ai.prism.domain.agent.ScreenCapture
+import ai.prism.domain.agent.ScreenControl
 import ai.prism.domain.agent.Shell
 import ai.prism.domain.agent.WebClient
 import ai.prism.domain.agent.WebException
@@ -434,6 +437,23 @@ class FakeCommandRunner(var output: String = "BUILD SUCCESSFUL", var exitCode: I
     }
 }
 
+/** Экран для тестов: 1920×1080, запоминает действия; снимок — непустые байты. */
+class FakeScreenControl : ScreenControl {
+    val actions = mutableListOf<String>()
+    private fun shot() = ScreenCapture(byteArrayOf(1, 2, 3), 1920, 1080)
+
+    override suspend fun capture(): ScreenCapture = shot().also { actions += "capture" }
+
+    override suspend fun click(x: Int, y: Int, button: MouseButton, double: Boolean): ScreenCapture =
+        shot().also { actions += "click $x,$y $button${if (double) " double" else ""}" }
+
+    override suspend fun scroll(x: Int, y: Int, amount: Int): ScreenCapture = shot().also { actions += "scroll $x,$y $amount" }
+
+    override suspend fun type(text: String): ScreenCapture = shot().also { actions += "type $text" }
+
+    override suspend fun press(keys: String): ScreenCapture = shot().also { actions += "press $keys" }
+}
+
 /** Компьютер для тестов: настоящие файлы и сведения о системе, но программы не запускаются, а запоминаются. */
 class FakeComputer(home: File) : Computer {
     private val real = DesktopComputer(Dispatchers.Unconfined, homePath = home.path, windows = false)
@@ -517,6 +537,7 @@ class TestApp(
     val commands: FakeCommandRunner = FakeCommandRunner(),
     /** Компьютер для инструментов «Компьютер»; `null` — как на Android. */
     val computer: Computer? = null,
+    val screen: ScreenControl? = null,
     /** Справка о дате в персоне; пусто — системный промпт без даты. */
     currentDateNote: String = "",
     val speechEngine: FakeSpeechEngine = FakeSpeechEngine(),
@@ -565,6 +586,7 @@ class TestApp(
                 agentWorkspaceNote = "Папка: {name}",
                 agentInternetNote = "Интернет включён",
                 agentComputerNote = "Компьютер: {home}",
+                agentScreenNote = "Экран доступен",
                 agentStepLimit = "Шаги закончились.",
                 agentStepLimitNotice = "Сделано {steps} шагов.",
                 memoryNote = "О пользователе:\n{facts}",
@@ -582,6 +604,7 @@ class TestApp(
         workspaces = FileWorkspaceProvider(Dispatchers.Unconfined),
         commands = commands,
         computer = computer,
+        screen = screen,
         totalRamBytes = totalRamBytes,
         drafts = drafts,
         memories = memories,

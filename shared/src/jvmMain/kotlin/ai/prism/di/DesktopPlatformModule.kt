@@ -4,6 +4,8 @@ import ai.prism.data.agent.FileWorkspaceProvider
 import ai.prism.data.agent.HttpWebClient
 import ai.prism.data.agent.ProcessCommandRunner
 import ai.prism.data.agent.DesktopComputer
+import ai.prism.data.agent.RobotScreenControl
+import ai.prism.domain.agent.ScreenControl
 import ai.prism.domain.agent.CommandRunner
 import ai.prism.domain.agent.Computer
 import ai.prism.domain.agent.WebClient
@@ -81,6 +83,7 @@ fun desktopPlatformModule(): Module = module {
     single<WorkspaceProvider> { FileWorkspaceProvider() }
     single<CommandRunner> { ProcessCommandRunner() }
     single<Computer> { DesktopComputer() }
+    single<ScreenControl> { RobotScreenControl() }
     single<TextEmbedder> { LlamaTextEmbedder(DesktopNativeLibraryLoader(), get()) }
     single<SpeechEngine> { DesktopSherpaSpeechEngine(threads = get<DeviceInfo>().inferenceThreads.coerceIn(1, MAX_SPEECH_THREADS)) }
     single<AudioInput> { JavaSoundAudioInput() }

@@ -22,7 +22,17 @@ enum class AgentTool(
     RUN_COMMAND("run_command", needsWorkspace = true),
     SYSTEM_INFO("system_info", needsComputer = true),
     OPEN_PROGRAM("open_program", needsComputer = true),
+
+    /** Управление экраном: только с «Компьютер» и моделью, которая видит изображения. */
+    SCREENSHOT("screenshot", needsComputer = true),
+    CLICK("click", needsComputer = true),
+    TYPE_TEXT("type_text", needsComputer = true),
+    PRESS_KEYS("press_keys", needsComputer = true),
+    SCROLL("scroll", needsComputer = true),
     ;
+
+    /** Инструмент управления экраном (снимки, мышь, клавиатура). */
+    val isScreen: Boolean get() = this == SCREENSHOT || this == CLICK || this == TYPE_TEXT || this == PRESS_KEYS || this == SCROLL
 
     companion object {
         fun byName(name: String): AgentTool? = entries.firstOrNull { it.toolName == name }
@@ -176,4 +186,29 @@ interface Computer {
 
     /** Открывает программу, файл, папку или адрес как двойной щелчок; ошибки — [WorkspaceException]. */
     suspend fun open(target: String, arguments: String)
+}
+
+/** Снимок экрана: картинка (PNG) и размер экрана в точках, в которых считаются координаты мыши. */
+class ScreenCapture(val bytes: ByteArray, val screenWidth: Int, val screenHeight: Int)
+
+enum class MouseButton { LEFT, RIGHT, MIDDLE }
+
+/**
+ * Управление экраном (Desktop): снимок, мышь и клавиатура. Окно Prism AI на время действия сворачивается,
+ * чтобы не закрывать экран; каждое действие возвращает снимок экрана после него (за одно сворачивание —
+ * фокус не прыгает между окнами). Координаты — в точках экрана; ошибки — [WorkspaceException].
+ */
+interface ScreenControl {
+    suspend fun capture(): ScreenCapture
+
+    suspend fun click(x: Int, y: Int, button: MouseButton, double: Boolean): ScreenCapture
+
+    /** Прокрутка колесом в точке: [amount] > 0 — вниз, < 0 — вверх (щелчки колеса). */
+    suspend fun scroll(x: Int, y: Int, amount: Int): ScreenCapture
+
+    /** Вводит текст в активное окно (через буфер обмена — работает с любым языком). */
+    suspend fun type(text: String): ScreenCapture
+
+    /** Нажимает сочетание клавиш: «ctrl+s», «alt+tab», «enter», «win+r». */
+    suspend fun press(keys: String): ScreenCapture
 }

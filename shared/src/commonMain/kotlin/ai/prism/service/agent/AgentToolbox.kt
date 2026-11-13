@@ -6,6 +6,9 @@ import ai.prism.domain.agent.AgentTool
 import ai.prism.core.currentTimeMillis
 import ai.prism.domain.agent.CommandRunner
 import ai.prism.domain.agent.Computer
+import ai.prism.domain.agent.MouseButton
+import ai.prism.domain.agent.ScreenCapture
+import ai.prism.domain.agent.ScreenControl
 import ai.prism.domain.agent.PendingAction
 import ai.prism.domain.agent.RunningTool
 import ai.prism.domain.agent.Shell
@@ -14,10 +17,17 @@ import ai.prism.domain.agent.WebException
 import ai.prism.domain.agent.Workspace
 import ai.prism.domain.agent.WorkspaceEntry
 import ai.prism.domain.agent.WorkspaceException
+import ai.prism.domain.inference.PromptImage
 import ai.prism.domain.model.AppSettings
+import ai.prism.domain.repository.ImageException
+import ai.prism.domain.repository.ImageStore
+import kotlin.math.roundToInt
 
-/** Итог вызова инструмента: текст для модели и шаг для показа пользователю (`null` — вызов не распознан). */
-data class ToolOutcome(val result: String, val step: AgentStep?)
+/**
+ * Итог вызова инструмента: текст для модели, шаг для показа пользователю (`null` — вызов не распознан)
+ * и изображения для модели (снимок экрана).
+ */
+data class ToolOutcome(val result: String, val step: AgentStep?, val images: List<PromptImage> = emptyList())
 
 /**
  * Инструменты ассистента в одном диалоге: папка проекта [workspace] (если выбрана), интернет [web]
@@ -34,6 +44,9 @@ class AgentToolbox(
     /** На сколько уровней `list_files` раскрывает вложенные папки; 0 — без ограничения (до [MAX_ENTRIES] строк). */
     private val folderDepth: Int = AppSettings.DEFAULT_FOLDER_DEPTH,
     private val computer: Computer? = null,
+    /** Управление экраном: только с «Компьютер» и моделью, которая видит изображения; снимки сохраняются в [imageStore]. */
+    private val screen: ScreenControl? = null,
+    private val imageStore: ImageStore? = null,
     /** Ход долгой команды: последние строки вывода; `null` — команда закончилась. */
     private val onRunning: (RunningTool?) -> Unit = {},
     private val approve: suspend (PendingAction) -> Boolean,
@@ -44,11 +57,16 @@ class AgentToolbox(
         (!tool.needsInternet || web != null) &&
             (!tool.needsWorkspace || workspace != null || computer != null) &&
             (!tool.needsComputer || computer != null) &&
+            (!tool.isScreen || (screen != null && imageStore != null)) &&
             (tool != AgentTool.RUN_COMMAND || (commands.isSupported && (workspace?.localPath != null || computer != null)))
     }
 
     /** Папки вне проекта, которые пользователь разрешил читать в этом ответе (полные пути). */
     private val readableFolders = mutableSetOf<String>()
+
+    /** Во сколько раз экран больше последнего снимка, который видела модель (координаты — в пикселях снимка). */
+    private var scaleX = 0.0
+    private var scaleY = 0.0
 
     suspend fun execute(call: ToolCall): ToolOutcome {
         val tool = AgentTool.byName(call.name)?.takeIf { it in tools }
@@ -71,6 +89,39 @@ class AgentToolbox(
                 )
                 AgentTool.SYSTEM_INFO -> systemInfo()
                 AgentTool.OPEN_PROGRAM -> openProgram(call.arg("target"), call.optional("arguments").orEmpty())
+                AgentTool.SCREENSHOT -> screenAction(AgentTool.SCREENSHOT, "") { control -> control.capture() }
+                AgentTool.CLICK -> {
+                    val x = call.number("x")
+                    val y = call.number("y")
+                    val kind = call.optional("button")?.lowercase().orEmpty()
+                    val button = when {
+                        "right" in kind -> MouseButton.RIGHT
+                        "middle" in kind -> MouseButton.MIDDLE
+                        else -> MouseButton.LEFT
+                    }
+                    val double = "double" in kind
+                    screenAction(AgentTool.CLICK, "$x, $y" + if (kind.isEmpty()) "" else " ($kind)") { control ->
+                        val (screenX, screenY) = toScreen(x, y)
+                        control.click(screenX, screenY, button, double)
+                    }
+                }
+                AgentTool.TYPE_TEXT -> {
+                    val text = call.args["text"]?.takeIf { it.isNotEmpty() } ?: throw MissingArgument("text")
+                    screenAction(AgentTool.TYPE_TEXT, text.take(LINE_CHARS)) { control -> control.type(text) }
+                }
+                AgentTool.PRESS_KEYS -> {
+                    val keys = call.arg("keys")
+                    screenAction(AgentTool.PRESS_KEYS, keys) { control -> control.press(keys) }
+                }
+                AgentTool.SCROLL -> {
+                    val x = call.number("x")
+                    val y = call.number("y")
+                    val amount = call.optional("amount")?.let { value -> value.trim().toIntOrNull() } ?: DEFAULT_SCROLL
+                    screenAction(AgentTool.SCROLL, "$x, $y: $amount") { control ->
+                        val (screenX, screenY) = toScreen(x, y)
+                        control.scroll(screenX, screenY, amount)
+                    }
+                }
             }
         } catch (e: MissingArgument) {
             ToolOutcome("error: missing argument <${e.name}>", AgentStep(tool, call.args.values.firstOrNull().orEmpty(), e.message.orEmpty(), AgentStepStatus.FAILED))
@@ -267,6 +318,40 @@ class AgentToolbox(
     }
 
     /**
+     * Действие на экране с разрешения пользователя, затем новый снимок экрана — модель видит, что получилось.
+     * Координаты в вызовах — в пикселях последнего снимка.
+     */
+    private suspend fun screenAction(tool: AgentTool, title: String, action: suspend (ScreenControl) -> ScreenCapture): ToolOutcome {
+        val control = checkNotNull(screen)
+        val store = checkNotNull(imageStore)
+        if (tool != AgentTool.SCREENSHOT && scaleX == 0.0) {
+            return failed(tool, title, "take a screenshot first: coordinates are pixels of the last screenshot")
+        }
+        if (!ask(tool, title, title)) return rejected(tool, title)
+        val capture = action(control)
+        val image = try {
+            store.save(capture.bytes)
+        } catch (e: ImageException) {
+            return failed(tool, title, "cannot read the screenshot: ${e.message}")
+        }
+        scaleX = capture.screenWidth.toDouble() / image.width.coerceAtLeast(1)
+        scaleY = capture.screenHeight.toDouble() / image.height.coerceAtLeast(1)
+        val done = if (tool == AgentTool.SCREENSHOT) "" else "done. "
+        val text = "${done}Screenshot of the screen is attached (${image.width}×${image.height} pixels). " +
+            "Give click and scroll coordinates in pixels of this screenshot: x from the left, y from the top."
+        return ToolOutcome(
+            result = text,
+            step = AgentStep(tool, title, "", AgentStepStatus.DONE),
+            images = listOf(PromptImage(id = image.id, path = store.path(image.fileName))),
+        )
+    }
+
+    private fun toScreen(x: Int, y: Int): Pair<Int, Int> = (x * scaleX).roundToInt() to (y * scaleY).roundToInt()
+
+    private fun ToolCall.number(name: String): Int =
+        arg(name).trim().substringBefore('.').filter { it.isDigit() || it == '-' }.toIntOrNull() ?: throw MissingArgument(name)
+
+    /**
      * Чтение вне папки проекта: спрашивает один раз на папку — разрешённая папка (а для файла — папка, где он лежит)
      * читается без вопросов до конца ответа.
      */
@@ -344,6 +429,9 @@ class AgentToolbox(
         /** Сколько последних строк вывода видно, пока команда работает, и как часто они обновляются. */
         const val LIVE_LINES = 12
         const val LIVE_INTERVAL_MS = 250L
+
+        /** Прокрутка по умолчанию: 5 щелчков колеса вниз. */
+        const val DEFAULT_SCROLL = 5
 
         /** Текст файла в UTF-8 или `null`, если файл двоичный. */
         fun textOf(bytes: ByteArray): String? =
