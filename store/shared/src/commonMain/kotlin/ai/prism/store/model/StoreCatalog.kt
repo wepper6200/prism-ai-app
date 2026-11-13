@@ -22,7 +22,6 @@ data class StoreApp(
     /** Файл для каждой платформы: `android`, `windows`. Нет файла — приложение для неё недоступно. */
     val android: AndroidPackage? = null,
     val windows: WindowsPackage? = null,
-    val license: String = "",
 )
 
 /** Файл приложения в релизе: ссылка, размер и SHA-256 (проверяются после загрузки). */

@@ -4,7 +4,6 @@
       "id": "prism-ai",
       "name": "Prism AI",
       "description": "Офлайн ИИ-ассистент: чат, вопросы по фото и файлам, рисование, видео, голос и агент с папкой проекта. Все модели работают на устройстве.",
-      "license": "MIT",
       "versionKey": "prism-versionName",
       "android": {"packageName": "ai.prism.app", "file": "PrismAI-{version}-android-arm64.apk"},
       "windows": {"folder": "PrismAI", "exe": "PrismAI.exe", "file": "PrismAI-{version}-windows-x64.zip"}
@@ -13,7 +12,6 @@
       "id": "prism-store",
       "name": "Prism Store",
       "description": "Магазин приложений Prism: установка и обновление в одно касание.",
-      "license": "MIT",
       "versionKey": "store-versionName",
       "android": {"packageName": "ai.prism.store", "file": "PrismStore-{version}-android.apk"},
       "windows": {"folder": "PrismStore", "exe": "PrismStore.exe", "file": "PrismStore-{version}-windows.zip"}

@@ -21,12 +21,6 @@ enum class ChatFormat {
     RAW,
 }
 
-@Serializable
-data class ModelLicense(
-    val name: String,
-    val url: String,
-)
-
 /**
  * Один скачиваемый файл модели: адрес, имя на устройстве, размер и SHA-256 (проверяются при загрузке).
  * [archive] — архив `tar.bz2`: после загрузки он распаковывается в папку рядом (голоса Piper).
@@ -220,7 +214,6 @@ data class CatalogModel(
     val contextLength: Int = 0,
     val minRamMb: Int,
     val chatFormat: ChatFormat = ChatFormat.RAW,
-    val license: ModelLicense,
     /** `android` и/или `desktop` — где модель рекомендуется. */
     val recommendedFor: List<String> = emptyList(),
     /** Модуль зрения (проектор mmproj): с ним модель понимает изображения. `null` — только текст. */

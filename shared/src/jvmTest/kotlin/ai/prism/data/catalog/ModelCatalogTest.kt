@@ -35,7 +35,6 @@ class ModelCatalogTest {
             assertTrue(model.sizeBytes > 0 && model.minRamMb > 0, model.id)
             if (model.kind == ModelKind.CHAT) assertTrue(model.contextLength >= 2048, model.id)
             assertTrue(!model.description["ru"].isNullOrBlank(), "описание ${model.id}")
-            assertTrue(model.license.url.startsWith("https://"), "лицензия ${model.id}")
         }
     }
 

@@ -45,7 +45,6 @@ import ai.prism.domain.model.ImageModelSettings
 import ai.prism.domain.model.ModelComponent
 import ai.prism.domain.model.ModelFile
 import ai.prism.domain.model.ModelKind
-import ai.prism.domain.model.ModelLicense
 import ai.prism.domain.model.ModelStatus
 import ai.prism.domain.model.PlatformCapabilities
 import ai.prism.domain.model.SpeechEngineType
@@ -90,7 +89,6 @@ fun testModel(
     contextLength = 8192,
     minRamMb = minRamMb,
     chatFormat = ChatFormat.GEMMA4,
-    license = ModelLicense("Apache 2.0", "https://www.apache.org/licenses/LICENSE-2.0"),
     recommendedFor = recommendedFor,
     vision = vision,
 )

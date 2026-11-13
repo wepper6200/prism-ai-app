@@ -38,7 +38,7 @@ def main():
     apps = []
     for app in json.load(open("store/apps.json", encoding="utf-8"))["apps"]:
         version = known[app["versionKey"]]
-        entry = {k: app[k] for k in ("id", "name", "description", "license")}
+        entry = {k: app[k] for k in ("id", "name", "description")}
         entry["version"] = version
         if "android" in app:
             entry["android"] = {

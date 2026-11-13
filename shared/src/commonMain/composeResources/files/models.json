@@ -17,10 +17,6 @@
       "contextLength": 8192,
       "minRamMb": 6144,
       "chatFormat": "gemma4",
-      "license": {
-        "name": "Apache 2.0",
-        "url": "https://www.apache.org/licenses/LICENSE-2.0"
-      },
       "recommendedFor": [
         "android"
       ],
@@ -53,10 +49,6 @@
       "contextLength": 8192,
       "minRamMb": 8192,
       "chatFormat": "gemma4",
-      "license": {
-        "name": "Apache 2.0",
-        "url": "https://www.apache.org/licenses/LICENSE-2.0"
-      },
       "recommendedFor": [
         "desktop"
       ],
@@ -89,10 +81,6 @@
       "contextLength": 16384,
       "minRamMb": 16384,
       "chatFormat": "gemma4",
-      "license": {
-        "name": "Apache 2.0",
-        "url": "https://www.apache.org/licenses/LICENSE-2.0"
-      },
       "recommendedFor": [
         "desktop"
       ],
@@ -125,10 +113,6 @@
       "contextLength": 16384,
       "minRamMb": 24576,
       "chatFormat": "gemma4",
-      "license": {
-        "name": "Apache 2.0",
-        "url": "https://www.apache.org/licenses/LICENSE-2.0"
-      },
       "recommendedFor": [],
       "vision": {
         "url": "https://huggingface.co/ggml-org/gemma-4-26B-A4B-it-GGUF/resolve/main/mmproj-gemma-4-26B-A4B-it-Q8_0.gguf",
@@ -159,10 +143,6 @@
       "contextLength": 16384,
       "minRamMb": 32768,
       "chatFormat": "qwen",
-      "license": {
-        "name": "Apache 2.0",
-        "url": "https://www.apache.org/licenses/LICENSE-2.0"
-      },
       "recommendedFor": [],
       "vision": {
         "url": "https://huggingface.co/ggml-org/Qwen3.8-27B-GGUF/resolve/main/mmproj-Qwen3.8-27B-Q8_0.gguf",
@@ -196,10 +176,6 @@
       "contextLength": 8192,
       "minRamMb": 3072,
       "chatFormat": "gemma3",
-      "license": {
-        "name": "Gemma Terms of Use",
-        "url": "https://ai.google.dev/gemma/terms"
-      },
       "recommendedFor": [],
       "oldFileNames": [
         "gemma-3-1b-it-Q4_K_M.gguf"
@@ -219,10 +195,6 @@
       "sizeBytes": 333590944,
       "sha256": "b5ce9d77a3fc4b3b39ccb5643c36777911cc4eb46a66962eadfa3f5f60490d63",
       "minRamMb": 1024,
-      "license": {
-        "name": "Gemma Terms of Use",
-        "url": "https://ai.google.dev/gemma/terms"
-      },
       "recommendedFor": [
         "android",
         "desktop"
@@ -251,10 +223,6 @@
       "sizeBytes": 224893661,
       "sha256": "d5fea8df94263c285e54b21e5774b707c707192d3bdbeffd7b1eb07fb6743b35",
       "minRamMb": 3072,
-      "license": {
-        "name": "MIT",
-        "url": "https://github.com/salute-developers/GigaAM/blob/main/LICENSE"
-      },
       "recommendedFor": [
         "android",
         "desktop"
@@ -308,10 +276,6 @@
       "sizeBytes": 112442483,
       "sha256": "4cbe7b22fa9026b843b60a68640c747de05bafb1a11b57edc0e66c232d9f33a9",
       "minRamMb": 4096,
-      "license": {
-        "name": "MIT",
-        "url": "https://github.com/openai/whisper/blob/main/LICENSE"
-      },
       "recommendedFor": [],
       "kind": "speech_recognition",
       "mainRole": "encoder",
@@ -384,10 +348,6 @@
       "sizeBytes": 674716297,
       "sha256": "b02dcdf54f348741e93fe732b67d933c8dcb6735655f710640143081db38878b",
       "minRamMb": 8192,
-      "license": {
-        "name": "MIT",
-        "url": "https://github.com/openai/whisper/blob/main/LICENSE"
-      },
       "recommendedFor": [],
       "kind": "speech_recognition",
       "platforms": [
@@ -463,10 +423,6 @@
       "sizeBytes": 128774318,
       "sha256": "82fa96f91c4ef8abaae3a14a3f4153facf88bed821d1f7331cec2700f432c427",
       "minRamMb": 2048,
-      "license": {
-        "name": "OpenRAIL-M",
-        "url": "https://huggingface.co/Supertone/supertonic-3/blob/main/LICENSE"
-      },
       "recommendedFor": [
         "android",
         "desktop"
@@ -524,10 +480,6 @@
       "sizeBytes": 6884606880,
       "sha256": "4f30741d2bfc786c92934ce925fcb0a43df3441e76504b797c3d5d5f0878fa6f",
       "minRamMb": 16384,
-      "license": {
-        "name": "Apache 2.0",
-        "url": "https://www.apache.org/licenses/LICENSE-2.0"
-      },
       "recommendedFor": [
         "desktop"
       ],
@@ -594,10 +546,6 @@
       "sizeBytes": 2584858432,
       "sha256": "33cc25b6f5dd121ecf3ad28e35eb38cb21427b7794c53527ceafe2dc3b109f4f",
       "minRamMb": 8192,
-      "license": {
-        "name": "CreativeML OpenRAIL++-M",
-        "url": "https://huggingface.co/ByteDance/SDXL-Lightning"
-      },
       "recommendedFor": [
         "android"
       ],
@@ -646,10 +594,6 @@
       "sizeBytes": 3029086560,
       "sha256": "fcf40dd62cb5e15556eef5f975700ab0b071aacd1939607689276e88f81ba463",
       "minRamMb": 16384,
-      "license": {
-        "name": "Apache 2.0",
-        "url": "https://www.apache.org/licenses/LICENSE-2.0"
-      },
       "recommendedFor": [
         "desktop"
       ],
@@ -722,10 +666,6 @@
       "sizeBytes": 3029086560,
       "sha256": "fcf40dd62cb5e15556eef5f975700ab0b071aacd1939607689276e88f81ba463",
       "minRamMb": 16384,
-      "license": {
-        "name": "Apache 2.0",
-        "url": "https://www.apache.org/licenses/LICENSE-2.0"
-      },
       "recommendedFor": [],
       "kind": "video",
       "platforms": [
@@ -795,10 +735,6 @@
       "sizeBytes": 14000234880,
       "sha256": "55442750eb0013d94fffaa4dadb577c5f4dc07107ec04389d41444f6e517d980",
       "minRamMb": 32768,
-      "license": {
-        "name": "LTX-2 Community License (бесплатно при доходе до $10 млн в год)",
-        "url": "https://github.com/Lightricks/LTX-2/blob/main/LICENSE-2_x"
-      },
       "recommendedFor": [],
       "kind": "video",
       "platforms": [
@@ -882,10 +818,6 @@
       "sizeBytes": 982716640,
       "sha256": "1e22a68152e6c4432524c61c78185efa35e6b305483ceb5fe238b2d51964cea7",
       "minRamMb": 12288,
-      "license": {
-        "name": "Apache 2.0",
-        "url": "https://www.apache.org/licenses/LICENSE-2.0"
-      },
       "recommendedFor": [
         "android"
       ],
