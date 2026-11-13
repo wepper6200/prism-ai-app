@@ -18,6 +18,14 @@ import ai.prism.domain.agent.Workspace
 import ai.prism.domain.agent.WorkspaceEntry
 import ai.prism.domain.agent.WorkspaceException
 import ai.prism.domain.inference.PromptImage
+import ai.prism.domain.mcp.McpCallResult
+import ai.prism.domain.mcp.McpTool
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import ai.prism.domain.model.AppSettings
 import ai.prism.domain.repository.ImageException
 import ai.prism.domain.repository.ImageStore
@@ -47,6 +55,9 @@ class AgentToolbox(
     /** Управление экраном: только с «Компьютер» и моделью, которая видит изображения; снимки сохраняются в [imageStore]. */
     private val screen: ScreenControl? = null,
     private val imageStore: ImageStore? = null,
+    /** Инструменты MCP-серверов пользователя и их вызов. */
+    val mcpTools: List<McpTool> = emptyList(),
+    private val callMcp: suspend (McpTool, JsonObject) -> McpCallResult = { _, _ -> McpCallResult("error: MCP is not available", true) },
     /** Ход долгой команды: последние строки вывода; `null` — команда закончилась. */
     private val onRunning: (RunningTool?) -> Unit = {},
     private val approve: suspend (PendingAction) -> Boolean,
@@ -54,7 +65,8 @@ class AgentToolbox(
 ) {
     /** Инструменты, доступные в этом диалоге. */
     val tools: List<AgentTool> = AgentTool.entries.filter { tool ->
-        (!tool.needsInternet || web != null) &&
+        tool != AgentTool.MCP &&
+            (!tool.needsInternet || web != null) &&
             (!tool.needsWorkspace || workspace != null || computer != null) &&
             (!tool.needsComputer || computer != null) &&
             (!tool.isScreen || (screen != null && imageStore != null)) &&
@@ -69,8 +81,12 @@ class AgentToolbox(
     private var scaleY = 0.0
 
     suspend fun execute(call: ToolCall): ToolOutcome {
+        mcpTools.firstOrNull { it.callName == call.name }?.let { return mcp(it, call) }
         val tool = AgentTool.byName(call.name)?.takeIf { it in tools }
-            ?: return ToolOutcome("error: unknown tool \"${call.name}\". Available: ${tools.joinToString { it.toolName }}", null)
+            ?: return ToolOutcome(
+                "error: unknown tool \"${call.name}\". Available: ${(tools.map { it.toolName } + mcpTools.map { it.callName }).joinToString()}",
+                null,
+            )
         return try {
             when (tool) {
                 AgentTool.WEB_SEARCH -> webSearch(call.arg("query"))
@@ -315,6 +331,50 @@ class AgentToolbox(
         if (!ask(AgentTool.OPEN_PROGRAM, title, title)) return rejected(AgentTool.OPEN_PROGRAM, title)
         checkNotNull(computer).open(target, arguments)
         return done(AgentTool.OPEN_PROGRAM, title, "opened $title", "")
+    }
+
+    /**
+     * Инструмент MCP-сервера: аргументы — теги по именам параметров (числа, флаги, списки и объекты переводятся
+     * по схеме инструмента) или один `<arguments>` с JSON. Спрашивает разрешения, если сервер не пометил инструмент
+     * как только читающий.
+     */
+    private suspend fun mcp(tool: McpTool, call: ToolCall): ToolOutcome {
+        val title = "${tool.serverName}: ${tool.name}"
+        val arguments = mcpArguments(tool, call.args)
+        val shown = arguments.entries.joinToString("\n") { (key, value) -> "$key: " + ((value as? JsonPrimitive)?.contentOrNull ?: value.toString()) }
+        if (!tool.readOnly && !approve(PendingAction(newId(), AgentTool.MCP, title, shown.take(APPROVAL_CHARS)))) {
+            return rejected(AgentTool.MCP, title)
+        }
+        val result = callMcp(tool, arguments)
+        val text = result.text.let { if (it.length <= OUTPUT_CHARS) it else it.take(OUTPUT_CHARS) + "\n… (result truncated)" }
+        val status = if (result.isError) AgentStepStatus.FAILED else AgentStepStatus.DONE
+        return ToolOutcome(if (result.isError) "error: $text" else text, AgentStep(AgentTool.MCP, title, text.take(DETAIL_CHARS), status))
+    }
+
+    private fun mcpArguments(tool: McpTool, args: Map<String, String>): JsonObject {
+        val types = tool.parameters.toMap()
+        val whole = args["arguments"]?.takeIf { "arguments" !in types }
+        if (whole != null) {
+            (parseJson(whole) as? JsonObject)?.let { return it }
+        }
+        return JsonObject(
+            args.mapValues { (name, raw) ->
+                val value = raw.trim()
+                when (types[name]) {
+                    "integer" -> value.toLongOrNull()?.let { JsonPrimitive(it) } ?: JsonPrimitive(value)
+                    "number" -> value.toDoubleOrNull()?.let { JsonPrimitive(it) } ?: JsonPrimitive(value)
+                    "boolean" -> value.lowercase().toBooleanStrictOrNull()?.let { JsonPrimitive(it) } ?: JsonPrimitive(value)
+                    "array", "object" -> parseJson(value) ?: JsonPrimitive(raw)
+                    else -> JsonPrimitive(raw)
+                }
+            },
+        )
+    }
+
+    private fun parseJson(text: String): JsonElement? = try {
+        Json.parseToJsonElement(text.trim())
+    } catch (e: SerializationException) {
+        null
     }
 
     /**

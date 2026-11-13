@@ -6,6 +6,8 @@ import ai.prism.resources.agent_workspace_note
 import ai.prism.resources.agent_internet_note
 import ai.prism.resources.agent_computer_note
 import ai.prism.resources.agent_screen_note
+import ai.prism.resources.agent_mcp_note
+import ai.prism.resources.agent_step_mcp
 import ai.prism.resources.agent_tool_click
 import ai.prism.resources.agent_tool_press_keys
 import ai.prism.resources.agent_tool_screenshot
@@ -68,6 +70,7 @@ class ResourcePersonaProvider : PersonaProvider {
         agentInternetNote = getString(Res.string.agent_internet_note),
         agentComputerNote = getString(Res.string.agent_computer_note),
         agentScreenNote = getString(Res.string.agent_screen_note),
+        agentMcpNote = getString(Res.string.agent_mcp_note),
         toolDescriptions = AgentTool.entries.associateWith { tool -> getString(tool.description()) },
         agentStepLimit = getString(Res.string.agent_step_limit),
         agentStepLimitNotice = getString(Res.string.agent_step_limit_notice),
@@ -96,4 +99,6 @@ internal fun AgentTool.description(): StringResource = when (this) {
     AgentTool.TYPE_TEXT -> Res.string.agent_tool_type_text
     AgentTool.PRESS_KEYS -> Res.string.agent_tool_press_keys
     AgentTool.SCROLL -> Res.string.agent_tool_scroll
+    // Инструменты MCP описывает сам сервер; эта строка в промпт не попадает.
+    AgentTool.MCP -> Res.string.agent_step_mcp
 }

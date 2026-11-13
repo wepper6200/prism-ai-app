@@ -18,6 +18,8 @@ import ai.prism.resources.agent_approval_list_outside
 import ai.prism.resources.agent_approval_open
 import ai.prism.resources.agent_approval_read_outside
 import ai.prism.resources.agent_approval_click
+import ai.prism.resources.agent_approval_mcp
+import ai.prism.resources.agent_step_mcp
 import ai.prism.resources.agent_approval_keys
 import ai.prism.resources.agent_approval_screenshot
 import ai.prism.resources.agent_approval_scroll
@@ -71,6 +73,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Computer
+import androidx.compose.material.icons.outlined.Extension
 import androidx.compose.material.icons.outlined.Keyboard
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.Mouse
@@ -199,6 +202,7 @@ private fun PendingAction.question(): StringResource = when (tool) {
     AgentTool.RUN_COMMAND -> Res.string.agent_approval_command
     AgentTool.OPEN_PROGRAM -> Res.string.agent_approval_open
     AgentTool.SCREENSHOT -> Res.string.agent_approval_screenshot
+    AgentTool.MCP -> Res.string.agent_approval_mcp
     AgentTool.CLICK -> Res.string.agent_approval_click
     AgentTool.TYPE_TEXT -> Res.string.agent_approval_type
     AgentTool.PRESS_KEYS -> Res.string.agent_approval_keys
@@ -213,7 +217,7 @@ private fun PendingAction.approveLabel(): StringResource = when (tool) {
     AgentTool.RUN_COMMAND -> Res.string.agent_run
     AgentTool.OPEN_PROGRAM -> Res.string.agent_open
     AgentTool.READ_FILE, AgentTool.LIST_FILES, AgentTool.SEARCH_FILES -> Res.string.agent_allow
-    AgentTool.SCREENSHOT, AgentTool.CLICK, AgentTool.TYPE_TEXT, AgentTool.PRESS_KEYS, AgentTool.SCROLL -> Res.string.agent_allow
+    AgentTool.SCREENSHOT, AgentTool.CLICK, AgentTool.TYPE_TEXT, AgentTool.PRESS_KEYS, AgentTool.SCROLL, AgentTool.MCP -> Res.string.agent_allow
     else -> Res.string.agent_apply
 }
 
@@ -372,6 +376,7 @@ private fun AgentTool.icon(): ImageVector = when (this) {
     AgentTool.CLICK -> Icons.Outlined.Mouse
     AgentTool.TYPE_TEXT, AgentTool.PRESS_KEYS -> Icons.Outlined.Keyboard
     AgentTool.SCROLL -> Icons.Outlined.SwapVert
+    AgentTool.MCP -> Icons.Outlined.Extension
 }
 
 private fun AgentTool.label(): StringResource = when (this) {
@@ -391,4 +396,5 @@ private fun AgentTool.label(): StringResource = when (this) {
     AgentTool.TYPE_TEXT -> Res.string.agent_step_type_text
     AgentTool.PRESS_KEYS -> Res.string.agent_step_press_keys
     AgentTool.SCROLL -> Res.string.agent_step_scroll
+    AgentTool.MCP -> Res.string.agent_step_mcp
 }

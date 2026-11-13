@@ -71,6 +71,23 @@
     <string name="settings_internet">Интернет</string>
     <string name="settings_internet_desc">Ассистент ищет в интернете (DuckDuckGo), читает страницы и скачивает файлы. Запросы при этом уходят в сеть. По умолчанию выключено.</string>
     <string name="settings_computer">Работа с компьютером</string>
+    <string name="settings_mcp">MCP-серверы</string>
+    <string name="settings_mcp_desc">Подключите внешние инструменты по протоколу MCP: файлы, GitHub, базы данных, браузер и другие. Вставьте команду запуска (npx -y пакет), адрес https://… или JSON «mcpServers» из инструкции сервера. Каждый вызов инструмента вы подтверждаете, кроме тех, что сервер пометил как только читающие. Серверы по адресу работают с включённым «Интернетом».</string>
+    <string name="settings_mcp_desc_remote">Подключите внешние инструменты по протоколу MCP. Вставьте адрес сервера https://… или JSON «mcpServers» из его инструкции; серверы-команды (npx, uvx) запускаются только на компьютере. Каждый вызов инструмента вы подтверждаете, кроме тех, что сервер пометил как только читающие. Серверы работают с включённым «Интернетом».</string>
+    <string name="settings_mcp_name">Название (необязательно)</string>
+    <string name="settings_mcp_input">Команда, адрес или JSON</string>
+    <string name="settings_mcp_add">Добавить</string>
+    <string name="settings_mcp_check">Проверить подключение</string>
+    <string name="settings_mcp_delete">Удалить сервер</string>
+    <string name="settings_mcp_empty">Серверов пока нет.</string>
+    <string name="settings_mcp_error">Не удалось добавить: %1$s</string>
+    <string name="mcp_status_off">выключен</string>
+    <string name="mcp_status_idle">подключится при первом ответе</string>
+    <string name="mcp_status_needs_internet">нужен «Интернет»</string>
+    <string name="mcp_status_desktop_only">только на компьютере</string>
+    <string name="mcp_status_connecting">подключение…</string>
+    <string name="mcp_status_ready">инструментов: %1$d</string>
+    <string name="mcp_status_failed">ошибка: %1$s</string>
     <string name="settings_computer_desc">Ассистент читает и меняет файлы вне папки проекта, выполняет команды (cmd и PowerShell), запускает программы и узнаёт сведения о системе. Каждое такое действие вы подтверждаете. По умолчанию выключено.</string>
     <string name="settings_auto_apply">Править файлы без подтверждения</string>
     <string name="settings_auto_apply_desc">Ассистент сразу меняет файлы в папке проекта. Команды всё равно подтверждаются каждый раз.</string>
@@ -196,6 +213,7 @@
     <string name="agent_tool_press_keys">press_keys (keys) — нажать клавиши или сочетание: enter, tab, esc, ctrl+s, alt+tab, win+r, f5.</string>
     <string name="agent_tool_scroll">scroll (x, y, amount) — прокрутить колесом в точке снимка; amount — щелчков колеса, больше нуля — вниз, меньше — вверх.</string>
     <string name="agent_screen_note">Ты можешь управлять экраном: сначала сделай screenshot, координаты для click и scroll бери в пикселях последнего снимка (x слева, y сверху). После каждого действия приходит новый снимок — проверяй по нему, что получилось. Программы удобнее запускать через open_program, а не щелчками. Каждое действие пользователь подтверждает.</string>
+    <string name="agent_mcp_note">Инструменты с именами вида сервер__инструмент — это MCP-серверы, которые подключил пользователь. Аргументы пиши тегами с именами параметров, например &lt;tool name="github__search_repositories"&gt;&lt;query&gt;prism&lt;/query&gt;&lt;/tool&gt;; списки и объекты — в JSON.</string>
     <string name="agent_computer_note">Включена работа с компьютером пользователя. Файлы вне папки проекта указывай полным путём (например, C:/Users/Имя/Documents/файл.txt); домашняя папка — {home}. Чтение и изменение таких файлов, команды и запуск программ пользователь подтверждает — не повторяй отклонённое действие. Сведения о компьютере узнавай через system_info, а не догадками.</string>
     <string name="agent_step_web_search">Поиск в интернете</string>
     <string name="agent_step_fetch_page">Страница</string>
@@ -209,6 +227,7 @@
     <string name="agent_step_system_info">Сведения о системе</string>
     <string name="agent_step_open_program">Запуск</string>
     <string name="agent_step_screenshot">Снимок экрана</string>
+    <string name="agent_step_mcp">MCP</string>
     <string name="agent_step_click">Щелчок</string>
     <string name="agent_step_type_text">Ввод текста</string>
     <string name="agent_step_press_keys">Клавиши</string>
@@ -224,6 +243,7 @@
     <string name="agent_approval_list_outside">Ассистент хочет посмотреть папку вне проекта</string>
     <string name="agent_approval_edit_outside">Ассистент хочет изменить файл вне папки проекта</string>
     <string name="agent_approval_download_outside">Ассистент хочет скачать файл в папку вне проекта</string>
+    <string name="agent_approval_mcp">Ассистент хочет использовать инструмент MCP</string>
     <string name="agent_approval_screenshot">Ассистент хочет сделать снимок экрана</string>
     <string name="agent_approval_click">Ассистент хочет щёлкнуть мышью</string>
     <string name="agent_approval_type">Ассистент хочет ввести текст</string>

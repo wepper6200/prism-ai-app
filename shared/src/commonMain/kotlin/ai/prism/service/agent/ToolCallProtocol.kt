@@ -21,8 +21,9 @@ object ToolCallProtocol {
     const val OPEN = "<tool"
     const val CLOSE = "</tool>"
 
-    private val header = Regex("<tool\\s+name\\s*=\\s*[\"']([A-Za-z_]+)[\"']\\s*>")
-    private val argument = Regex("<([A-Za-z_]+)>([\\s\\S]*?)</\\1>")
+    // Имена инструментов MCP-серверов бывают с цифрами, точками и дефисами.
+    private val header = Regex("<tool\\s+name\\s*=\\s*[\"']([A-Za-z0-9_.-]+)[\"']\\s*>")
+    private val argument = Regex("<([A-Za-z_][A-Za-z0-9_.-]*)>([\\s\\S]*?)</\\1>")
     private val trailingFence = Regex("\\n?```[A-Za-z]*\\s*$")
 
     /** Модель дописала вызов до конца — генерацию можно остановить. */

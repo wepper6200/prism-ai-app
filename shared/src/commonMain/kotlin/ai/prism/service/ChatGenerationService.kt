@@ -49,6 +49,7 @@ import ai.prism.service.agent.AgentToolbox
 import ai.prism.service.agent.ToolCall
 import ai.prism.service.agent.ToolCallProtocol
 import ai.prism.service.agent.ToolOutcome
+import ai.prism.service.mcp.McpManager
 import ai.prism.service.documents.DocumentRetriever
 import ai.prism.service.video.VideoClipBuilder
 import ai.prism.service.video.VideoPlan
@@ -108,6 +109,8 @@ data class AssistantPersona(
     val agentComputerNote: String = "",
     /** Про управление экраном (снимки, мышь, клавиатура). */
     val agentScreenNote: String = "",
+    /** Про инструменты MCP-серверов пользователя. */
+    val agentMcpNote: String = "",
     /** Описание каждого инструмента для модели. */
     val toolDescriptions: Map<AgentTool, String> = emptyMap(),
     /** Добавляется к результату последнего разрешённого шага: инструментов больше нет, нужно подвести итог. */
@@ -199,6 +202,8 @@ class ChatGenerationService(
     private val computer: Computer? = null,
     /** Управление экраном (Desktop; с «Компьютер» и моделью, которая видит изображения). */
     private val screen: ScreenControl? = null,
+    /** MCP-серверы пользователя: их инструменты доступны ассистенту. */
+    private val mcp: McpManager? = null,
     /** Сегодняшняя дата на устройстве для промпта. */
     private val today: () -> String = ::todayText,
     /** Объём оперативной памяти: от него зависит текстовый энкодер видео по умолчанию (0 — неизвестен). */
@@ -668,7 +673,8 @@ class ChatGenerationService(
         val internet = web?.takeIf { current.internetEnabled }
         val folder = chats.workspaceOf(chatId)?.let { location -> workspaces?.open(location) }
         val pc = computer?.takeIf { current.computerEnabled }
-        if (internet == null && folder == null && pc == null) return null
+        val mcpTools = mcp?.tools(current.internetEnabled).orEmpty()
+        if (internet == null && folder == null && pc == null && mcpTools.isEmpty()) return null
         return AgentToolbox(
             workspace = folder,
             web = internet,
@@ -679,10 +685,12 @@ class ChatGenerationService(
             // Экран без зрения модели бесполезен: она не увидит снимок.
             screen = screen?.takeIf { pc != null && vision },
             imageStore = images,
+            mcpTools = mcpTools,
+            callMcp = { tool, arguments -> checkNotNull(mcp).call(tool, arguments) },
             onRunning = { running -> mutableActive.update { it?.copy(running = running) } },
             approve = { action -> askApproval(chatId, replyId, action) },
             newId = ::newId,
-        ).takeIf { it.tools.isNotEmpty() }
+        ).takeIf { it.tools.isNotEmpty() || it.mcpTools.isNotEmpty() }
     }
 
     /** Дата и справка о свежих версиях для системного промпта; `null`, если в ресурсах её нет. */
@@ -710,8 +718,15 @@ class ChatGenerationService(
             persona.agentComputerNote.takeIf { AgentTool.SYSTEM_INFO in toolbox.tools && it.isNotBlank() }
                 ?.replace("{home}", computer?.homePath.orEmpty()),
             persona.agentScreenNote.takeIf { AgentTool.SCREENSHOT in toolbox.tools && it.isNotBlank() },
+            persona.agentMcpNote.takeIf { toolbox.mcpTools.isNotEmpty() && it.isNotBlank() },
         ).joinToString("\n")
-        val tools = toolbox.tools.joinToString("\n") { tool -> "- " + (persona.toolDescriptions[tool] ?: tool.toolName) }
+        val tools = (
+            toolbox.tools.map { tool -> "- " + (persona.toolDescriptions[tool] ?: tool.toolName) } +
+                toolbox.mcpTools.map { tool ->
+                    val parameters = tool.parameters.joinToString { (name, _) -> name }
+                    "- ${tool.callName} ($parameters) — " + tool.description.lineSequence().firstOrNull().orEmpty().take(MCP_DESCRIPTION_CHARS)
+                }
+            ).joinToString("\n")
         val instructions = persona.agentInstructions.replace("{context}", context).replace("{tools}", tools)
         // Напоминание о личности остаётся у вопроса пользователя: так при следующих шагах кэш промпта не теряется.
         var dialog = ChatPromptFormatter.withReminder(base.messages, base.reminder)
@@ -1034,6 +1049,9 @@ class ChatGenerationService(
 
     internal companion object {
         private const val TITLE_LENGTH = 48
+
+        /** Описание инструмента MCP в промпте — первая строка, не длиннее (длинные описания съедают контекст). */
+        private const val MCP_DESCRIPTION_CHARS = 300
         private const val ORPHAN_IMAGE_AGE_MS = 7L * 24 * 60 * 60 * 1000
         private const val TRANSLATION_MAX_TOKENS = 400
         private const val MEMORY_MAX_TOKENS = 160

@@ -2,7 +2,9 @@ package ai.prism.di
 
 import ai.prism.data.agent.HttpWebClient
 import ai.prism.data.agent.SafWorkspaceProvider
+import ai.prism.data.mcp.HttpMcpTransportFactory
 import ai.prism.domain.agent.CommandRunner
+import ai.prism.domain.mcp.McpTransportFactory
 import ai.prism.domain.agent.WebClient
 import ai.prism.domain.agent.WorkspaceProvider
 import ai.prism.data.documents.FileTextExtractor
@@ -100,6 +102,7 @@ fun androidPlatformModule(context: Context): Module = module {
     single<WebClient> { HttpWebClient() }
     single<WorkspaceProvider> { SafWorkspaceProvider(appContext) }
     single<CommandRunner> { CommandRunner.None }
+    single<McpTransportFactory> { HttpMcpTransportFactory() }
     single<TextEmbedder> { LlamaTextEmbedder(AndroidNativeLibraryLoader(appContext), get()) }
     single<SpeechEngine> { AndroidSherpaSpeechEngine(threads = get<DeviceInfo>().inferenceThreads.coerceIn(1, MAX_SPEECH_THREADS)) }
     single<AudioInput> { AndroidAudioInput(appContext) }

@@ -1,5 +1,6 @@
 package ai.prism.presentation.root
 
+import ai.prism.service.mcp.McpManager
 import ai.prism.domain.inference.InferenceEngine
 import ai.prism.domain.model.AppSettings
 import ai.prism.domain.model.DeviceInfo
@@ -89,6 +90,8 @@ class AppDependencies(
     val drafts: DraftRepository = DraftRepository.None,
     /** Память о пользователе между диалогами. */
     val memories: MemoryRepository = MemoryRepository.None,
+    /** MCP-серверы пользователя (настройки). */
+    val mcp: McpManager? = null,
 )
 
 class DefaultRootComponent(
@@ -183,6 +186,7 @@ class DefaultRootComponent(
                     modelFolder = deps.modelFolder,
                     totalRamBytes = deps.deviceInfo.totalRamBytes,
                     memories = deps.memories,
+                    mcp = deps.mcp,
                 ),
             )
         }

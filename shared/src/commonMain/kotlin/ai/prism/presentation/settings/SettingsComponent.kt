@@ -1,5 +1,12 @@
 package ai.prism.presentation.settings
 
+import ai.prism.core.newId
+import ai.prism.domain.mcp.McpException
+import ai.prism.domain.mcp.McpServerState
+import ai.prism.service.mcp.McpConfigParser
+import ai.prism.service.mcp.McpManager
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import ai.prism.core.BuildInfo
 import ai.prism.core.componentScope
 import ai.prism.domain.model.AppSettings
@@ -67,6 +74,13 @@ data class SettingsState(
     val update: UpdateState = UpdateState.Idle,
     /** Где хранятся модели (раздел показывается, если выбор поддерживается). */
     val modelFolder: ModelFolderState = ModelFolderState(),
+    /** MCP-серверы: раздел показывается, если MCP поддерживается. */
+    val mcpSupported: Boolean = false,
+    /** Можно добавлять локальные серверы (команды) — только на компьютере. */
+    val mcpLocalSupported: Boolean = false,
+    val mcpServers: List<McpServerState> = emptyList(),
+    /** Не удалось разобрать то, что пользователь вставил при добавлении сервера. */
+    val mcpAddError: String? = null,
 )
 
 sealed interface SettingsIntent {
@@ -90,6 +104,13 @@ sealed interface SettingsIntent {
     data class SetMemoryEnabled(val enabled: Boolean) : SettingsIntent
     data class DeleteMemory(val id: String) : SettingsIntent
     data object ClearMemories : SettingsIntent
+
+    /** Добавить MCP-сервер: [text] — команда, адрес или JSON из инструкции сервера; [name] — по желанию. */
+    data class AddMcpServer(val name: String, val text: String) : SettingsIntent
+    data class SetMcpServerEnabled(val id: String, val enabled: Boolean) : SettingsIntent
+    data class RemoveMcpServer(val id: String) : SettingsIntent
+    data object CheckMcpServers : SettingsIntent
+    data object DismissMcpError : SettingsIntent
     data object CheckForUpdates : SettingsIntent
     data object InstallUpdate : SettingsIntent
     data object CancelUpdate : SettingsIntent
@@ -117,7 +138,10 @@ class DefaultSettingsComponent(
     /** Объём оперативной памяти: текстовый энкодер по умолчанию (0 — неизвестен). */
     private val totalRamBytes: Long = 0L,
     private val memories: MemoryRepository = MemoryRepository.None,
+    private val mcp: McpManager? = null,
 ) : SettingsComponent, ComponentContext by componentContext {
+
+    private val mcpAddError = MutableStateFlow<String?>(null)
 
     private val scope = componentScope(mainContext)
 
@@ -125,6 +149,8 @@ class DefaultSettingsComponent(
         settings = settings,
         supportsDynamicColor = capabilities.supportsDynamicColor,
         computerSupported = capabilities.supportsComputer,
+        mcpSupported = mcp != null,
+        mcpLocalSupported = mcp?.supportsLocal == true,
         versionName = BuildInfo.VERSION_NAME,
         updatesSupported = updates.supported,
     )
@@ -154,11 +180,32 @@ class DefaultSettingsComponent(
                     selectedVideoModelId = (videos.firstOrNull { it.id == settings.videoModelId } ?: videos.firstOrNull())?.id,
                 )
             }
-        }.stateIn(
-            scope = scope,
-            started = SharingStarted.Eagerly,
-            initialValue = toState(settingsRepository.settings.value, capabilities),
-        )
+        }
+            .combine(mcp?.states ?: flowOf(emptyList())) { state, servers -> state.copy(mcpServers = servers) }
+            .combine(mcpAddError) { state, error -> state.copy(mcpAddError = error) }
+            .stateIn(
+                scope = scope,
+                started = SharingStarted.Eagerly,
+                initialValue = toState(settingsRepository.settings.value, capabilities),
+            )
+
+    private fun addMcpServer(name: String, text: String) {
+        val manager = mcp ?: return
+        val servers = try {
+            McpConfigParser.parse(text, name.trim(), ::newId)
+        } catch (e: McpException) {
+            mcpAddError.value = e.message ?: "error"
+            return
+        }
+        if (!manager.supportsLocal && servers.any { !it.isRemote }) {
+            mcpAddError.value = "local servers run only on a computer: use the server address (https://…)"
+            return
+        }
+        mcpAddError.value = null
+        manager.add(servers)
+        // Сразу проверяем: подключение и число инструментов видно в списке.
+        manager.check(settingsRepository.settings.value.internetEnabled)
+    }
 
     private fun voiceSettings(models: List<ModelEntry>, settings: AppSettings): VoiceSettings {
         fun downloaded(kind: ModelKind) = models
@@ -201,6 +248,11 @@ class DefaultSettingsComponent(
             is SettingsIntent.SetMemoryEnabled -> settingsRepository.setMemoryEnabled(intent.enabled)
             is SettingsIntent.DeleteMemory -> scope.launch { memories.delete(intent.id) }
             SettingsIntent.ClearMemories -> scope.launch { memories.clear() }
+            is SettingsIntent.AddMcpServer -> addMcpServer(intent.name, intent.text)
+            is SettingsIntent.SetMcpServerEnabled -> mcp?.setEnabled(intent.id, intent.enabled)
+            is SettingsIntent.RemoveMcpServer -> mcp?.remove(intent.id)
+            SettingsIntent.CheckMcpServers -> mcp?.check(settingsRepository.settings.value.internetEnabled)
+            SettingsIntent.DismissMcpError -> mcpAddError.value = null
             SettingsIntent.CheckForUpdates -> updates.check()
             SettingsIntent.InstallUpdate -> updates.install()
             SettingsIntent.CancelUpdate -> updates.cancel()

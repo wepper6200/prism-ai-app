@@ -29,6 +29,9 @@ enum class AgentTool(
     TYPE_TEXT("type_text", needsComputer = true),
     PRESS_KEYS("press_keys", needsComputer = true),
     SCROLL("scroll", needsComputer = true),
+
+    /** Инструмент MCP-сервера (для шагов ответа; модель вызывает его по имени `сервер__инструмент`). */
+    MCP("mcp"),
     ;
 
     /** Инструмент управления экраном (снимки, мышь, клавиатура). */

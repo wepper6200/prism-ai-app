@@ -1,5 +1,10 @@
 package ai.prism.di
 
+import ai.prism.core.BuildInfo
+import ai.prism.data.mcp.KeyValueMcpServerRepository
+import ai.prism.domain.mcp.McpServerRepository
+import ai.prism.domain.mcp.McpTransportFactory
+import ai.prism.service.mcp.McpManager
 import ai.prism.data.catalog.ModelCatalog
 import ai.prism.data.chat.SqlChatRepository
 import ai.prism.data.db.PrismDatabase
@@ -37,7 +42,7 @@ import org.koin.dsl.module
  * `KeyValueStore`, `SqlDriver`, `PlatformCapabilities`, `DeviceInfo`,
  * `ModelStorage`, `ModelDownloader`, `ImageStore`, `ImageGenerator`, `InferenceEngine`,
  * `DocumentTextExtractor`, `TextEmbedder`, `WebClient`, `WorkspaceProvider`, `CommandRunner`,
- * `SpeechEngine`, `AudioInput` и `AudioOutput`; по желанию — `Computer` и `ScreenControl` (Desktop).
+ * `SpeechEngine`, `AudioInput` и `AudioOutput`; по желанию — `Computer`, `ScreenControl` (Desktop) и `McpTransportFactory`.
  */
 val sharedModule: Module = module {
     // Область приложения: загрузки моделей и генерация ответов живут дольше экранов.
@@ -61,6 +66,15 @@ val sharedModule: Module = module {
     single<PersonaProvider> { ResourcePersonaProvider() }
     single<DocumentRepository> { SqlDocumentRepository(database = get()) }
     single<MemoryRepository> { SqlMemoryRepository(database = get()) }
+    single<McpServerRepository> { KeyValueMcpServerRepository(store = get()) }
+    single {
+        McpManager(
+            repository = get(),
+            transports = getOrNull<McpTransportFactory>() ?: McpTransportFactory.None,
+            scope = get(),
+            clientVersion = BuildInfo.VERSION_NAME,
+        )
+    }
     single {
         DocumentService(
             repository = get(),
@@ -87,6 +101,7 @@ val sharedModule: Module = module {
             // Есть только на Desktop.
             computer = getOrNull(),
             screen = getOrNull(),
+            mcp = get(),
             totalRamBytes = get<DeviceInfo>().totalRamBytes,
             drafts = get(),
             memories = get(),
@@ -125,6 +140,7 @@ val sharedModule: Module = module {
             modelFolder = get(),
             drafts = get(),
             memories = get(),
+            mcp = get(),
         )
     }
     single { RootComponentFactory(dependencies = get()) }

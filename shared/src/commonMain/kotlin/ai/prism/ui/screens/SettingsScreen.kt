@@ -1,5 +1,26 @@
 package ai.prism.ui.screens
 
+import ai.prism.resources.settings_mcp
+import ai.prism.resources.settings_mcp_desc
+import ai.prism.resources.settings_mcp_desc_remote
+import ai.prism.resources.settings_mcp_name
+import ai.prism.resources.settings_mcp_input
+import ai.prism.resources.settings_mcp_add
+import ai.prism.resources.settings_mcp_check
+import ai.prism.resources.settings_mcp_delete
+import ai.prism.resources.settings_mcp_empty
+import ai.prism.resources.settings_mcp_error
+import ai.prism.resources.mcp_status_off
+import ai.prism.resources.mcp_status_idle
+import ai.prism.resources.mcp_status_needs_internet
+import ai.prism.resources.mcp_status_desktop_only
+import ai.prism.resources.mcp_status_connecting
+import ai.prism.resources.mcp_status_ready
+import ai.prism.resources.mcp_status_failed
+import ai.prism.domain.mcp.McpServerState
+import ai.prism.domain.mcp.McpServerStatus
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.ui.text.style.TextOverflow
 import ai.prism.domain.model.DarkMode
 import ai.prism.domain.update.AppRelease
 import ai.prism.domain.model.ModelFolderError
@@ -71,6 +92,7 @@ import ai.prism.domain.model.ThinkingLevel
 import ai.prism.domain.model.ThemeStyle
 import ai.prism.presentation.settings.SettingsComponent
 import ai.prism.presentation.settings.SettingsIntent
+import ai.prism.presentation.settings.SettingsState
 import ai.prism.resources.Res
 import ai.prism.resources.app_name
 import ai.prism.resources.dark_mode_dark
@@ -367,6 +389,12 @@ fun SettingsScreen(
                     TextButton(onClick = { component.onIntent(SettingsIntent.ClearMemories) }, modifier = Modifier.testTag("memory_clear")) {
                         Text(stringResource(Res.string.settings_memory_clear))
                     }
+                }
+            }
+
+            if (state.mcpSupported) {
+                SettingsSection(title = stringResource(Res.string.settings_mcp), modifier = sectionModifier.testTag("mcp_settings")) {
+                    McpServers(state, component::onIntent)
                 }
             }
 
@@ -852,4 +880,103 @@ private fun DarkModeSelector(
             }
         }
     }
+}
+
+/** MCP-серверы: список с переключателями и состоянием, добавление командой, адресом или JSON. */
+@Composable
+private fun McpServers(state: SettingsState, onIntent: (SettingsIntent) -> Unit) {
+    var name by remember { mutableStateOf("") }
+    var input by remember { mutableStateOf("") }
+    val addError = state.mcpAddError
+    Text(
+        text = stringResource(if (state.mcpLocalSupported) Res.string.settings_mcp_desc else Res.string.settings_mcp_desc_remote),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    if (state.mcpServers.isEmpty()) {
+        Text(
+            text = stringResource(Res.string.settings_mcp_empty),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+    state.mcpServers.forEach { server ->
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.testTag("mcp_server_${server.config.id}")) {
+            Column(Modifier.weight(1f)) {
+                Text(server.config.name, style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    text = if (server.config.isRemote) server.config.url else (listOf(server.config.command) + server.config.args).joinToString(" "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = mcpStatusText(server),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (server.status == McpServerStatus.FAILED) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Switch(
+                checked = server.config.enabled,
+                onCheckedChange = { onIntent(SettingsIntent.SetMcpServerEnabled(server.config.id, it)) },
+            )
+            IconButton(onClick = { onIntent(SettingsIntent.RemoveMcpServer(server.config.id)) }) {
+                Icon(Icons.Outlined.Close, contentDescription = stringResource(Res.string.settings_mcp_delete))
+            }
+        }
+    }
+    if (state.mcpServers.isNotEmpty()) {
+        TextButton(onClick = { onIntent(SettingsIntent.CheckMcpServers) }, modifier = Modifier.testTag("mcp_check")) {
+            Text(stringResource(Res.string.settings_mcp_check))
+        }
+    }
+    OutlinedTextField(
+        value = name,
+        onValueChange = { name = it },
+        label = { Text(stringResource(Res.string.settings_mcp_name)) },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth().testTag("mcp_name"),
+    )
+    OutlinedTextField(
+        value = input,
+        onValueChange = {
+            input = it
+            if (state.mcpAddError != null) onIntent(SettingsIntent.DismissMcpError)
+        },
+        label = { Text(stringResource(Res.string.settings_mcp_input)) },
+        minLines = 2,
+        maxLines = 8,
+        isError = state.mcpAddError != null,
+        supportingText = if (addError != null) {
+            { Text(stringResource(Res.string.settings_mcp_error, addError)) }
+        } else {
+            null
+        },
+        modifier = Modifier.fillMaxWidth().testTag("mcp_input"),
+    )
+    Button(
+        onClick = {
+            onIntent(SettingsIntent.AddMcpServer(name, input))
+            name = ""
+            input = ""
+        },
+        enabled = input.isNotBlank(),
+        modifier = Modifier.testTag("mcp_add"),
+    ) {
+        Text(stringResource(Res.string.settings_mcp_add))
+    }
+}
+
+@Composable
+private fun mcpStatusText(server: McpServerState): String = when (server.status) {
+    McpServerStatus.OFF -> stringResource(Res.string.mcp_status_off)
+    McpServerStatus.IDLE -> stringResource(Res.string.mcp_status_idle)
+    McpServerStatus.NEEDS_INTERNET -> stringResource(Res.string.mcp_status_needs_internet)
+    McpServerStatus.DESKTOP_ONLY -> stringResource(Res.string.mcp_status_desktop_only)
+    McpServerStatus.CONNECTING -> stringResource(Res.string.mcp_status_connecting)
+    McpServerStatus.READY -> stringResource(Res.string.mcp_status_ready, server.toolCount)
+    McpServerStatus.FAILED -> stringResource(Res.string.mcp_status_failed, server.error.orEmpty())
 }

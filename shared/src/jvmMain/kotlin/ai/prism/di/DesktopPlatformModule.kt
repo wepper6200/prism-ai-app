@@ -5,6 +5,8 @@ import ai.prism.data.agent.HttpWebClient
 import ai.prism.data.agent.ProcessCommandRunner
 import ai.prism.data.agent.DesktopComputer
 import ai.prism.data.agent.RobotScreenControl
+import ai.prism.data.mcp.DesktopMcpTransportFactory
+import ai.prism.domain.mcp.McpTransportFactory
 import ai.prism.domain.agent.ScreenControl
 import ai.prism.domain.agent.CommandRunner
 import ai.prism.domain.agent.Computer
@@ -84,6 +86,7 @@ fun desktopPlatformModule(): Module = module {
     single<CommandRunner> { ProcessCommandRunner() }
     single<Computer> { DesktopComputer() }
     single<ScreenControl> { RobotScreenControl() }
+    single<McpTransportFactory> { DesktopMcpTransportFactory() }
     single<TextEmbedder> { LlamaTextEmbedder(DesktopNativeLibraryLoader(), get()) }
     single<SpeechEngine> { DesktopSherpaSpeechEngine(threads = get<DeviceInfo>().inferenceThreads.coerceIn(1, MAX_SPEECH_THREADS)) }
     single<AudioInput> { JavaSoundAudioInput() }

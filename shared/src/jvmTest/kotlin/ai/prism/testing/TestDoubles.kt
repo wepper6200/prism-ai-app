@@ -1,5 +1,16 @@
 package ai.prism.testing
 
+import ai.prism.data.mcp.KeyValueMcpServerRepository
+import ai.prism.domain.mcp.McpException
+import ai.prism.domain.mcp.McpServerConfig
+import ai.prism.domain.mcp.McpTransport
+import ai.prism.domain.mcp.McpTransportFactory
+import ai.prism.service.mcp.McpManager
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import ai.prism.domain.update.AppRelease
 import ai.prism.domain.update.AppUpdater
 import ai.prism.domain.update.ReleaseAsset
@@ -454,6 +465,51 @@ class FakeScreenControl : ScreenControl {
     override suspend fun press(keys: String): ScreenCapture = shot().also { actions += "press $keys" }
 }
 
+/**
+ * MCP-сервер для тестов: отвечает на initialize, tools/list (инструменты [tools]) и tools/call (запоминает вызовы,
+ * отвечает [answer]). [failConnect] — сервер не запускается.
+ */
+class FakeMcpServer(
+    private val tools: List<JsonObject>,
+    var answer: String = "готово",
+    var failConnect: Boolean = false,
+    override val supportsLocal: Boolean = true,
+) : McpTransportFactory {
+    val calls = mutableListOf<JsonObject>()
+    var opened = 0
+
+    override fun open(config: McpServerConfig): McpTransport {
+        if (failConnect) throw McpException("cannot start ${config.command}")
+        opened++
+        return object : McpTransport {
+            override suspend fun send(message: JsonObject, timeoutMs: Long): JsonObject? {
+                val id = message["id"] ?: return null
+                val result = when ((message["method"] as JsonPrimitive).content) {
+                    "initialize" -> buildJsonObject { put("protocolVersion", "2025-06-18") }
+                    "tools/list" -> buildJsonObject { put("tools", JsonArray(tools)) }
+                    "tools/call" -> {
+                        calls += message["params"] as JsonObject
+                        buildJsonObject {
+                            put("content", JsonArray(listOf(buildJsonObject {
+                                put("type", "text")
+                                put("text", answer)
+                            })))
+                        }
+                    }
+                    else -> JsonObject(emptyMap())
+                }
+                return buildJsonObject {
+                    put("jsonrpc", "2.0")
+                    put("id", id)
+                    put("result", result)
+                }
+            }
+
+            override fun close() = Unit
+        }
+    }
+}
+
 /** Компьютер для тестов: настоящие файлы и сведения о системе, но программы не запускаются, а запоминаются. */
 class FakeComputer(home: File) : Computer {
     private val real = DesktopComputer(Dispatchers.Unconfined, homePath = home.path, windows = false)
@@ -538,6 +594,8 @@ class TestApp(
     /** Компьютер для инструментов «Компьютер»; `null` — как на Android. */
     val computer: Computer? = null,
     val screen: ScreenControl? = null,
+    /** Соединения MCP; `null` — MCP нет. */
+    mcpTransports: McpTransportFactory? = null,
     /** Справка о дате в персоне; пусто — системный промпт без даты. */
     currentDateNote: String = "",
     val speechEngine: FakeSpeechEngine = FakeSpeechEngine(),
@@ -556,6 +614,8 @@ class TestApp(
     val documentRepository = SqlDocumentRepository(database, Dispatchers.Unconfined)
     val memories = SqlMemoryRepository(database, Dispatchers.Unconfined)
     val scope = CoroutineScope(Dispatchers.Unconfined)
+    val mcpServers = KeyValueMcpServerRepository(MapKeyValueStore())
+    val mcp = mcpTransports?.let { McpManager(mcpServers, it, scope, clientVersion = "test") }
     val documents = DocumentService(
         repository = documentRepository,
         models = models,
@@ -605,6 +665,7 @@ class TestApp(
         commands = commands,
         computer = computer,
         screen = screen,
+        mcp = mcp,
         totalRamBytes = totalRamBytes,
         drafts = drafts,
         memories = memories,
