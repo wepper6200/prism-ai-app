@@ -55,6 +55,8 @@ data class AppSettings(
     val folderDepth: Int = DEFAULT_FOLDER_DEPTH,
     /** Размышления перед ответом (у моделей, которые это умеют). */
     val thinkingLevel: ThinkingLevel = ThinkingLevel.OFF,
+    /** Запоминать факты о пользователе и учитывать их во всех диалогах (только на устройстве). */
+    val memoryEnabled: Boolean = true,
 ) {
     companion object {
         const val DEFAULT_AGENT_STEPS = 50

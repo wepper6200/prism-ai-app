@@ -1,0 +1,19 @@
+-- Что ассистент помнит о пользователе во всех диалогах (только на устройстве).
+
+CREATE TABLE user_memory (
+    id TEXT NOT NULL PRIMARY KEY,
+    text TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+);
+
+selectMemories:
+SELECT * FROM user_memory ORDER BY created_at;
+
+insertMemory:
+INSERT INTO user_memory(id, text, created_at) VALUES (?, ?, ?);
+
+deleteMemory:
+DELETE FROM user_memory WHERE id = ?;
+
+clearMemories:
+DELETE FROM user_memory;

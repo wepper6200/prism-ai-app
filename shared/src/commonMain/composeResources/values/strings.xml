@@ -50,6 +50,12 @@
     <string name="settings_safe_mode">Безопасный режим</string>
     <string name="settings_safe_mode_desc">Не рисовать и не описывать откровенный и жестокий контент. Проверка работает на устройстве и не даёт полной гарантии.</string>
     <string name="settings_assistant">Ассистент</string>
+    <string name="settings_memory">Память</string>
+    <string name="settings_memory_enabled">Запоминать факты обо мне</string>
+    <string name="settings_memory_desc">Ассистент запоминает то, что вы рассказываете о себе (имя, работа, предпочтения, «запомни…»), и учитывает это во всех диалогах. Хранится только на этом устройстве.</string>
+    <string name="settings_memory_empty">Пока ничего не запомнено.</string>
+    <string name="settings_memory_delete">Забыть</string>
+    <string name="settings_memory_clear">Забыть всё</string>
     <string name="settings_thinking">Размышления</string>
     <string name="settings_thinking_desc">Перед ответом модель рассуждает про себя: точнее в задачах, коде и логике, но отвечает дольше. Работает у Prism 1 Flash, Plus, Pro, Pro Max и Quadron.</string>
     <string name="thinking_off">Выкл</string>
@@ -168,6 +174,10 @@
     <string name="agent_tool_fetch_page">fetch_page (url) — текст веб-страницы.</string>
     <string name="agent_tool_download_file">download_file (url, path) — скачать файл из интернета в папку проекта.</string>
     <string name="agent_tool_list_files">list_files (path) — файлы и папки вместе с вложенными; «.» — весь проект сразу.</string>
+    <string name="memory_note">Что ты знаешь о пользователе из прошлых разговоров (учитывай, но не пересказывай без нужды):\n{facts}</string>
+    <string name="memory_extraction">Выпиши из сообщения пользователя устойчивые факты о нём самом, которые пригодятся в будущих разговорах: имя, город, работа, увлечения, предпочтения, проекты, просьбы запомнить. Каждый факт — отдельной строкой, начиная с «- », коротко, от третьего лица («Пользователя зовут Иван»). Временное (настроение, текущий вопрос) не выписывай. Если таких фактов нет — напиши только «нет».</string>
+    <string name="summary_instruction">Кратко перескажи этот разговор для себя, чтобы продолжить его без потери важного: о чём говорили, что решили, какие данные, имена, числа и договорённости важны, что осталось сделать. Пиши по-русски, сжато, списком, не больше 15 пунктов.</string>
+    <string name="summary_note">Краткое содержание начала этого диалога (старые сообщения скрыты):\n{summary}</string>
     <string name="agent_step_limit">Шаги закончились: инструменты больше недоступны. Не вызывай инструменты. Кратко напиши, что уже сделано и что осталось сделать, — пользователь попросит продолжить.</string>
     <string name="agent_step_limit_notice">Ассистент сделал {steps} шагов и остановился. Напишите «продолжай», чтобы он закончил работу.</string>
     <string name="agent_tool_read_file">read_file (path) — текст файла.</string>

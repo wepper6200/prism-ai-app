@@ -1,6 +1,7 @@
 package ai.prism.data.chat
 
 import ai.prism.data.db.PrismDatabase
+import ai.prism.domain.model.ChatDigest
 import ai.prism.domain.model.ImageAttachment
 import ai.prism.domain.model.MessageRole
 import ai.prism.domain.model.MessageStatus
@@ -27,7 +28,7 @@ class DatabaseMigrationTest {
         ).forEach { driver.execute(null, it, 0) }
 
         PrismDatabase.Schema.migrate(driver, 1, PrismDatabase.Schema.version)
-        assertEquals(4L, PrismDatabase.Schema.version)
+        assertEquals(5L, PrismDatabase.Schema.version)
 
         val repository = SqlChatRepository(PrismDatabase(driver), MemoryImageStore(), Dispatchers.Unconfined)
         assertEquals(listOf("Привет"), repository.messagesSnapshot("c1").map { it.content })
@@ -60,5 +61,10 @@ class DatabaseMigrationTest {
         repository.setWorkspace("c1", "/projects/app")
         assertEquals("/projects/app", repository.workspaceOf("c1"))
         assertEquals(0, database.agentStepQueries.selectStepsOfChat("c1").executeAsList().size)
+        // Версия 5: краткое содержание диалога и память о пользователе.
+        assertEquals(null, repository.summaryOf("c1"))
+        repository.setSummary("c1", ChatDigest("Говорили о погоде.", "m1"))
+        assertEquals(ChatDigest("Говорили о погоде.", "m1"), repository.summaryOf("c1"))
+        assertEquals(0, database.userMemoryQueries.selectMemories().executeAsList().size)
     }
 }

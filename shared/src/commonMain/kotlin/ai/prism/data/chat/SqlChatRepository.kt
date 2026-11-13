@@ -11,6 +11,7 @@ import ai.prism.domain.agent.AgentStep
 import ai.prism.domain.agent.AgentStepStatus
 import ai.prism.domain.agent.AgentTool
 import ai.prism.domain.documents.MessageSource
+import ai.prism.domain.model.ChatDigest
 import ai.prism.domain.model.ChatMessage
 import ai.prism.domain.model.ChatSummary
 import ai.prism.domain.model.GenerationError
@@ -71,6 +72,18 @@ class SqlChatRepository(
 
     override suspend fun setWorkspace(chatId: String, location: String?) = withContext(ioContext) {
         queries.setWorkspace(workspace = location, id = chatId)
+        Unit
+    }
+
+    override suspend fun summaryOf(chatId: String): ChatDigest? = withContext(ioContext) {
+        val row = queries.selectSummary(chatId).executeAsOneOrNull() ?: return@withContext null
+        val text = row.summary ?: return@withContext null
+        val until = row.summary_until ?: return@withContext null
+        ChatDigest(text, until)
+    }
+
+    override suspend fun setSummary(chatId: String, digest: ChatDigest?) = withContext(ioContext) {
+        queries.setSummary(summary = digest?.text, summary_until = digest?.untilMessageId, id = chatId)
         Unit
     }
 

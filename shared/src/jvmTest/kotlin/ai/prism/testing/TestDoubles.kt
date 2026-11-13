@@ -5,6 +5,7 @@ import ai.prism.domain.update.AppUpdater
 import ai.prism.domain.update.ReleaseAsset
 import ai.prism.service.update.UpdateService
 import ai.prism.data.drafts.KeyValueDraftRepository
+import ai.prism.data.memory.SqlMemoryRepository
 import ai.prism.data.agent.FileWorkspaceProvider
 import ai.prism.data.chat.SqlChatRepository
 import ai.prism.data.documents.SqlDocumentRepository
@@ -481,6 +482,7 @@ class TestApp(
     val database = inMemoryDatabase()
     val chats = inMemoryChatRepository(images, database)
     val documentRepository = SqlDocumentRepository(database, Dispatchers.Unconfined)
+    val memories = SqlMemoryRepository(database, Dispatchers.Unconfined)
     val scope = CoroutineScope(Dispatchers.Unconfined)
     val documents = DocumentService(
         repository = documentRepository,
@@ -513,6 +515,10 @@ class TestApp(
                 agentInternetNote = "Интернет включён",
                 agentStepLimit = "Шаги закончились.",
                 agentStepLimitNotice = "Сделано {steps} шагов.",
+                memoryNote = "О пользователе:\n{facts}",
+                memoryExtraction = "Выпиши факты.",
+                summaryInstruction = "Перескажи кратко.",
+                summaryNote = "Начало диалога:\n{summary}",
             )
         },
         images = images,
@@ -525,6 +531,7 @@ class TestApp(
         commands = commands,
         totalRamBytes = totalRamBytes,
         drafts = drafts,
+        memories = memories,
         today = { "среда, 11 ноября 2026 г. (2026-11-11)" },
     )
     val voice = VoiceService(
@@ -555,6 +562,7 @@ class TestApp(
         audioOutput = audioOutput,
         updateService = UpdateService(updater, scope, currentVersion = "0.8.0"),
         drafts = drafts,
+        memories = memories,
     )
 }
 

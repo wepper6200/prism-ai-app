@@ -47,4 +47,6 @@ interface SettingsRepository {
     fun setFolderDepth(depth: Int)
 
     fun setThinkingLevel(level: ThinkingLevel)
+
+    fun setMemoryEnabled(enabled: Boolean)
 }

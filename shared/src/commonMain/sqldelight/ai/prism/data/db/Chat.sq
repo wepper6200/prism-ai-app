@@ -6,7 +6,10 @@ CREATE TABLE chat (
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
     -- Папка проекта диалога (путь на Desktop, URI дерева документов на Android) или NULL.
-    workspace TEXT
+    workspace TEXT,
+    -- Краткое содержание начала длинного диалога и последнее сообщение, которое оно охватывает.
+    summary TEXT,
+    summary_until TEXT
 );
 
 CREATE TABLE message (
@@ -36,6 +39,12 @@ SELECT workspace FROM chat WHERE id = ?;
 
 setWorkspace:
 UPDATE chat SET workspace = ? WHERE id = ?;
+
+selectSummary:
+SELECT summary, summary_until FROM chat WHERE id = ?;
+
+setSummary:
+UPDATE chat SET summary = ?, summary_until = ? WHERE id = ?;
 
 touchChat:
 UPDATE chat SET updated_at = ? WHERE id = ?;

@@ -55,6 +55,8 @@ class DefaultSettingsRepository(
 
     override fun setThinkingLevel(level: ThinkingLevel) = update { it.copy(thinkingLevel = level) }
 
+    override fun setMemoryEnabled(enabled: Boolean) = update { it.copy(memoryEnabled = enabled) }
+
     override fun setSpeechRate(rate: Float) = update {
         it.copy(speechRate = rate.coerceIn(AppSettings.MIN_SPEECH_RATE, AppSettings.MAX_SPEECH_RATE))
     }
@@ -85,6 +87,7 @@ class DefaultSettingsRepository(
             agentSteps = store.getString(KEY_AGENT_STEPS)?.toIntOrNull()?.coerceAtLeast(0) ?: defaults.agentSteps,
             folderDepth = store.getString(KEY_FOLDER_DEPTH)?.toIntOrNull()?.coerceAtLeast(0) ?: defaults.folderDepth,
             thinkingLevel = parseEnum(store.getString(KEY_THINKING), defaults.thinkingLevel),
+            memoryEnabled = store.getString(KEY_MEMORY)?.toBooleanStrictOrNull() ?: defaults.memoryEnabled,
         )
     }
 
@@ -106,6 +109,7 @@ class DefaultSettingsRepository(
         store.putString(KEY_AGENT_STEPS, settings.agentSteps.toString())
         store.putString(KEY_FOLDER_DEPTH, settings.folderDepth.toString())
         store.putString(KEY_THINKING, settings.thinkingLevel.name)
+        store.putString(KEY_MEMORY, settings.memoryEnabled.toString())
     }
 
     private inline fun <reified E : Enum<E>> parseEnum(raw: String?, default: E): E =
@@ -129,6 +133,7 @@ class DefaultSettingsRepository(
         const val KEY_AGENT_STEPS = "agent_steps"
         const val KEY_FOLDER_DEPTH = "folder_depth"
         const val KEY_THINKING = "thinking_level"
+        const val KEY_MEMORY = "memory_enabled"
         const val MAX_CONTEXT = 131_072
         const val MAX_VIDEO_SECONDS = 60
     }

@@ -1,0 +1,10 @@
+-- Версия 4 → 5 (память): краткое содержание начала длинного диалога и факты о пользователе для всех диалогов.
+
+ALTER TABLE chat ADD COLUMN summary TEXT;
+ALTER TABLE chat ADD COLUMN summary_until TEXT;
+
+CREATE TABLE user_memory (
+    id TEXT NOT NULL PRIMARY KEY,
+    text TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+);

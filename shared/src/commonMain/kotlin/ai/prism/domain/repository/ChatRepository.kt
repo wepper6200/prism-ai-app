@@ -2,6 +2,7 @@ package ai.prism.domain.repository
 
 import ai.prism.domain.agent.AgentStep
 import ai.prism.domain.documents.MessageSource
+import ai.prism.domain.model.ChatDigest
 import ai.prism.domain.model.ChatMessage
 import ai.prism.domain.model.ChatSummary
 import ai.prism.domain.model.GenerationError
@@ -46,6 +47,11 @@ interface ChatRepository {
     suspend fun workspaceOf(chatId: String): String?
 
     suspend fun setWorkspace(chatId: String, location: String?)
+
+    /** Краткое содержание начала диалога или `null`. */
+    suspend fun summaryOf(chatId: String): ChatDigest?
+
+    suspend fun setSummary(chatId: String, digest: ChatDigest?)
 
     /** Запоминает шаги ассистента с инструментами для ответа. */
     suspend fun attachSteps(chatId: String, messageId: String, steps: List<AgentStep>)

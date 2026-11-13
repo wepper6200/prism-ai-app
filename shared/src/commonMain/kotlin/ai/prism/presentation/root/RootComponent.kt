@@ -6,6 +6,7 @@ import ai.prism.domain.model.DeviceInfo
 import ai.prism.domain.model.PlatformCapabilities
 import ai.prism.domain.repository.ChatRepository
 import ai.prism.domain.repository.DraftRepository
+import ai.prism.domain.repository.MemoryRepository
 import ai.prism.domain.agent.WorkspaceProvider
 import ai.prism.domain.repository.DocumentRepository
 import ai.prism.domain.repository.ImageStore
@@ -86,6 +87,8 @@ class AppDependencies(
     val modelFolder: ModelFolder = ModelFolder.None,
     /** Неотправленные сообщения диалогов. */
     val drafts: DraftRepository = DraftRepository.None,
+    /** Память о пользователе между диалогами. */
+    val memories: MemoryRepository = MemoryRepository.None,
 )
 
 class DefaultRootComponent(
@@ -178,6 +181,7 @@ class DefaultRootComponent(
                     updates = deps.updateService,
                     modelFolder = deps.modelFolder,
                     totalRamBytes = deps.deviceInfo.totalRamBytes,
+                    memories = deps.memories,
                 ),
             )
         }

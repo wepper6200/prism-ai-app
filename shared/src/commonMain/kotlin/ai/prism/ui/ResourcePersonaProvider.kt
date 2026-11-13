@@ -6,6 +6,10 @@ import ai.prism.resources.agent_workspace_note
 import ai.prism.resources.agent_internet_note
 import ai.prism.resources.agent_step_limit
 import ai.prism.resources.agent_step_limit_notice
+import ai.prism.resources.memory_extraction
+import ai.prism.resources.memory_note
+import ai.prism.resources.summary_instruction
+import ai.prism.resources.summary_note
 import ai.prism.resources.agent_tool_web_search
 import ai.prism.resources.agent_tool_fetch_page
 import ai.prism.resources.agent_tool_download_file
@@ -56,6 +60,10 @@ class ResourcePersonaProvider : PersonaProvider {
         toolDescriptions = AgentTool.entries.associateWith { tool -> getString(tool.description()) },
         agentStepLimit = getString(Res.string.agent_step_limit),
         agentStepLimitNotice = getString(Res.string.agent_step_limit_notice),
+        memoryNote = getString(Res.string.memory_note),
+        memoryExtraction = getString(Res.string.memory_extraction),
+        summaryInstruction = getString(Res.string.summary_instruction),
+        summaryNote = getString(Res.string.summary_note),
     )
 }
 

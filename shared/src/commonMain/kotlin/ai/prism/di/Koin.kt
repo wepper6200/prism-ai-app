@@ -6,12 +6,14 @@ import ai.prism.data.db.PrismDatabase
 import ai.prism.data.documents.SqlDocumentRepository
 import ai.prism.data.models.DefaultModelRepository
 import ai.prism.data.drafts.KeyValueDraftRepository
+import ai.prism.data.memory.SqlMemoryRepository
 import ai.prism.data.settings.DefaultSettingsRepository
 import ai.prism.domain.model.DeviceInfo
 import ai.prism.domain.model.PlatformCapabilities
 import ai.prism.domain.repository.ChatRepository
 import ai.prism.domain.repository.DocumentRepository
 import ai.prism.domain.repository.DraftRepository
+import ai.prism.domain.repository.MemoryRepository
 import ai.prism.domain.repository.ModelRepository
 import ai.prism.domain.repository.SettingsRepository
 import ai.prism.presentation.root.AppDependencies
@@ -58,6 +60,7 @@ val sharedModule: Module = module {
     }
     single<PersonaProvider> { ResourcePersonaProvider() }
     single<DocumentRepository> { SqlDocumentRepository(database = get()) }
+    single<MemoryRepository> { SqlMemoryRepository(database = get()) }
     single {
         DocumentService(
             repository = get(),
@@ -83,6 +86,7 @@ val sharedModule: Module = module {
             commands = get(),
             totalRamBytes = get<DeviceInfo>().totalRamBytes,
             drafts = get(),
+            memories = get(),
         )
     }
     single {
@@ -117,6 +121,7 @@ val sharedModule: Module = module {
             updateService = get(),
             modelFolder = get(),
             drafts = get(),
+            memories = get(),
         )
     }
     single { RootComponentFactory(dependencies = get()) }

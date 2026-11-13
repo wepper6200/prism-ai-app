@@ -11,6 +11,8 @@ import ai.prism.domain.model.PlatformCapabilities
 import ai.prism.domain.model.TextEncoderMode
 import ai.prism.domain.model.ThemeStyle
 import ai.prism.domain.model.ThinkingLevel
+import ai.prism.domain.model.UserMemory
+import ai.prism.domain.repository.MemoryRepository
 import ai.prism.domain.repository.ModelRepository
 import ai.prism.domain.repository.SettingsRepository
 import ai.prism.domain.update.AppUpdater
@@ -25,6 +27,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import kotlin.coroutines.CoroutineContext
 
 /** Скачанная модель речи для выбора в настройках. */
@@ -55,6 +58,8 @@ data class SettingsState(
     val textEncoderAvailable: Boolean = false,
     /** Энкодер, который будет использоваться (выбранный или по объёму памяти). */
     val textEncoderMode: TextEncoderMode = TextEncoderMode.FULL,
+    /** Что ассистент помнит о пользователе. */
+    val memories: List<UserMemory> = emptyList(),
     /** Обновление приложения из настроек (Android, Windows). */
     val updatesSupported: Boolean = false,
     val update: UpdateState = UpdateState.Idle,
@@ -79,6 +84,9 @@ sealed interface SettingsIntent {
     data class SetAgentSteps(val steps: Int) : SettingsIntent
     data class SetFolderDepth(val depth: Int) : SettingsIntent
     data class SetThinkingLevel(val level: ThinkingLevel) : SettingsIntent
+    data class SetMemoryEnabled(val enabled: Boolean) : SettingsIntent
+    data class DeleteMemory(val id: String) : SettingsIntent
+    data object ClearMemories : SettingsIntent
     data object CheckForUpdates : SettingsIntent
     data object InstallUpdate : SettingsIntent
     data object CancelUpdate : SettingsIntent
@@ -105,6 +113,7 @@ class DefaultSettingsComponent(
     private val modelFolder: ModelFolder = ModelFolder.None,
     /** Объём оперативной памяти: текстовый энкодер по умолчанию (0 — неизвестен). */
     private val totalRamBytes: Long = 0L,
+    private val memories: MemoryRepository = MemoryRepository.None,
 ) : SettingsComponent, ComponentContext by componentContext {
 
     private val scope = componentScope(mainContext)
@@ -117,10 +126,17 @@ class DefaultSettingsComponent(
     )
 
     override val state: StateFlow<SettingsState> =
-        combine(settingsRepository.settings, modelRepository.models, updates.state, modelFolder.state) { settings, models, update, folder ->
+        combine(
+            settingsRepository.settings,
+            modelRepository.models,
+            updates.state,
+            modelFolder.state,
+            memories.memories,
+        ) { settings, models, update, folder, remembered ->
             toState(settings, capabilities.supportsDynamicColor).copy(
                 update = update,
                 modelFolder = folder,
+                memories = remembered,
                 voice = voiceSettings(models, settings),
             ).let { state ->
                 val downloadedVideos = models.filter { it.model.kind == ModelKind.VIDEO && it.status == ModelStatus.Downloaded }
@@ -177,6 +193,9 @@ class DefaultSettingsComponent(
             is SettingsIntent.SetAgentSteps -> settingsRepository.setAgentSteps(intent.steps)
             is SettingsIntent.SetFolderDepth -> settingsRepository.setFolderDepth(intent.depth)
             is SettingsIntent.SetThinkingLevel -> settingsRepository.setThinkingLevel(intent.level)
+            is SettingsIntent.SetMemoryEnabled -> settingsRepository.setMemoryEnabled(intent.enabled)
+            is SettingsIntent.DeleteMemory -> scope.launch { memories.delete(intent.id) }
+            SettingsIntent.ClearMemories -> scope.launch { memories.clear() }
             SettingsIntent.CheckForUpdates -> updates.check()
             SettingsIntent.InstallUpdate -> updates.install()
             SettingsIntent.CancelUpdate -> updates.cancel()

@@ -95,6 +95,12 @@ import ai.prism.resources.settings_context
 import ai.prism.resources.settings_context_desc
 import ai.prism.resources.settings_folder_depth
 import ai.prism.resources.settings_unlimited
+import ai.prism.resources.settings_memory
+import ai.prism.resources.settings_memory_clear
+import ai.prism.resources.settings_memory_delete
+import ai.prism.resources.settings_memory_desc
+import ai.prism.resources.settings_memory_empty
+import ai.prism.resources.settings_memory_enabled
 import ai.prism.resources.settings_thinking
 import ai.prism.resources.settings_thinking_desc
 import ai.prism.resources.thinking_high
@@ -155,6 +161,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material3.IconButton
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
@@ -317,6 +325,38 @@ fun SettingsScreen(
                     tag = "auto_apply_setting",
                 )
                 AgentLimits(state.settings, component::onIntent)
+            }
+
+            SettingsSection(title = stringResource(Res.string.settings_memory), modifier = sectionModifier.testTag("memory_settings")) {
+                SettingSwitch(
+                    title = stringResource(Res.string.settings_memory_enabled),
+                    description = stringResource(Res.string.settings_memory_desc),
+                    checked = state.settings.memoryEnabled,
+                    onCheckedChange = { component.onIntent(SettingsIntent.SetMemoryEnabled(it)) },
+                    tag = "memory_setting",
+                )
+                if (state.memories.isEmpty()) {
+                    Text(
+                        text = stringResource(Res.string.settings_memory_empty),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    state.memories.forEach { memory ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(memory.text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                            IconButton(
+                                onClick = { component.onIntent(SettingsIntent.DeleteMemory(memory.id)) },
+                                modifier = Modifier.testTag("memory_delete_${memory.id}"),
+                            ) {
+                                Icon(Icons.Outlined.Close, contentDescription = stringResource(Res.string.settings_memory_delete))
+                            }
+                        }
+                    }
+                    TextButton(onClick = { component.onIntent(SettingsIntent.ClearMemories) }, modifier = Modifier.testTag("memory_clear")) {
+                        Text(stringResource(Res.string.settings_memory_clear))
+                    }
+                }
             }
 
             if (state.voice.available) {

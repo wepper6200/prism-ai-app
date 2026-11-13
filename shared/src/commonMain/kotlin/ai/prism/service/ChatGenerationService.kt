@@ -25,6 +25,7 @@ import ai.prism.domain.inference.PromptImage
 import ai.prism.domain.inference.PromptMessage
 import ai.prism.domain.inference.SamplingParams
 import ai.prism.domain.model.CatalogModel
+import ai.prism.domain.model.ChatDigest
 import ai.prism.domain.model.ChatMessage
 import ai.prism.domain.model.GenerationError
 import ai.prism.domain.model.ImageAttachment
@@ -35,6 +36,7 @@ import ai.prism.domain.model.ModelStatus
 import ai.prism.domain.model.TextEncoderMode
 import ai.prism.domain.repository.ChatRepository
 import ai.prism.domain.repository.DraftRepository
+import ai.prism.domain.repository.MemoryRepository
 import ai.prism.domain.repository.ImageException
 import ai.prism.domain.repository.ImageStore
 import ai.prism.domain.repository.ModelRepository
@@ -99,6 +101,14 @@ data class AssistantPersona(
     val agentStepLimit: String = "",
     /** Видимая пользователю подсказка, если модель и после предела шагов не подвела итог. */
     val agentStepLimitNotice: String = "",
+    /** Факты о пользователе в системном промпте; `{facts}` — список. */
+    val memoryNote: String = "",
+    /** Инструкция: выписать из сообщения пользователя устойчивые факты о нём (или «нет»). */
+    val memoryExtraction: String = "",
+    /** Инструкция: кратко пересказать начало диалога. */
+    val summaryInstruction: String = "",
+    /** Краткое содержание начала диалога в системном промпте; `{summary}` — текст. */
+    val summaryNote: String = "",
 )
 
 /** Личность Prism AI на языке интерфейса. */
@@ -176,6 +186,8 @@ class ChatGenerationService(
     private val totalRamBytes: Long = 0L,
     /** Черновики диалогов: их фото не удаляются как брошенные. */
     private val drafts: DraftRepository = DraftRepository.None,
+    /** Память о пользователе между диалогами. */
+    private val memories: MemoryRepository = MemoryRepository.None,
 ) {
     private val mutableActive = MutableStateFlow<ActiveGeneration?>(null)
     val active: StateFlow<ActiveGeneration?> = mutableActive.asStateFlow()
@@ -359,8 +371,6 @@ class ChatGenerationService(
         if (found.isNotEmpty()) {
             chats.attachSources(chatId, reply.id, found.map { MessageSource(it.documentName, it.page) }.distinct())
         }
-        val history = promptHistory(messages, withImages = projectorPath != null)
-            .let { if (found.isEmpty()) it else withDocuments(it, found, persona) }
 
         val live = StringBuilder()
         val steps = mutableListOf<AgentStep>()
@@ -369,9 +379,17 @@ class ChatGenerationService(
             imageGenerator.release()
             engine.load(withChosenContext(model), path, projectorPath)
             if (!stopRequested) {
-                val safeRule = persona.safeModeRule.takeIf { settings.settings.value.safeMode && it.isNotBlank() }
+                val current = settings.settings.value
+                val safeRule = persona.safeModeRule.takeIf { current.safeMode && it.isNotBlank() }
+                // Старое начало длинного диалога заменяется кратким содержанием, а не обрезается.
+                val (digest, recent) = compactHistory(chatId, messages, persona, withChosenContext(model).contextLength)
+                val history = promptHistory(recent, withImages = projectorPath != null)
+                    .let { if (found.isEmpty()) it else withDocuments(it, found, persona) }
+                val memoryNote = if (current.memoryEnabled) memoryNote(persona) else null
+                val digestNote = digest?.let { persona.summaryNote.takeIf { note -> note.isNotBlank() }?.replace("{summary}", it.text) }
                 val request = GenerationRequest(
-                    systemPrompt = listOfNotNull(persona.systemPrompt, dateNote(persona), safeRule).joinToString("\n\n"),
+                    systemPrompt = listOfNotNull(persona.systemPrompt, dateNote(persona), safeRule, memoryNote, digestNote)
+                        .joinToString("\n\n"),
                     messages = history,
                     primer = persona.primer,
                     reminder = persona.reminder,
@@ -390,6 +408,9 @@ class ChatGenerationService(
             val status = if (stopRequested) MessageStatus.STOPPED else MessageStatus.COMPLETE
             if (steps.isNotEmpty()) chats.attachSteps(chatId, reply.id, steps)
             chats.updateMessage(reply.id, live.toString().trim(), status, null)
+            if (status == MessageStatus.COMPLETE && settings.settings.value.memoryEnabled) {
+                lastUser?.content?.let { learnFacts(it, persona) }
+            }
         } catch (e: InferenceException) {
             if (steps.isNotEmpty()) chats.attachSteps(chatId, reply.id, steps)
             chats.updateMessage(reply.id, live.toString().trim(), MessageStatus.FAILED, e.error.toGenerationError())
@@ -400,6 +421,78 @@ class ChatGenerationService(
             }
             throw e
         }
+    }
+
+    /** Факты о пользователе для системного промпта или `null`, если их нет. */
+    private suspend fun memoryNote(persona: AssistantPersona): String? {
+        val facts = memories.snapshot()
+        if (facts.isEmpty() || persona.memoryNote.isBlank()) return null
+        return persona.memoryNote.replace("{facts}", facts.joinToString("\n") { "- " + it.text })
+    }
+
+    /**
+     * Если в сообщении могут быть сведения о пользователе («меня зовут…», «запомни…»), модель выписывает
+     * из него устойчивые факты — они попадут в промпт других диалогов. Ошибка не мешает ответу.
+     */
+    private suspend fun learnFacts(text: String, persona: AssistantPersona) {
+        if (persona.memoryExtraction.isBlank() || !MemoryCues.mayContainFacts(text)) return
+        val answer = try {
+            engine.generate(
+                GenerationRequest(
+                    systemPrompt = persona.memoryExtraction,
+                    messages = listOf(PromptMessage(MessageRole.USER, text)),
+                    maxTokens = MEMORY_MAX_TOKENS,
+                    sampling = SamplingParams(temperature = 0.1f),
+                ),
+            ).toList().joinToString("")
+        } catch (e: InferenceException) {
+            return
+        }
+        MemoryCues.parseFacts(answer).forEach { memories.add(it) }
+    }
+
+    /**
+     * Сообщения для промпта: если диалог не помещается в контекст, его начало пересказывается моделью
+     * (краткое содержание хранится в диалоге и дополняется), а в промпт идут последние сообщения.
+     */
+    private suspend fun compactHistory(
+        chatId: String,
+        messages: List<ChatMessage>,
+        persona: AssistantPersona,
+        contextTokens: Int,
+    ): Pair<ChatDigest?, List<ChatMessage>> {
+        val saved = chats.summaryOf(chatId)
+        val start = saved?.let { digest -> messages.indexOfFirst { it.id == digest.untilMessageId } + 1 } ?: 0
+        val digest = saved?.takeIf { start > 0 }
+        val rest = messages.drop(start)
+        val budget = (contextTokens.coerceAtLeast(MIN_SUMMARY_CONTEXT) * HISTORY_CHARS_PER_TOKEN).toInt()
+        if (rest.sumOf { it.content.length } <= budget || rest.size <= KEEP_RECENT_MESSAGES || persona.summaryInstruction.isBlank()) {
+            return digest to rest
+        }
+        val old = rest.dropLast(KEEP_RECENT_MESSAGES)
+        val transcript = buildString {
+            digest?.let { append(it.text).append("\n\n") }
+            old.forEach { message ->
+                append(if (message.role == MessageRole.USER) "Пользователь: " else "Ассистент: ")
+                append(message.content.trim()).append('\n')
+            }
+        }
+        val summary = try {
+            engine.generate(
+                GenerationRequest(
+                    systemPrompt = persona.summaryInstruction,
+                    messages = listOf(PromptMessage(MessageRole.USER, transcript.takeLast(budget))),
+                    maxTokens = SUMMARY_MAX_TOKENS,
+                    sampling = SamplingParams(temperature = 0.2f),
+                ),
+            ).toList().joinToString("").trim()
+        } catch (e: InferenceException) {
+            ""
+        }
+        if (summary.isEmpty() || stopRequested) return digest to rest
+        val updated = ChatDigest(summary, old.last().id)
+        chats.setSummary(chatId, updated)
+        return updated to rest.takeLast(KEEP_RECENT_MESSAGES)
     }
 
     /** Текстовый энкодер видео: выбранный в настройках или по объёму оперативной памяти. */
@@ -896,6 +989,13 @@ class ChatGenerationService(
         private const val TITLE_LENGTH = 48
         private const val ORPHAN_IMAGE_AGE_MS = 7L * 24 * 60 * 60 * 1000
         private const val TRANSLATION_MAX_TOKENS = 400
+        private const val MEMORY_MAX_TOKENS = 160
+        private const val SUMMARY_MAX_TOKENS = 500
+        private const val KEEP_RECENT_MESSAGES = 6
+        private const val MIN_SUMMARY_CONTEXT = 2048
+
+        /** Сколько символов истории держать в промпте на токен контекста (остальное — ответ, файлы, системный промпт). */
+        private const val HISTORY_CHARS_PER_TOKEN = 1.5
 
         private const val DOCUMENT_CHARS_PER_CONTEXT_TOKEN = 0.9
         private const val MIN_DOCUMENT_CHARS = 2_000
