@@ -208,7 +208,7 @@ class AgentToolbox(
         const val APPROVAL_CHARS = 8_000
         const val LINE_CHARS = 200
         const val MAX_ENTRIES = 300
-        const val LIST_DEPTH = 6
+        const val LIST_DEPTH = 10
         val SKIPPED_FOLDERS = setOf(".git", ".gradle", ".idea", "build", "node_modules", ".venv", "venv", "__pycache__", ".kotlin")
         const val MAX_HITS = 50
         const val MAX_DOWNLOAD_BYTES = 50L * 1024 * 1024
