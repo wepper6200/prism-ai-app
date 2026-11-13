@@ -34,9 +34,9 @@ class VideoGenerationIntegrationTest {
         assumeTrue("нет Wan 2.1 1.3B", wan != null)
         val generator = ProcessImageGenerator(executable = { exe }, workDir = File(dir, "out"), threads = Runtime.getRuntime().availableProcessors())
         val files = mapOf(
-            "diffusion_model" to File(wan, "Wan2.1-T2V-1.3B-Q4_K_M.gguf").absolutePath,
-            "t5xxl" to File(wan, "umt5-xxl-encoder-Q3_K_S.gguf").absolutePath,
-            "vae" to File(wan, "wan_2.1_vae.safetensors").absolutePath,
+            "diffusion_model" to File(wan, "prism-video-beta-q4_k_m.gguf").absolutePath,
+            "t5xxl" to File(wan, "prism-video-beta-umt5-q3_k_s.gguf").absolutePath,
+            "vae" to File(wan, "prism-video-beta-vae.safetensors").absolutePath,
         )
         val steps = mutableListOf<Int>()
         val started = System.nanoTime()

@@ -10,6 +10,7 @@ import ai.prism.domain.agent.WebException
 import ai.prism.domain.agent.Workspace
 import ai.prism.domain.agent.WorkspaceEntry
 import ai.prism.domain.agent.WorkspaceException
+import ai.prism.domain.model.AppSettings
 
 /** Итог вызова инструмента: текст для модели и шаг для показа пользователю (`null` — вызов не распознан). */
 data class ToolOutcome(val result: String, val step: AgentStep?)
@@ -24,6 +25,8 @@ class AgentToolbox(
     private val web: WebClient?,
     private val commands: CommandRunner,
     private val autoApplyEdits: Boolean,
+    /** На сколько уровней `list_files` раскрывает вложенные папки; 0 — без ограничения (до [MAX_ENTRIES] строк). */
+    private val folderDepth: Int = AppSettings.DEFAULT_FOLDER_DEPTH,
     private val approve: suspend (PendingAction) -> Boolean,
     private val newId: () -> String,
 ) {
@@ -82,7 +85,7 @@ class AgentToolbox(
     }
 
     /**
-     * Файлы и папки вместе с вложенными (до [LIST_DEPTH] уровней): модели не нужно открывать каждую папку
+     * Файлы и папки вместе с вложенными (до [folderDepth] уровней): модели не нужно открывать каждую папку
      * отдельным шагом. Служебные папки (.git, build…) показываются, но не раскрываются.
      */
     private suspend fun listFiles(path: String): ToolOutcome {
@@ -99,7 +102,7 @@ class AgentToolbox(
                 break
             }
             entries += level
-            if (depth == LIST_DEPTH) {
+            if (folderDepth > 0 && depth >= folderDepth) {
                 truncated = level.any { it.isDirectory && it.path.substringAfterLast('/') !in SKIPPED_FOLDERS }
                 break
             }
@@ -208,7 +211,6 @@ class AgentToolbox(
         const val APPROVAL_CHARS = 8_000
         const val LINE_CHARS = 200
         const val MAX_ENTRIES = 300
-        const val LIST_DEPTH = 10
         val SKIPPED_FOLDERS = setOf(".git", ".gradle", ".idea", "build", "node_modules", ".venv", "venv", "__pycache__", ".kotlin")
         const val MAX_HITS = 50
         const val MAX_DOWNLOAD_BYTES = 50L * 1024 * 1024

@@ -134,10 +134,10 @@ class ImageGenerationIntegrationTest {
         val flux = env("PRISM_TEST_FLUX_DIR")
         assumeTrue("нет FLUX.1 [schnell]", flux != null)
         val files = mapOf(
-            "diffusion_model" to File(flux, "flux1-schnell-q4_0.gguf").absolutePath,
-            "t5xxl" to File(flux, "t5xxl-Q4_0.gguf").absolutePath,
-            "clip_l" to File(flux, "clip_l-Q8_0.gguf").absolutePath,
-            "vae" to File(flux, "flux-ae.safetensors").absolutePath,
+            "diffusion_model" to File(flux, "prism-image-0.5-q4_0.gguf").absolutePath,
+            "t5xxl" to File(flux, "prism-image-0.5-t5xxl-q4_0.gguf").absolutePath,
+            "clip_l" to File(flux, "prism-image-0.5-clip_l-q8_0.gguf").absolutePath,
+            "vae" to File(flux, "prism-image-0.5-vae.safetensors").absolutePath,
         )
         val started = System.nanoTime()
 

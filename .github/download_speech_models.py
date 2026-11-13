@@ -9,6 +9,14 @@ import os
 import sys
 import urllib.request
 
+# Голос Piper для теста движка (в каталоге приложения его больше нет).
+PIPER_TEST_VOICE = {
+    "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-ru_RU-dmitri-medium.tar.bz2",
+    "fileName": "vits-piper-ru_RU-dmitri-medium.tar.bz2",
+    "sizeBytes": 67188551,
+    "sha256": "c86d0803737de13d441923ff3b3f309482fab8d7af3ec85949942809eb9a3660",
+}
+
 CATALOG = os.path.join(os.path.dirname(__file__), "..", "shared", "src", "commonMain", "composeResources", "files", "models.json")
 
 
@@ -64,8 +72,9 @@ def main():
             if role != "vad":
                 fetch(url, size, sha, os.path.join(root, "whisper", url.rsplit("/", 1)[1]))
         env["PRISM_TEST_WHISPER_DIR"] = os.path.join(root, "whisper")
-        voice = models["piper-ru-dmitri-medium"]
-        env["PRISM_TEST_PIPER_ARCHIVE"] = fetch(voice["url"], voice["sizeBytes"], voice["sha256"], os.path.join(root, voice["fileName"]))
+        # Голоса Piper убраны из каталога, но движок остаётся: тест говорит голосом «Дмитрий».
+        env["PRISM_TEST_PIPER_ARCHIVE"] = fetch(PIPER_TEST_VOICE["url"], PIPER_TEST_VOICE["sizeBytes"], PIPER_TEST_VOICE["sha256"],
+                                                os.path.join(root, PIPER_TEST_VOICE["fileName"]))
         st = models["supertonic-3-int8"]
         env["PRISM_TEST_SUPERTONIC_ARCHIVE"] = fetch(st["url"], st["sizeBytes"], st["sha256"], os.path.join(root, st["fileName"]))
     for name, value in env.items():

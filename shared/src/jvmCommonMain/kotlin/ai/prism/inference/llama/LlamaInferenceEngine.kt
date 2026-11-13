@@ -148,7 +148,8 @@ class LlamaInferenceEngine(
     override fun modelInfo(): ModelInfo? = (state.value as? EngineState.Ready)?.info
 
     private fun loadLocked(model: CatalogModel, filePath: String, projector: String?) {
-        if (loadedModel?.id == model.id && sessionHandle != 0L) {
+        // Та же модель с тем же контекстом остаётся в памяти; новый размер контекста из настроек — перезагрузка.
+        if (loadedModel?.id == model.id && loadedModel?.contextLength == model.contextLength && sessionHandle != 0L) {
             // Та же модель; модуль зрения мог быть докачан (или удалён) с прошлой загрузки.
             if (projector != projectorPath) {
                 freeProjectorLocked()

@@ -107,7 +107,7 @@ class ModelCatalogTest {
         assertTrue(models.filter { it.id.startsWith("wan2.2-ti2v") }.all { it.video!!.imageToVideo })
     }
 
-    /** Голос: на обеих платформах есть распознавание речи с детектором речи и голос Piper. */
+    /** Голос: на обеих платформах есть распознавание речи с детектором речи и голос. */
     @Test
     fun speechModelsCoverBothPlatforms() {
         for (platform in listOf("android", "desktop")) {

@@ -46,6 +46,12 @@ class DefaultSettingsRepository(
 
     override fun setTextEncoderMode(mode: TextEncoderMode?) = update { it.copy(textEncoderMode = mode) }
 
+    override fun setContextLength(tokens: Int) = update { it.copy(contextLength = tokens.coerceIn(0, MAX_CONTEXT)) }
+
+    override fun setAgentSteps(steps: Int) = update { it.copy(agentSteps = steps.coerceAtLeast(0)) }
+
+    override fun setFolderDepth(depth: Int) = update { it.copy(folderDepth = depth.coerceAtLeast(0)) }
+
     override fun setSpeechRate(rate: Float) = update {
         it.copy(speechRate = rate.coerceIn(AppSettings.MIN_SPEECH_RATE, AppSettings.MAX_SPEECH_RATE))
     }
@@ -72,6 +78,9 @@ class DefaultSettingsRepository(
             videoModelId = store.getString(KEY_VIDEO_MODEL) ?: defaults.videoModelId,
             videoSeconds = store.getString(KEY_VIDEO_SECONDS)?.toIntOrNull()?.coerceIn(0, MAX_VIDEO_SECONDS) ?: defaults.videoSeconds,
             textEncoderMode = enumValues<TextEncoderMode>().firstOrNull { it.name == store.getString(KEY_TEXT_ENCODER) },
+            contextLength = store.getString(KEY_CONTEXT)?.toIntOrNull()?.coerceIn(0, MAX_CONTEXT) ?: defaults.contextLength,
+            agentSteps = store.getString(KEY_AGENT_STEPS)?.toIntOrNull()?.coerceAtLeast(0) ?: defaults.agentSteps,
+            folderDepth = store.getString(KEY_FOLDER_DEPTH)?.toIntOrNull()?.coerceAtLeast(0) ?: defaults.folderDepth,
         )
     }
 
@@ -89,6 +98,9 @@ class DefaultSettingsRepository(
         store.putString(KEY_VIDEO_MODEL, settings.videoModelId)
         store.putString(KEY_VIDEO_SECONDS, settings.videoSeconds.toString())
         store.putString(KEY_TEXT_ENCODER, settings.textEncoderMode?.name.orEmpty())
+        store.putString(KEY_CONTEXT, settings.contextLength.toString())
+        store.putString(KEY_AGENT_STEPS, settings.agentSteps.toString())
+        store.putString(KEY_FOLDER_DEPTH, settings.folderDepth.toString())
     }
 
     private inline fun <reified E : Enum<E>> parseEnum(raw: String?, default: E): E =
@@ -108,6 +120,10 @@ class DefaultSettingsRepository(
         const val KEY_VIDEO_MODEL = "video_model"
         const val KEY_VIDEO_SECONDS = "video_seconds"
         const val KEY_TEXT_ENCODER = "text_encoder_mode"
+        const val KEY_CONTEXT = "context_length"
+        const val KEY_AGENT_STEPS = "agent_steps"
+        const val KEY_FOLDER_DEPTH = "folder_depth"
+        const val MAX_CONTEXT = 131_072
         const val MAX_VIDEO_SECONDS = 60
     }
 }

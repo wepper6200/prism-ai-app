@@ -26,9 +26,10 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlin.coroutines.CoroutineContext
 
-/** Семейство моделей и его лицензия — для раздела «О приложении». */
+/** Модель Prism, открытая модель, на которой она основана, и её лицензия — для раздела «О приложении». */
 data class ModelLicenseInfo(
-    val family: String,
+    val name: String,
+    val origin: String,
     val licenseName: String,
     val licenseUrl: String,
 )
@@ -82,6 +83,9 @@ sealed interface SettingsIntent {
     data class SelectVideoModel(val modelId: String) : SettingsIntent
     data class SelectVoiceSpeaker(val speaker: Int) : SettingsIntent
     data class SelectTextEncoder(val mode: TextEncoderMode) : SettingsIntent
+    data class SetContextLength(val tokens: Int) : SettingsIntent
+    data class SetAgentSteps(val steps: Int) : SettingsIntent
+    data class SetFolderDepth(val depth: Int) : SettingsIntent
     data object CheckForUpdates : SettingsIntent
     data object InstallUpdate : SettingsIntent
     data object CancelUpdate : SettingsIntent
@@ -125,8 +129,11 @@ class DefaultSettingsComponent(
                 update = update,
                 modelFolder = folder,
                 modelLicenses = models
-                    .map { ModelLicenseInfo(it.model.family, it.model.license.name, it.model.license.url) }
-                    .distinctBy { it.family },
+                    .map { entry ->
+                        val model = entry.model
+                        ModelLicenseInfo(model.name, "${model.family} ${model.parameters}", model.license.name, model.license.url)
+                    }
+                    .distinctBy { it.name },
                 voice = voiceSettings(models, settings),
             ).let { state ->
                 val downloadedVideos = models.filter { it.model.kind == ModelKind.VIDEO && it.status == ModelStatus.Downloaded }
@@ -179,6 +186,9 @@ class DefaultSettingsComponent(
             is SettingsIntent.SelectVideoModel -> settingsRepository.setVideoModel(intent.modelId)
             is SettingsIntent.SelectVoiceSpeaker -> settingsRepository.setVoiceSpeaker(intent.speaker)
             is SettingsIntent.SelectTextEncoder -> settingsRepository.setTextEncoderMode(intent.mode)
+            is SettingsIntent.SetContextLength -> settingsRepository.setContextLength(intent.tokens)
+            is SettingsIntent.SetAgentSteps -> settingsRepository.setAgentSteps(intent.steps)
+            is SettingsIntent.SetFolderDepth -> settingsRepository.setFolderDepth(intent.depth)
             SettingsIntent.CheckForUpdates -> updates.check()
             SettingsIntent.InstallUpdate -> updates.install()
             SettingsIntent.CancelUpdate -> updates.cancel()

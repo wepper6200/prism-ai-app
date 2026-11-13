@@ -64,12 +64,13 @@ class AgentServiceTest {
         val call = "<tool name=\"read_file\">\n<path>main.py</path>\n</tool>"
         val engine = FakeInferenceEngine(reply = listOf(call))
         val app = TestApp(engine = engine)
+        val limit = 25
+        app.settings.setAgentSteps(limit)
         val chat = app.chats.createChat()
         app.chats.setWorkspace(chat.id, folder.path)
 
         app.generation.send(chat.id, "Прочитай всё")
 
-        val limit = ChatGenerationService.MAX_AGENT_STEPS
         val reply = app.chats.messagesSnapshot(chat.id).last()
         assertEquals(limit, reply.steps.size)
         // Последний результат просит подвести итог; модель снова вызвала инструмент — пользователь видит подсказку.
@@ -82,6 +83,27 @@ class AgentServiceTest {
         engine.queuedReplies += listOf("Прочитал main.py, осталось написать тесты.")
         app.generation.send(chat.id, "Ещё раз")
         assertEquals("Прочитал main.py, осталось написать тесты.", app.chats.messagesSnapshot(chat.id).last().content)
+    }
+
+    @Test
+    fun folderDepthAndUnlimitedStepsComeFromSettings(): Unit = runBlocking {
+        val folder = projectFolder()
+        folder.resolve("a/b/c").mkdirs()
+        folder.resolve("a/b/c/deep.txt").writeText("x")
+        val list = "<tool name=\"list_files\">\n<path>.</path>\n</tool>"
+        val app = app(list, list, "Готово.")
+        app.settings.setFolderDepth(2)
+        app.settings.setAgentSteps(0)
+        val chat = app.chats.createChat()
+        app.chats.setWorkspace(chat.id, folder.path)
+
+        app.generation.send(chat.id, "Что в проекте?")
+
+        val result = app.engine.requests[1].messages.last().content
+        assertTrue("a/b/" in result && "deep.txt" !in result, result)
+        val reply = app.chats.messagesSnapshot(chat.id).last()
+        assertEquals("Готово.", reply.content, "без предела шагов подсказки о «продолжай» нет")
+        assertEquals(2, reply.steps.size)
     }
 
     @Test

@@ -89,7 +89,13 @@ import ai.prism.resources.settings_internet_desc
 import ai.prism.resources.settings_safe_mode
 import ai.prism.resources.settings_safe_mode_desc
 import ai.prism.resources.settings_identity_note
-import ai.prism.resources.settings_model_license
+import ai.prism.resources.settings_model_origin
+import ai.prism.resources.settings_agent_steps
+import ai.prism.resources.settings_by_model
+import ai.prism.resources.settings_context
+import ai.prism.resources.settings_context_desc
+import ai.prism.resources.settings_folder_depth
+import ai.prism.resources.settings_unlimited
 import ai.prism.resources.settings_models
 import ai.prism.resources.settings_privacy
 import ai.prism.resources.settings_privacy_text
@@ -145,6 +151,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import ai.prism.presentation.settings.ModelLicenseInfo
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -305,6 +316,7 @@ fun SettingsScreen(
                     onCheckedChange = { component.onIntent(SettingsIntent.SetAutoApplyEdits(it)) },
                     tag = "auto_apply_setting",
                 )
+                AgentLimits(state.settings, component::onIntent)
             }
 
             if (state.voice.available) {
@@ -380,25 +392,15 @@ fun SettingsScreen(
                 }
             }
 
-            SettingsSection(title = stringResource(Res.string.settings_models), modifier = sectionModifier) {
-                val uriHandler = LocalUriHandler.current
-                Text(
-                    text = stringResource(Res.string.settings_identity_note),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                state.modelLicenses.forEach { license ->
-                    Text(
-                        text = stringResource(Res.string.settings_model_license, license.family, license.licenseName),
-                        style = MaterialTheme.typography.bodyMedium.copy(textDecoration = TextDecoration.Underline),
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.clickable { uriHandler.openUri(license.licenseUrl) },
-                    )
-                }
-            }
-
             if (state.modelFolder.supported || state.modelFolder.canChoose) {
                 SettingsSection(title = stringResource(Res.string.settings_model_storage), modifier = sectionModifier) {
                     ModelFolderBlock(state.modelFolder, component::onIntent)
+                }
+            }
+
+            if (state.updatesSupported) {
+                SettingsSection(title = stringResource(Res.string.settings_updates), modifier = sectionModifier) {
+                    UpdateBlock(state.update, component::onIntent)
                 }
             }
 
@@ -409,15 +411,65 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-            }
-
-            if (state.updatesSupported) {
-                SettingsSection(title = stringResource(Res.string.settings_updates), modifier = sectionModifier) {
-                    UpdateBlock(state.update, component::onIntent)
-                }
+                ModelLicensesBlock(state.modelLicenses)
             }
             Spacer(Modifier.height(12.dp))
         }
+    }
+}
+
+/** Контекст модели, шаги агента и глубина просмотра папок. */
+@Composable
+private fun AgentLimits(settings: AppSettings, onIntent: (SettingsIntent) -> Unit) {
+    val auto = stringResource(Res.string.settings_by_model)
+    val unlimited = stringResource(Res.string.settings_unlimited)
+    SectionLabel(stringResource(Res.string.settings_context))
+    Text(
+        text = stringResource(Res.string.settings_context_desc),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    VoiceModelChoice(
+        options = listOf(VoiceModelOption("0", auto)) +
+            AppSettings.CONTEXT_OPTIONS.map { VoiceModelOption(it.toString(), "${it / 1024}K") },
+        selectedId = settings.contextLength.toString(),
+        onSelect = { onIntent(SettingsIntent.SetContextLength(it.toInt())) },
+    )
+    SectionLabel(stringResource(Res.string.settings_agent_steps))
+    VoiceModelChoice(
+        options = AppSettings.AGENT_STEP_OPTIONS.map { VoiceModelOption(it.toString(), if (it == 0) unlimited else it.toString()) },
+        selectedId = settings.agentSteps.toString(),
+        onSelect = { onIntent(SettingsIntent.SetAgentSteps(it.toInt())) },
+    )
+    SectionLabel(stringResource(Res.string.settings_folder_depth))
+    VoiceModelChoice(
+        options = AppSettings.FOLDER_DEPTH_OPTIONS.map { VoiceModelOption(it.toString(), if (it == 0) unlimited else it.toString()) },
+        selectedId = settings.folderDepth.toString(),
+        onSelect = { onIntent(SettingsIntent.SetFolderDepth(it.toInt())) },
+    )
+}
+
+/** Модели и лицензии: свёрнуто, раскрывается по нажатию. */
+@Composable
+private fun ModelLicensesBlock(licenses: List<ModelLicenseInfo>) {
+    var expanded by remember { mutableStateOf(false) }
+    TextButton(onClick = { expanded = !expanded }, modifier = Modifier.testTag("model_licenses")) {
+        Text(stringResource(Res.string.settings_models))
+    }
+    if (!expanded) return
+    val uriHandler = LocalUriHandler.current
+    Text(
+        text = stringResource(Res.string.settings_identity_note),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    licenses.forEach { license ->
+        Text(
+            text = stringResource(Res.string.settings_model_origin, license.name, license.origin, license.licenseName),
+            style = MaterialTheme.typography.bodySmall.copy(textDecoration = TextDecoration.Underline),
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.clickable { uriHandler.openUri(license.licenseUrl) },
+        )
     }
 }
 

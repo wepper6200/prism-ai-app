@@ -347,7 +347,7 @@ class ChatGenerationService(
         val persona = personaProvider.persona()
         val found = try {
             lastUser?.content?.takeIf { it.isNotBlank() }
-                ?.let { documents.retrieve(chatId, it, documentBudget(model)) }
+                ?.let { documents.retrieve(chatId, it, documentBudget(withChosenContext(model))) }
                 .orEmpty()
         } catch (e: DocumentException) {
             chats.updateMessage(reply.id, "", MessageStatus.FAILED, GenerationError.NO_EMBEDDING_MODEL)
@@ -367,7 +367,7 @@ class ChatGenerationService(
         try {
             // Чат и рисование не держат модели в памяти одновременно: телефону не хватит памяти на обе.
             imageGenerator.release()
-            engine.load(model, path, projectorPath)
+            engine.load(withChosenContext(model), path, projectorPath)
             if (!stopRequested) {
                 val safeRule = persona.safeModeRule.takeIf { settings.settings.value.safeMode && it.isNotBlank() }
                 val request = GenerationRequest(
@@ -555,6 +555,7 @@ class ChatGenerationService(
             web = internet,
             commands = commands,
             autoApplyEdits = current.autoApplyEdits,
+            folderDepth = current.folderDepth,
             approve = { action -> askApproval(chatId, replyId, action) },
             newId = ::newId,
         ).takeIf { it.tools.isNotEmpty() }
@@ -566,7 +567,7 @@ class ChatGenerationService(
 
     /**
      * Ответ с инструментами: модель пишет вызов `<tool …>`, приложение выполняет его и возвращает результат,
-     * пока модель не ответит обычным текстом (не больше [MAX_AGENT_STEPS] шагов).
+     * пока модель не ответит обычным текстом (не больше [AppSettings.agentSteps] шагов, 0 — без ограничения).
      * В [live] — видимый текст ответа, в [steps] — выполненные шаги.
      */
     private suspend fun runAgent(
@@ -593,10 +594,12 @@ class ChatGenerationService(
             live.append((parts + current).filter { it.isNotBlank() }.joinToString("\n\n"))
             mutableActive.value = ActiveGeneration(chatId, replyId, live.toString(), steps = steps.toList())
         }
+        // Предел шагов из настроек; 0 — без ограничения (ответ останавливает только пользователь).
+        val maxSteps = settings.settings.value.agentSteps
         var executed = 0
         while (true) {
             // После последнего разрешённого шага модель только подводит итог: её новый вызов не выполняется.
-            val finalRound = executed == MAX_AGENT_STEPS
+            val finalRound = maxSteps > 0 && executed == maxSteps
             val raw = StringBuilder()
             val request = base.copy(
                 systemPrompt = base.systemPrompt + "\n\n" + instructions,
@@ -618,7 +621,7 @@ class ChatGenerationService(
             if (finalRound) {
                 // Модель не остановилась: говорим пользователю, что работу можно продолжить следующим сообщением.
                 persona.agentStepLimitNotice.takeIf { it.isNotBlank() }?.let { notice ->
-                    parts += notice.replace("{steps}", MAX_AGENT_STEPS.toString())
+                    parts += notice.replace("{steps}", maxSteps.toString())
                     show("")
                 }
                 return
@@ -628,7 +631,7 @@ class ChatGenerationService(
             executed++
             show("")
             if (stopRequested) return
-            val limitNote = if (executed == MAX_AGENT_STEPS && persona.agentStepLimit.isNotBlank()) {
+            val limitNote = if (maxSteps > 0 && executed == maxSteps && persona.agentStepLimit.isNotBlank()) {
                 "\n\n" + persona.agentStepLimit
             } else {
                 ""
@@ -762,7 +765,7 @@ class ChatGenerationService(
             .ifBlank { return untranslated }
         val answer = try {
             imageGenerator.release()
-            engine.load(model, path, null)
+            engine.load(withChosenContext(model), path, null)
             if (stopRequested) return untranslated
             engine.generate(
                 GenerationRequest(
@@ -812,7 +815,7 @@ class ChatGenerationService(
         val question = personaProvider.persona().imageReviewInstruction.ifBlank { return false }
         return try {
             imageGenerator.release()
-            engine.load(model, path, projector)
+            engine.load(withChosenContext(model), path, projector)
             val answer = engine.generate(
                 GenerationRequest(
                     systemPrompt = "",
@@ -854,6 +857,12 @@ class ChatGenerationService(
         return history.toMutableList().apply { set(index, question.copy(content = content)) }
     }
 
+    /** Модель чата с контекстом из настроек (если выбран); движок уменьшит его до обученного предела модели. */
+    private fun withChosenContext(model: CatalogModel): CatalogModel {
+        val chosen = settings.settings.value.contextLength
+        return if (chosen > 0 && model.kind == ModelKind.CHAT) model.copy(contextLength = chosen) else model
+    }
+
     /** Сколько символов фрагментов файлов поместить в промпт: около трети контекста модели. */
     private fun documentBudget(model: CatalogModel): Int =
         (model.contextLength * DOCUMENT_CHARS_PER_CONTEXT_TOKEN).toInt().coerceIn(MIN_DOCUMENT_CHARS, MAX_DOCUMENT_CHARS)
@@ -887,8 +896,6 @@ class ChatGenerationService(
         private const val ORPHAN_IMAGE_AGE_MS = 7L * 24 * 60 * 60 * 1000
         private const val TRANSLATION_MAX_TOKENS = 400
 
-        /** Сколько раз подряд ассистент может вызвать инструменты в одном ответе. */
-        const val MAX_AGENT_STEPS = 30
         private const val DOCUMENT_CHARS_PER_CONTEXT_TOKEN = 0.9
         private const val MIN_DOCUMENT_CHARS = 2_000
         private const val MAX_DOCUMENT_CHARS = 9_000

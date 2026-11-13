@@ -35,4 +35,13 @@ interface SettingsRepository {
 
     /** Текстовый энкодер видео; `null` — выбирать по объёму оперативной памяти. */
     fun setTextEncoderMode(mode: TextEncoderMode?)
+
+    /** Контекст модели чата; 0 — как в каталоге. */
+    fun setContextLength(tokens: Int)
+
+    /** Шаги агента в одном ответе; 0 — без ограничения. */
+    fun setAgentSteps(steps: Int)
+
+    /** Глубина просмотра папок; 0 — без ограничения. */
+    fun setFolderDepth(depth: Int)
 }

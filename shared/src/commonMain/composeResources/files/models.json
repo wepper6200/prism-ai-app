@@ -1,9 +1,9 @@
 {
-  "version": 9,
+  "version": 10,
   "models": [
     {
       "id": "gemma-4-e2b-it-q4_0",
-      "name": "Gemma 4 E2B",
+      "name": "Prism 1 Flash",
       "family": "Gemma 4",
       "parameters": "E2B",
       "quantization": "Q4_0",
@@ -11,7 +11,7 @@
         "ru": "Быстрая модель для телефона: хорошо понимает русский, отвечает за секунды."
       },
       "url": "https://huggingface.co/ggml-org/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q4_0.gguf",
-      "fileName": "gemma-4-E2B-it-Q4_0.gguf",
+      "fileName": "prism-1-flash-q4_0.gguf",
       "sizeBytes": 2841481184,
       "sha256": "8e30dff3ac4c8434c49a7036fa15564bdbb6044e42bf04550bf1a096ad7e6a52",
       "contextLength": 8192,
@@ -26,22 +26,28 @@
       ],
       "vision": {
         "url": "https://huggingface.co/ggml-org/gemma-4-E2B-it-GGUF/resolve/main/mmproj-gemma-4-E2B-it-Q8_0.gguf",
-        "fileName": "mmproj-gemma-4-E2B-it-Q8_0.gguf",
+        "fileName": "mmproj-prism-1-flash-q8_0.gguf",
         "sizeBytes": 557368096,
-        "sha256": "042cc2561806cd3b5cb5efb25cab76911e3100c43cc09d854904f921924b1429"
-      }
+        "sha256": "042cc2561806cd3b5cb5efb25cab76911e3100c43cc09d854904f921924b1429",
+        "oldFileNames": [
+          "mmproj-gemma-4-E2B-it-Q8_0.gguf"
+        ]
+      },
+      "oldFileNames": [
+        "gemma-4-E2B-it-Q4_0.gguf"
+      ]
     },
     {
       "id": "gemma-4-e4b-it-q4_0",
-      "name": "Gemma 4 E4B",
+      "name": "Prism 1 Plus",
       "family": "Gemma 4",
       "parameters": "E4B",
       "quantization": "Q4_0",
       "description": {
-        "ru": "Умнее E2B и всё ещё помещается в мощный телефон. Хороший выбор для ноутбука."
+        "ru": "Умнее Prism 1 Flash и всё ещё помещается в мощный телефон. Хороший выбор для ноутбука."
       },
       "url": "https://huggingface.co/ggml-org/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q4_0.gguf",
-      "fileName": "gemma-4-E4B-it-Q4_0.gguf",
+      "fileName": "prism-1-plus-q4_0.gguf",
       "sizeBytes": 4590807392,
       "sha256": "a555b900214b477d8880e7832e0b8925e139b0159640036b09fe472b6f2097f2",
       "contextLength": 8192,
@@ -56,14 +62,20 @@
       ],
       "vision": {
         "url": "https://huggingface.co/ggml-org/gemma-4-E4B-it-GGUF/resolve/main/mmproj-gemma-4-E4B-it-Q8_0.gguf",
-        "fileName": "mmproj-gemma-4-E4B-it-Q8_0.gguf",
+        "fileName": "mmproj-prism-1-plus-q8_0.gguf",
         "sizeBytes": 559874848,
-        "sha256": "9257f21a0f5358204b4a612cff83fad2e56412f4f607f0049331ce60c0cf9d34"
-      }
+        "sha256": "9257f21a0f5358204b4a612cff83fad2e56412f4f607f0049331ce60c0cf9d34",
+        "oldFileNames": [
+          "mmproj-gemma-4-E4B-it-Q8_0.gguf"
+        ]
+      },
+      "oldFileNames": [
+        "gemma-4-E4B-it-Q4_0.gguf"
+      ]
     },
     {
       "id": "gemma-4-12b-it-q4_0",
-      "name": "Gemma 4 12B",
+      "name": "Prism 1 Pro",
       "family": "Gemma 4",
       "parameters": "12B",
       "quantization": "Q4_0",
@@ -71,7 +83,7 @@
         "ru": "Подробные и точные ответы для компьютера с 16 ГБ памяти; с видеокартой работает заметно быстрее."
       },
       "url": "https://huggingface.co/ggml-org/gemma-4-12B-it-GGUF/resolve/main/gemma-4-12B-it-Q4_0.gguf",
-      "fileName": "gemma-4-12B-it-Q4_0.gguf",
+      "fileName": "prism-1-pro-q4_0.gguf",
       "sizeBytes": 7219673216,
       "sha256": "3712b9bd32cae83a22f67ee7a4466d8d7a4f21646ac8a07d19bf9418e8767a70",
       "contextLength": 16384,
@@ -86,14 +98,20 @@
       ],
       "vision": {
         "url": "https://huggingface.co/ggml-org/gemma-4-12B-it-GGUF/resolve/main/mmproj-gemma-4-12B-it-Q8_0.gguf",
-        "fileName": "mmproj-gemma-4-12B-it-Q8_0.gguf",
+        "fileName": "mmproj-prism-1-pro-q8_0.gguf",
         "sizeBytes": 158987648,
-        "sha256": "6b1088334bda27d7f293dcf426c0efaf1f1f20b65415ea354b695dbed9a0d65d"
-      }
+        "sha256": "6b1088334bda27d7f293dcf426c0efaf1f1f20b65415ea354b695dbed9a0d65d",
+        "oldFileNames": [
+          "mmproj-gemma-4-12B-it-Q8_0.gguf"
+        ]
+      },
+      "oldFileNames": [
+        "gemma-4-12B-it-Q4_0.gguf"
+      ]
     },
     {
       "id": "gemma-4-26b-a4b-it-q4_0",
-      "name": "Gemma 4 26B A4B",
+      "name": "Prism 1.5 Pro Max",
       "family": "Gemma 4",
       "parameters": "26B-A4B",
       "quantization": "Q4_0",
@@ -101,7 +119,7 @@
         "ru": "Самая сильная модель каталога для мощного компьютера: смесь экспертов, работает со скоростью модели 4B."
       },
       "url": "https://huggingface.co/ggml-org/gemma-4-26B-A4B-it-GGUF/resolve/main/gemma-4-26B-A4B-it-Q4_0.gguf",
-      "fileName": "gemma-4-26B-A4B-it-Q4_0.gguf",
+      "fileName": "prism-1.5-pro-max-q4_0.gguf",
       "sizeBytes": 14618145824,
       "sha256": "d208665ab1cd3a69f7a9a4bc59430e8448c8093d9b06334f566ac59d6d504a03",
       "contextLength": 16384,
@@ -114,22 +132,28 @@
       "recommendedFor": [],
       "vision": {
         "url": "https://huggingface.co/ggml-org/gemma-4-26B-A4B-it-GGUF/resolve/main/mmproj-gemma-4-26B-A4B-it-Q8_0.gguf",
-        "fileName": "mmproj-gemma-4-26B-A4B-it-Q8_0.gguf",
+        "fileName": "mmproj-prism-1.5-pro-max-q8_0.gguf",
         "sizeBytes": 806408320,
-        "sha256": "cc4e855736da450bf1e162d8cccfe0ad685727d0c9e04ef7dd8d884f3121039b"
-      }
+        "sha256": "cc4e855736da450bf1e162d8cccfe0ad685727d0c9e04ef7dd8d884f3121039b",
+        "oldFileNames": [
+          "mmproj-gemma-4-26B-A4B-it-Q8_0.gguf"
+        ]
+      },
+      "oldFileNames": [
+        "gemma-4-26B-A4B-it-Q4_0.gguf"
+      ]
     },
     {
       "id": "qwen3.8-27b-q4_k_m",
-      "name": "Qwen3.8 27B",
+      "name": "Prism 1.5 Quadron",
       "family": "Qwen3.8",
       "parameters": "27B",
       "quantization": "Q4_K_M",
       "description": {
-        "ru": "Сильная модель Alibaba для мощного компьютера: код, длинные задачи, работа агентом, понимает изображения. Нужны 32 ГБ памяти; с видеокартой от 24 ГБ отвечает заметно быстрее."
+        "ru": "Сильная модель для мощного компьютера: код, длинные задачи, работа агентом, понимает изображения. Нужны 32 ГБ памяти; с видеокартой от 24 ГБ отвечает заметно быстрее."
       },
       "url": "https://huggingface.co/ggml-org/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-Q4_K_M.gguf",
-      "fileName": "Qwen3.8-27B-Q4_K_M.gguf",
+      "fileName": "prism-1.5-quadron-q4_k_m.gguf",
       "sizeBytes": 19403684480,
       "sha256": "d15d4b6de55f662ac40e867702d31afe738d032fa06b829b2b1a21a49d4a48ee",
       "contextLength": 16384,
@@ -142,17 +166,23 @@
       "recommendedFor": [],
       "vision": {
         "url": "https://huggingface.co/ggml-org/Qwen3.8-27B-GGUF/resolve/main/mmproj-Qwen3.8-27B-Q8_0.gguf",
-        "fileName": "mmproj-Qwen3.8-27B-Q8_0.gguf",
+        "fileName": "mmproj-prism-1.5-quadron-q8_0.gguf",
         "sizeBytes": 629247008,
-        "sha256": "2e968a6af97ce35d8971890b257b9b7edabf20ad91450501fa53162a19ee33eb"
+        "sha256": "2e968a6af97ce35d8971890b257b9b7edabf20ad91450501fa53162a19ee33eb",
+        "oldFileNames": [
+          "mmproj-Qwen3.8-27B-Q8_0.gguf"
+        ]
       },
       "platforms": [
         "desktop"
+      ],
+      "oldFileNames": [
+        "Qwen3.8-27B-Q4_K_M.gguf"
       ]
     },
     {
       "id": "gemma-3-1b-it-q4_k_m",
-      "name": "Gemma 3 1B",
+      "name": "Prism 1 Lite",
       "family": "Gemma 3",
       "parameters": "1B",
       "quantization": "Q4_K_M",
@@ -160,7 +190,7 @@
         "ru": "Самая лёгкая модель для телефонов с 3–4 ГБ памяти. Простые ответы, высокая скорость."
       },
       "url": "https://huggingface.co/ggml-org/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_K_M.gguf",
-      "fileName": "gemma-3-1b-it-Q4_K_M.gguf",
+      "fileName": "prism-1-lite-q4_k_m.gguf",
       "sizeBytes": 806058240,
       "sha256": "8ccc5cd1f1b3602548715ae25a66ed73fd5dc68a210412eea643eb20eb75a135",
       "contextLength": 8192,
@@ -170,11 +200,14 @@
         "name": "Gemma Terms of Use",
         "url": "https://ai.google.dev/gemma/terms"
       },
-      "recommendedFor": []
+      "recommendedFor": [],
+      "oldFileNames": [
+        "gemma-3-1b-it-Q4_K_M.gguf"
+      ]
     },
     {
       "id": "embeddinggemma-300m-q8_0",
-      "name": "EmbeddingGemma 300M",
+      "name": "PrismFile Reader",
       "family": "Gemma 3",
       "parameters": "300M",
       "quantization": "Q8_0",
@@ -182,7 +215,7 @@
         "ru": "Поиск по приложенным файлам: находит в PDF, DOCX, TXT и MD фрагменты, подходящие к вопросу. Понимает русский."
       },
       "url": "https://huggingface.co/ggml-org/embeddinggemma-300M-GGUF/resolve/main/embeddinggemma-300M-Q8_0.gguf",
-      "fileName": "embeddinggemma-300M-Q8_0.gguf",
+      "fileName": "prismfile-reader-q8_0.gguf",
       "sizeBytes": 333590944,
       "sha256": "b5ce9d77a3fc4b3b39ccb5643c36777911cc4eb46a66962eadfa3f5f60490d63",
       "minRamMb": 1024,
@@ -199,19 +232,22 @@
         "queryTemplate": "task: search result | query: {text}",
         "documentTemplate": "title: {title} | text: {text}",
         "maxTokens": 2048
-      }
+      },
+      "oldFileNames": [
+        "embeddinggemma-300M-Q8_0.gguf"
+      ]
     },
     {
       "id": "gigaam-v3-ctc-punct-ru-int8",
-      "name": "GigaAM v3",
+      "name": "Prism Voice Detector (Russian version)",
       "family": "GigaAM",
       "parameters": "220M",
       "quantization": "INT8",
       "description": {
-        "ru": "Распознавание русской речи с пунктуацией от Сбера: точнее Whisper на русском и быстро работает даже на телефоне."
+        "ru": "Распознавание русской речи с пунктуацией: точнее многоязычных моделей на русском и быстро работает даже на телефоне."
       },
       "url": "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-ctc-punct-giga-am-v3-russian-2025-12-16/resolve/main/model.int8.onnx",
-      "fileName": "gigaam-v3-ctc-punct-ru.int8.onnx",
+      "fileName": "prism-voice-detector-ru.int8.onnx",
       "sizeBytes": 224893661,
       "sha256": "d5fea8df94263c285e54b21e5774b707c707192d3bdbeffd7b1eb07fb6743b35",
       "minRamMb": 3072,
@@ -229,16 +265,22 @@
         {
           "role": "tokens",
           "url": "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-ctc-punct-giga-am-v3-russian-2025-12-16/resolve/main/tokens.txt",
-          "fileName": "gigaam-v3-ctc-punct-ru-tokens.txt",
+          "fileName": "prism-voice-detector-ru-tokens.txt",
           "sizeBytes": 2007,
-          "sha256": "142de7570b3de5b3035ce111a89c228e80e6085273731d944093ddf24fa539cd"
+          "sha256": "142de7570b3de5b3035ce111a89c228e80e6085273731d944093ddf24fa539cd",
+          "oldFileNames": [
+            "gigaam-v3-ctc-punct-ru-tokens.txt"
+          ]
         },
         {
           "role": "vad",
           "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx",
-          "fileName": "silero_vad.onnx",
+          "fileName": "prism-voice-activity.onnx",
           "sizeBytes": 643854,
-          "sha256": "9e2449e1087496d8d4caba907f23e0bd3f78d91fa552479bb9c23ac09cbb1fd6"
+          "sha256": "9e2449e1087496d8d4caba907f23e0bd3f78d91fa552479bb9c23ac09cbb1fd6",
+          "oldFileNames": [
+            "silero_vad.onnx"
+          ]
         }
       ],
       "speech": {
@@ -247,19 +289,22 @@
         "languages": [
           "ru"
         ]
-      }
+      },
+      "oldFileNames": [
+        "gigaam-v3-ctc-punct-ru.int8.onnx"
+      ]
     },
     {
       "id": "whisper-small-int8",
-      "name": "Whisper Small",
+      "name": "Prism Voice Detector Lite",
       "family": "Whisper",
       "parameters": "244M",
       "quantization": "INT8",
       "description": {
-        "ru": "Распознаёт речь на 99 языках и сам определяет язык. Для русского точнее GigaAM, Whisper нужен для других языков."
+        "ru": "Распознаёт речь на 99 языках и сам определяет язык. Для русского точнее Prism Voice Detector (Russian version), эта модель нужна для других языков."
       },
       "url": "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-small/resolve/main/small-encoder.int8.onnx",
-      "fileName": "whisper-small-encoder.int8.onnx",
+      "fileName": "prism-voice-detector-lite-encoder.int8.onnx",
       "sizeBytes": 112442483,
       "sha256": "4cbe7b22fa9026b843b60a68640c747de05bafb1a11b57edc0e66c232d9f33a9",
       "minRamMb": 4096,
@@ -274,23 +319,32 @@
         {
           "role": "decoder",
           "url": "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-small/resolve/main/small-decoder.int8.onnx",
-          "fileName": "whisper-small-decoder.int8.onnx",
+          "fileName": "prism-voice-detector-lite-decoder.int8.onnx",
           "sizeBytes": 262226114,
-          "sha256": "acad50b5c782696e91b55914cc5ab4f756f1532f76e22aa6fc615f39fb69a8ee"
+          "sha256": "acad50b5c782696e91b55914cc5ab4f756f1532f76e22aa6fc615f39fb69a8ee",
+          "oldFileNames": [
+            "whisper-small-decoder.int8.onnx"
+          ]
         },
         {
           "role": "tokens",
           "url": "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-small/resolve/main/small-tokens.txt",
-          "fileName": "whisper-small-tokens.txt",
+          "fileName": "prism-voice-detector-lite-tokens.txt",
           "sizeBytes": 816730,
-          "sha256": "b34b360dbb493e781e479794586d661700670d65564001f23024971d1f2fa126"
+          "sha256": "b34b360dbb493e781e479794586d661700670d65564001f23024971d1f2fa126",
+          "oldFileNames": [
+            "whisper-small-tokens.txt"
+          ]
         },
         {
           "role": "vad",
           "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx",
-          "fileName": "silero_vad.onnx",
+          "fileName": "prism-voice-activity.onnx",
           "sizeBytes": 643854,
-          "sha256": "9e2449e1087496d8d4caba907f23e0bd3f78d91fa552479bb9c23ac09cbb1fd6"
+          "sha256": "9e2449e1087496d8d4caba907f23e0bd3f78d91fa552479bb9c23ac09cbb1fd6",
+          "oldFileNames": [
+            "silero_vad.onnx"
+          ]
         }
       ],
       "speech": {
@@ -311,19 +365,22 @@
           "ja",
           "ko"
         ]
-      }
+      },
+      "oldFileNames": [
+        "whisper-small-encoder.int8.onnx"
+      ]
     },
     {
       "id": "whisper-turbo-int8",
-      "name": "Whisper Turbo",
+      "name": "Prism Voice Detector",
       "family": "Whisper",
       "parameters": "809M",
       "quantization": "INT8",
       "description": {
-        "ru": "Самое точное распознавание речи на многих языках (large-v3-turbo). Для компьютера: около 1 ГБ, нужна мощная машина."
+        "ru": "Самое точное распознавание речи на многих языках. Для компьютера: около 1 ГБ, нужна мощная машина."
       },
       "url": "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-turbo/resolve/main/turbo-encoder.int8.onnx",
-      "fileName": "whisper-turbo-encoder.int8.onnx",
+      "fileName": "prism-voice-detector-encoder.int8.onnx",
       "sizeBytes": 674716297,
       "sha256": "b02dcdf54f348741e93fe732b67d933c8dcb6735655f710640143081db38878b",
       "minRamMb": 8192,
@@ -341,23 +398,32 @@
         {
           "role": "decoder",
           "url": "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-turbo/resolve/main/turbo-decoder.int8.onnx",
-          "fileName": "whisper-turbo-decoder.int8.onnx",
+          "fileName": "prism-voice-detector-decoder.int8.onnx",
           "sizeBytes": 361080764,
-          "sha256": "20accd02388482eb3a46bd615631adfdc85e1eb2c7db9ea3f02a40ffe6b81547"
+          "sha256": "20accd02388482eb3a46bd615631adfdc85e1eb2c7db9ea3f02a40ffe6b81547",
+          "oldFileNames": [
+            "whisper-turbo-decoder.int8.onnx"
+          ]
         },
         {
           "role": "tokens",
           "url": "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-turbo/resolve/main/turbo-tokens.txt",
-          "fileName": "whisper-turbo-tokens.txt",
+          "fileName": "prism-voice-detector-tokens.txt",
           "sizeBytes": 816730,
-          "sha256": "b34b360dbb493e781e479794586d661700670d65564001f23024971d1f2fa126"
+          "sha256": "b34b360dbb493e781e479794586d661700670d65564001f23024971d1f2fa126",
+          "oldFileNames": [
+            "whisper-turbo-tokens.txt"
+          ]
         },
         {
           "role": "vad",
           "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx",
-          "fileName": "silero_vad.onnx",
+          "fileName": "prism-voice-activity.onnx",
           "sizeBytes": 643854,
-          "sha256": "9e2449e1087496d8d4caba907f23e0bd3f78d91fa552479bb9c23ac09cbb1fd6"
+          "sha256": "9e2449e1087496d8d4caba907f23e0bd3f78d91fa552479bb9c23ac09cbb1fd6",
+          "oldFileNames": [
+            "silero_vad.onnx"
+          ]
         }
       ],
       "speech": {
@@ -378,19 +444,22 @@
           "ja",
           "ko"
         ]
-      }
+      },
+      "oldFileNames": [
+        "whisper-turbo-encoder.int8.onnx"
+      ]
     },
     {
       "id": "supertonic-3-int8",
-      "name": "Supertonic 3",
+      "name": "Prism Voice 1.5",
       "family": "Supertonic",
       "parameters": "140M",
       "quantization": "INT8",
       "description": {
-        "ru": "Естественный голос для озвучки ответов: правильнее ставит ударения и читает английские слова, чем Piper. 10 голосов (5 женских и 5 мужских) — выбор в «Настройки → Голос». Говорит на 31 языке, работает на устройстве."
+        "ru": "Естественный голос для озвучки ответов: правильно ставит ударения и читает английские слова. 10 голосов (5 женских и 5 мужских) — выбор в «Настройки → Голос». Говорит на 31 языке, работает на устройстве."
       },
       "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/sherpa-onnx-supertonic-3-tts-int8-2026-05-11.tar.bz2",
-      "fileName": "sherpa-onnx-supertonic-3-tts-int8-2026-05-11.tar.bz2",
+      "fileName": "prism-voice-1.5.tar.bz2",
       "sizeBytes": 128774318,
       "sha256": "82fa96f91c4ef8abaae3a14a3f4153facf88bed821d1f7331cec2700f432c427",
       "minRamMb": 2048,
@@ -436,101 +505,14 @@
         ],
         "steps": 5,
         "speed": 1.05
-      }
-    },
-    {
-      "id": "piper-ru-dmitri-medium",
-      "name": "Голос «Дмитрий»",
-      "family": "Piper",
-      "parameters": "15M",
-      "quantization": "FP32",
-      "description": {
-        "ru": "Лёгкий мужской голос (Piper) для слабых телефонов: говорит мгновенно, но хуже ставит ударения, чем Supertonic 3."
       },
-      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-ru_RU-dmitri-medium.tar.bz2",
-      "fileName": "vits-piper-ru_RU-dmitri-medium.tar.bz2",
-      "sizeBytes": 67188551,
-      "sha256": "c86d0803737de13d441923ff3b3f309482fab8d7af3ec85949942809eb9a3660",
-      "minRamMb": 1024,
-      "license": {
-        "name": "MIT; запись голоса — CC0",
-        "url": "https://huggingface.co/rhasspy/piper-voices/blob/main/ru/ru_RU/dmitri/medium/MODEL_CARD"
-      },
-      "recommendedFor": [],
-      "kind": "speech_synthesis",
-      "mainRole": "voice",
-      "archive": true,
-      "speech": {
-        "engine": "piper",
-        "language": "ru",
-        "languages": [
-          "ru"
-        ]
-      }
-    },
-    {
-      "id": "piper-ru-denis-medium",
-      "name": "Голос «Денис»",
-      "family": "Piper",
-      "parameters": "15M",
-      "quantization": "FP32",
-      "description": {
-        "ru": "Другой мужской голос для озвучки по-русски (Piper) — выберите тот, что нравится больше, в «Настройки → Голос»."
-      },
-      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-ru_RU-denis-medium.tar.bz2",
-      "fileName": "vits-piper-ru_RU-denis-medium.tar.bz2",
-      "sizeBytes": 67190991,
-      "sha256": "efa4c18e0b5e32b81d1b6df36b9d312831e5d545200e27848ef926a4cd930300",
-      "minRamMb": 1024,
-      "license": {
-        "name": "MIT; запись голоса — CC0",
-        "url": "https://huggingface.co/rhasspy/piper-voices/blob/main/ru/ru_RU/denis/medium/MODEL_CARD"
-      },
-      "recommendedFor": [],
-      "kind": "speech_synthesis",
-      "mainRole": "voice",
-      "archive": true,
-      "speech": {
-        "engine": "piper",
-        "language": "ru",
-        "languages": [
-          "ru"
-        ]
-      }
-    },
-    {
-      "id": "piper-ru-irina-medium",
-      "name": "Голос «Ирина»",
-      "family": "Piper",
-      "parameters": "15M",
-      "quantization": "FP32",
-      "description": {
-        "ru": "Женский голос для озвучки ответов по-русски (Piper). Обучен на записях проекта RHVoice: их лицензия не указана, поэтому голос — для личного использования."
-      },
-      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-ru_RU-irina-medium.tar.bz2",
-      "fileName": "vits-piper-ru_RU-irina-medium.tar.bz2",
-      "sizeBytes": 67153308,
-      "sha256": "1fc0f54e5e084fe287c07909f2f6e0ba6d857864cf800e3ab80286a4e8233008",
-      "minRamMb": 1024,
-      "license": {
-        "name": "MIT; записи RHVoice — лицензия не указана",
-        "url": "https://huggingface.co/rhasspy/piper-voices/blob/main/ru/ru_RU/irina/medium/MODEL_CARD"
-      },
-      "recommendedFor": [],
-      "kind": "speech_synthesis",
-      "mainRole": "voice",
-      "archive": true,
-      "speech": {
-        "engine": "piper",
-        "language": "ru",
-        "languages": [
-          "ru"
-        ]
-      }
+      "oldFileNames": [
+        "sherpa-onnx-supertonic-3-tts-int8-2026-05-11.tar.bz2"
+      ]
     },
     {
       "id": "flux1-schnell-q4_0",
-      "name": "FLUX.1 [schnell]",
+      "name": "Prism Image 0.5",
       "family": "FLUX.1",
       "parameters": "12B",
       "quantization": "Q4_0",
@@ -538,7 +520,7 @@
         "ru": "Рисует подробные изображения по описанию за 4 шага. Для компьютера с 16 ГБ памяти; с видеокартой — в разы быстрее."
       },
       "url": "https://huggingface.co/leejet/FLUX.1-schnell-gguf/resolve/main/flux1-schnell-q4_0.gguf",
-      "fileName": "flux1-schnell-q4_0.gguf",
+      "fileName": "prism-image-0.5-q4_0.gguf",
       "sizeBytes": 6884606880,
       "sha256": "4f30741d2bfc786c92934ce925fcb0a43df3441e76504b797c3d5d5f0878fa6f",
       "minRamMb": 16384,
@@ -558,23 +540,32 @@
         {
           "role": "t5xxl",
           "url": "https://huggingface.co/second-state/FLUX.1-schnell-GGUF/resolve/main/t5xxl-Q4_0.gguf",
-          "fileName": "t5xxl-Q4_0.gguf",
+          "fileName": "prism-image-0.5-t5xxl-q4_0.gguf",
           "sizeBytes": 2752841312,
-          "sha256": "098daa07ac5a926ebf2814a8e02ef1221eee53b8268db0d965ecb608603682de"
+          "sha256": "098daa07ac5a926ebf2814a8e02ef1221eee53b8268db0d965ecb608603682de",
+          "oldFileNames": [
+            "t5xxl-Q4_0.gguf"
+          ]
         },
         {
           "role": "clip_l",
           "url": "https://huggingface.co/second-state/FLUX.1-schnell-GGUF/resolve/main/clip_l-Q8_0.gguf",
-          "fileName": "clip_l-Q8_0.gguf",
+          "fileName": "prism-image-0.5-clip_l-q8_0.gguf",
           "sizeBytes": 130769600,
-          "sha256": "59cbe002c3e75d2b89d38787e81d12fb4e512fd76176884c470737ad87a1d309"
+          "sha256": "59cbe002c3e75d2b89d38787e81d12fb4e512fd76176884c470737ad87a1d309",
+          "oldFileNames": [
+            "clip_l-Q8_0.gguf"
+          ]
         },
         {
           "role": "vae",
           "url": "https://huggingface.co/second-state/FLUX.1-schnell-GGUF/resolve/main/ae.safetensors",
-          "fileName": "flux-ae.safetensors",
+          "fileName": "prism-image-0.5-vae.safetensors",
           "sizeBytes": 335304388,
-          "sha256": "afc8e28272cd15db3919bacdb6918ce9c1ed22e96cb12c4d5ed0fba823529e38"
+          "sha256": "afc8e28272cd15db3919bacdb6918ce9c1ed22e96cb12c4d5ed0fba823529e38",
+          "oldFileNames": [
+            "flux-ae.safetensors"
+          ]
         }
       ],
       "image": {
@@ -584,11 +575,14 @@
         "cfg": 1.0,
         "guidance": 3.5,
         "sampler": "euler"
-      }
+      },
+      "oldFileNames": [
+        "flux1-schnell-q4_0.gguf"
+      ]
     },
     {
       "id": "sdxl-lightning-4step-q4_0",
-      "name": "SDXL-Lightning",
+      "name": "Prism Image 0.5 Lite",
       "family": "SDXL",
       "parameters": "3.5B",
       "quantization": "Q4_0",
@@ -596,7 +590,7 @@
         "ru": "Быстрая модель рисования для телефона: картинка за 4 шага прямо на устройстве. Нужно 8 ГБ памяти."
       },
       "url": "https://huggingface.co/mzwing/SDXL-Lightning-GGUF/resolve/main/sdxl_lightning_4step.q4_0.gguf",
-      "fileName": "sdxl_lightning_4step.q4_0.gguf",
+      "fileName": "prism-image-0.5-lite-q4_0.gguf",
       "sizeBytes": 2584858432,
       "sha256": "33cc25b6f5dd121ecf3ad28e35eb38cb21427b7794c53527ceafe2dc3b109f4f",
       "minRamMb": 8192,
@@ -616,9 +610,12 @@
         {
           "role": "taesd",
           "url": "https://huggingface.co/madebyollin/taesdxl/resolve/main/diffusion_pytorch_model.safetensors",
-          "fileName": "taesdxl.safetensors",
+          "fileName": "prism-image-0.5-lite-taesd.safetensors",
           "sizeBytes": 9793292,
-          "sha256": "ff4824aca94dd6111e0340fa749347fb74101060d9712cb5ef1ca8f1cf17502f"
+          "sha256": "ff4824aca94dd6111e0340fa749347fb74101060d9712cb5ef1ca8f1cf17502f",
+          "oldFileNames": [
+            "taesdxl.safetensors"
+          ]
         }
       ],
       "image": {
@@ -630,11 +627,14 @@
         "scheduler": "sgm_uniform",
         "vaeTiling": true,
         "mmap": true
-      }
+      },
+      "oldFileNames": [
+        "sdxl_lightning_4step.q4_0.gguf"
+      ]
     },
     {
       "id": "wan2.2-ti2v-5b-q4_0",
-      "name": "Wan 2.2 TI2V 5B",
+      "name": "Prism Video 0.5 Lite (PC)",
       "family": "Wan 2.2",
       "parameters": "5B",
       "quantization": "Q4_0",
@@ -642,7 +642,7 @@
         "ru": "Видео по описанию и оживление фото: 2 секунды 832×480 (24 кадра в секунду). Нужна видеокарта с 8–12 ГБ памяти; ролик создаётся несколько минут."
       },
       "url": "https://huggingface.co/QuantStack/Wan2.2-TI2V-5B-GGUF/resolve/main/Wan2.2-TI2V-5B-Q4_0.gguf",
-      "fileName": "Wan2.2-TI2V-5B-Q4_0.gguf",
+      "fileName": "prism-video-0.5-q4_0.gguf",
       "sizeBytes": 3029086560,
       "sha256": "fcf40dd62cb5e15556eef5f975700ab0b071aacd1939607689276e88f81ba463",
       "minRamMb": 16384,
@@ -662,16 +662,22 @@
         {
           "role": "t5xxl",
           "url": "https://huggingface.co/city96/umt5-xxl-encoder-gguf/resolve/main/umt5-xxl-encoder-Q4_K_M.gguf",
-          "fileName": "umt5-xxl-encoder-Q4_K_M.gguf",
+          "fileName": "prism-video-0.5-umt5-q4_k_m.gguf",
           "sizeBytes": 3655145312,
-          "sha256": "17cf97a5bbbc60a646d6105b832b6f657ce904a8a1ad970e4b59df0c67584a40"
+          "sha256": "17cf97a5bbbc60a646d6105b832b6f657ce904a8a1ad970e4b59df0c67584a40",
+          "oldFileNames": [
+            "umt5-xxl-encoder-Q4_K_M.gguf"
+          ]
         },
         {
           "role": "vae",
           "url": "https://huggingface.co/QuantStack/Wan2.2-TI2V-5B-GGUF/resolve/main/VAE/Wan2.2_VAE.safetensors",
-          "fileName": "Wan2.2_VAE.safetensors",
+          "fileName": "prism-video-0.5-vae.safetensors",
           "sizeBytes": 1409400960,
-          "sha256": "e40321bd36b9709991dae2530eb4ac303dd168276980d3e9bc4b6e2b75fed156"
+          "sha256": "e40321bd36b9709991dae2530eb4ac303dd168276980d3e9bc4b6e2b75fed156",
+          "oldFileNames": [
+            "Wan2.2_VAE.safetensors"
+          ]
         }
       ],
       "video": {
@@ -697,11 +703,14 @@
           10,
           15
         ]
-      }
+      },
+      "oldFileNames": [
+        "Wan2.2-TI2V-5B-Q4_0.gguf"
+      ]
     },
     {
       "id": "wan2.2-ti2v-5b-q4_0-phone",
-      "name": "Wan 2.2 TI2V 5B",
+      "name": "Prism Video 0.5 Super Lite (Mobile)",
       "family": "Wan 2.2",
       "parameters": "5B",
       "quantization": "Q4_0",
@@ -709,7 +718,7 @@
         "ru": "Экспериментально, для телефонов с 16 ГБ памяти: видео 512×288 по описанию и оживление фото, ролики длиннее секунды — продолжением от последнего кадра. Очень медленно: десятки минут на секунду видео."
       },
       "url": "https://huggingface.co/QuantStack/Wan2.2-TI2V-5B-GGUF/resolve/main/Wan2.2-TI2V-5B-Q4_0.gguf",
-      "fileName": "Wan2.2-TI2V-5B-Q4_0.gguf",
+      "fileName": "prism-video-0.5-q4_0.gguf",
       "sizeBytes": 3029086560,
       "sha256": "fcf40dd62cb5e15556eef5f975700ab0b071aacd1939607689276e88f81ba463",
       "minRamMb": 16384,
@@ -727,16 +736,22 @@
         {
           "role": "t5xxl",
           "url": "https://huggingface.co/city96/umt5-xxl-encoder-gguf/resolve/main/umt5-xxl-encoder-Q4_K_M.gguf",
-          "fileName": "umt5-xxl-encoder-Q4_K_M.gguf",
+          "fileName": "prism-video-0.5-umt5-q4_k_m.gguf",
           "sizeBytes": 3655145312,
-          "sha256": "17cf97a5bbbc60a646d6105b832b6f657ce904a8a1ad970e4b59df0c67584a40"
+          "sha256": "17cf97a5bbbc60a646d6105b832b6f657ce904a8a1ad970e4b59df0c67584a40",
+          "oldFileNames": [
+            "umt5-xxl-encoder-Q4_K_M.gguf"
+          ]
         },
         {
           "role": "vae",
           "url": "https://huggingface.co/QuantStack/Wan2.2-TI2V-5B-GGUF/resolve/main/VAE/Wan2.2_VAE.safetensors",
-          "fileName": "Wan2.2_VAE.safetensors",
+          "fileName": "prism-video-0.5-vae.safetensors",
           "sizeBytes": 1409400960,
-          "sha256": "e40321bd36b9709991dae2530eb4ac303dd168276980d3e9bc4b6e2b75fed156"
+          "sha256": "e40321bd36b9709991dae2530eb4ac303dd168276980d3e9bc4b6e2b75fed156",
+          "oldFileNames": [
+            "Wan2.2_VAE.safetensors"
+          ]
         }
       ],
       "video": {
@@ -761,19 +776,22 @@
           3,
           5
         ]
-      }
+      },
+      "oldFileNames": [
+        "Wan2.2-TI2V-5B-Q4_0.gguf"
+      ]
     },
     {
       "id": "ltx-2.5-22b-distilled-ud-q4_k_xl",
-      "name": "LTX-2.5",
+      "name": "Prism Video 1 Pro",
       "family": "LTX-2.5",
       "parameters": "22B",
       "quantization": "UD-Q4_K_XL",
       "description": {
-        "ru": "Видео со звуком по описанию или из фото (Lightricks): до 5 секунд за раз, до 30 секунд — продолжением. Для мощных компьютеров: около 42 ГБ файлов, 32 ГБ оперативной памяти и видеокарта от 12–16 ГБ; каждые 5 секунд ролика создаются несколько минут."
+        "ru": "Видео со звуком по описанию или из фото: до 5 секунд за раз, до 30 секунд — продолжением. Для мощных компьютеров: около 42 ГБ файлов, 32 ГБ оперативной памяти и видеокарта от 12–16 ГБ; каждые 5 секунд ролика создаются несколько минут."
       },
       "url": "https://huggingface.co/unsloth/LTX-2.5-GGUF/resolve/main/distilled/ltx-2.5-22b-distilled-UD-Q4_K_XL.gguf",
-      "fileName": "ltx-2.5-22b-distilled-UD-Q4_K_XL.gguf",
+      "fileName": "prism-video-1-pro-q4_k_xl.gguf",
       "sizeBytes": 14000234880,
       "sha256": "55442750eb0013d94fffaa4dadb577c5f4dc07107ec04389d41444f6e517d980",
       "minRamMb": 32768,
@@ -791,23 +809,32 @@
         {
           "role": "llm",
           "url": "https://huggingface.co/unsloth/LTX-2.5-GGUF/resolve/main/text_encoders/gemma4-12b-with-proj-ltx-2.5-bf16.safetensors",
-          "fileName": "gemma4-12b-with-proj-ltx-2.5-bf16.safetensors",
+          "fileName": "prism-video-1-pro-text-encoder-bf16.safetensors",
           "sizeBytes": 26263858182,
-          "sha256": "ef7243612fdae7a75cb4d5cee9433e81380675fb6c213bd98ae74a9cd16561d1"
+          "sha256": "ef7243612fdae7a75cb4d5cee9433e81380675fb6c213bd98ae74a9cd16561d1",
+          "oldFileNames": [
+            "gemma4-12b-with-proj-ltx-2.5-bf16.safetensors"
+          ]
         },
         {
           "role": "vae",
           "url": "https://huggingface.co/unsloth/LTX-2.5-GGUF/resolve/main/vae/ltx-2.5-video-vae-conv-bf16.safetensors",
-          "fileName": "ltx-2.5-video-vae-conv-bf16.safetensors",
+          "fileName": "prism-video-1-pro-vae-bf16.safetensors",
           "sizeBytes": 1452269922,
-          "sha256": "685b06ee3d9b2039647698fc4ea33175112462fc374e2777312c907897dfce8d"
+          "sha256": "685b06ee3d9b2039647698fc4ea33175112462fc374e2777312c907897dfce8d",
+          "oldFileNames": [
+            "ltx-2.5-video-vae-conv-bf16.safetensors"
+          ]
         },
         {
           "role": "audio_vae",
           "url": "https://huggingface.co/unsloth/LTX-2.5-GGUF/resolve/main/vae/ltx-2.5-audio-vae-bf16.safetensors",
-          "fileName": "ltx-2.5-audio-vae-bf16.safetensors",
+          "fileName": "prism-video-1-pro-audio-vae-bf16.safetensors",
           "sizeBytes": 364866540,
-          "sha256": "c52733d37f6a7fb7949c3dc0fb468c6cb2169e4d836983a73babb9f0d54837a5"
+          "sha256": "c52733d37f6a7fb7949c3dc0fb468c6cb2169e4d836983a73babb9f0d54837a5",
+          "oldFileNames": [
+            "ltx-2.5-audio-vae-bf16.safetensors"
+          ]
         }
       ],
       "video": {
@@ -836,11 +863,14 @@
           30
         ],
         "audio": true
-      }
+      },
+      "oldFileNames": [
+        "ltx-2.5-22b-distilled-UD-Q4_K_XL.gguf"
+      ]
     },
     {
       "id": "wan2.1-t2v-1.3b-q4_k_m",
-      "name": "Wan 2.1 1.3B",
+      "name": "Prism Video Beta (only mobile, very old model)",
       "family": "Wan 2.1",
       "parameters": "1.3B",
       "quantization": "Q4_K_M",
@@ -848,7 +878,7 @@
         "ru": "Экспериментально: короткое видео по описанию прямо на телефоне — около секунды 512×288. Только для флагманов с 12 ГБ памяти и больше; ролик создаётся несколько минут, телефон нагревается."
       },
       "url": "https://huggingface.co/samuelchristlie/Wan2.1-T2V-1.3B-GGUF/resolve/main/Wan2.1-T2V-1.3B-Q4_K_M.gguf",
-      "fileName": "Wan2.1-T2V-1.3B-Q4_K_M.gguf",
+      "fileName": "prism-video-beta-q4_k_m.gguf",
       "sizeBytes": 982716640,
       "sha256": "1e22a68152e6c4432524c61c78185efa35e6b305483ceb5fe238b2d51964cea7",
       "minRamMb": 12288,
@@ -868,16 +898,22 @@
         {
           "role": "t5xxl",
           "url": "https://huggingface.co/city96/umt5-xxl-encoder-gguf/resolve/main/umt5-xxl-encoder-Q3_K_S.gguf",
-          "fileName": "umt5-xxl-encoder-Q3_K_S.gguf",
+          "fileName": "prism-video-beta-umt5-q3_k_s.gguf",
           "sizeBytes": 2858489696,
-          "sha256": "f64f8d6dc4d8a24276df69d0ccea789aae686f7417950a41e6568c30cb478a5c"
+          "sha256": "f64f8d6dc4d8a24276df69d0ccea789aae686f7417950a41e6568c30cb478a5c",
+          "oldFileNames": [
+            "umt5-xxl-encoder-Q3_K_S.gguf"
+          ]
         },
         {
           "role": "vae",
           "url": "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/vae/wan_2.1_vae.safetensors",
-          "fileName": "wan_2.1_vae.safetensors",
+          "fileName": "prism-video-beta-vae.safetensors",
           "sizeBytes": 253815318,
-          "sha256": "2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b"
+          "sha256": "2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b",
+          "oldFileNames": [
+            "wan_2.1_vae.safetensors"
+          ]
         }
       ],
       "video": {
@@ -900,7 +936,10 @@
           1,
           2
         ]
-      }
+      },
+      "oldFileNames": [
+        "Wan2.1-T2V-1.3B-Q4_K_M.gguf"
+      ]
     }
   ]
 }

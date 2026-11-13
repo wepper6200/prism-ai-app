@@ -34,6 +34,9 @@ class DefaultSettingsRepositoryTest {
             setDynamicColor(false)
             setSafeMode(true)
             setTextEncoderMode(TextEncoderMode.Q4)
+            setContextLength(32_768)
+            setAgentSteps(0)
+            setFolderDepth(20)
         }
 
         val restarted = DefaultSettingsRepository(store)
@@ -45,6 +48,9 @@ class DefaultSettingsRepositoryTest {
                 dynamicColor = false,
                 safeMode = true,
                 textEncoderMode = TextEncoderMode.Q4,
+                contextLength = 32_768,
+                agentSteps = 0,
+                folderDepth = 20,
             ),
             restarted.settings.value,
         )

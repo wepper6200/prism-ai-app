@@ -31,7 +31,6 @@ import ai.prism.resources.models_recognizes_speech
 import ai.prism.resources.models_speaks
 import ai.prism.resources.models_with_audio
 import ai.prism.resources.models_details_speech
-import ai.prism.resources.models_license
 import ai.prism.resources.models_low_ram
 import ai.prism.resources.models_pause
 import ai.prism.resources.models_paused
@@ -54,7 +53,6 @@ import ai.prism.ui.components.formatContext
 import ai.prism.ui.components.formatPercent
 import ai.prism.ui.components.message
 import androidx.compose.animation.animateContentSize
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -95,9 +93,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.stringResource
 
@@ -234,7 +230,6 @@ private fun ModelCard(
     modifier: Modifier = Modifier,
 ) {
     val model = entry.model
-    val uriHandler = LocalUriHandler.current
     PrismPanel(modifier.animateContentSize().testTag("model_${model.id}"), shape = MaterialTheme.shapes.large) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -301,12 +296,6 @@ private fun ModelCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             model.description["ru"]?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
-            Text(
-                text = stringResource(Res.string.models_license, model.license.name),
-                style = MaterialTheme.typography.bodySmall.copy(textDecoration = TextDecoration.Underline),
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.clickable { uriHandler.openUri(model.license.url) },
-            )
             if (!entry.fitsInMemory) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
