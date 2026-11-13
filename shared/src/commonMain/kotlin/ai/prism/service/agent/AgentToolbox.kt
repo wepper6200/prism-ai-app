@@ -138,6 +138,8 @@ class AgentToolbox(
                         control.scroll(screenX, screenY, amount)
                     }
                 }
+                // Инструменты MCP вызываются по своим именам (выше); «mcp» модели не показывается.
+                AgentTool.MCP -> ToolOutcome("error: call an MCP tool by its own name", null)
             }
         } catch (e: MissingArgument) {
             ToolOutcome("error: missing argument <${e.name}>", AgentStep(tool, call.args.values.firstOrNull().orEmpty(), e.message.orEmpty(), AgentStepStatus.FAILED))

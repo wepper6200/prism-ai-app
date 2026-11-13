@@ -1,5 +1,5 @@
 {
-  "version": 10,
+  "version": 11,
   "models": [
     {
       "id": "gemma-4-e2b-it-q4_0",
@@ -158,6 +158,27 @@
       ],
       "oldFileNames": [
         "Qwen3.8-27B-Q4_K_M.gguf"
+      ]
+    },
+    {
+      "id": "qwen3-coder-30b-a3b-q4_k_m",
+      "name": "Prism 1.5 Onyx",
+      "family": "Qwen3-Coder",
+      "parameters": "30B A3B",
+      "quantization": "Q4_K_M",
+      "description": {
+        "ru": "Модель для кода и работы агентом на компьютере: пишет и правит программы, работает с файлами проекта и командами. Отвечает быстро — на каждое слово работает лишь малая часть модели. Нужны 32 ГБ памяти; с видеокартой от 24 ГБ ещё быстрее. Изображения не понимает."
+      },
+      "url": "https://huggingface.co/ggml-org/Qwen3-Coder-30B-A3B-Instruct-GGUF/resolve/main/Qwen3-Coder-30B-A3B-Instruct-Q4_K_M.gguf",
+      "fileName": "prism-1.5-onyx-q4_k_m.gguf",
+      "sizeBytes": 17988419552,
+      "sha256": "f6050b4da22869aa3fb9d94bb3314e9fc5a027d4741c1f97761c387d6b2b2335",
+      "contextLength": 32768,
+      "minRamMb": 32768,
+      "chatFormat": "chatml",
+      "recommendedFor": [],
+      "platforms": [
+        "desktop"
       ]
     },
     {
