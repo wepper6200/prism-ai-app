@@ -24,7 +24,7 @@ import ai.prism.resources.agent_step_search_files
 import ai.prism.resources.agent_step_web_search
 import ai.prism.resources.agent_step_write_file
 import ai.prism.resources.chat_internet
-import ai.prism.resources.chat_thinking
+import ai.prism.resources.chat_thinking_level
 import ai.prism.resources.thinking_high
 import ai.prism.resources.thinking_low
 import ai.prism.resources.thinking_medium
@@ -248,7 +248,7 @@ private fun ThinkingChip(level: ThinkingLevel, onSelect: (ThinkingLevel) -> Unit
         FilterChip(
             selected = level != ThinkingLevel.OFF,
             onClick = { open = true },
-            label = { Text(stringResource(Res.string.chat_thinking, thinkingName(level))) },
+            label = { Text(stringResource(Res.string.chat_thinking_level, thinkingName(level))) },
             leadingIcon = { Icon(Icons.Outlined.Psychology, contentDescription = null, modifier = Modifier.size(18.dp)) },
             modifier = Modifier.testTag("thinking_chip"),
         )

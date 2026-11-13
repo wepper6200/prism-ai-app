@@ -196,7 +196,7 @@
     <string name="chat_workspace_change">Сменить папку проекта</string>
     <string name="chat_workspace_remove">Убрать папку проекта</string>
     <string name="chat_internet">Интернет</string>
-    <string name="chat_thinking">Размышления: %1$s</string>
+    <string name="chat_thinking_level">Размышления: %1$s</string>
     <string name="error_image_generation_failed">Не удалось нарисовать изображение. Попробуйте ещё раз или измените описание.</string>
     <string name="error_gpu_driver_missing">Для рисования нужен драйвер видеокарты с поддержкой Vulkan. Установите драйвер NVIDIA, AMD или Intel.</string>
     <string name="error_blocked_by_safe_mode">Безопасный режим: такой запрос Prism AI не выполняет. Режим можно выключить в «Настройках».</string>
