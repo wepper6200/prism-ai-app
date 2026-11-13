@@ -505,6 +505,9 @@ jobs:
             echo "Release v$version already exists: raise prism-versionName first"; exit 1
           fi
           echo "VERSION=$version" >> "$GITHUB_ENV"
+          # Пометка выпуска в заголовке (например, «открытая бета») — первая строка .github/release-label.txt.
+          label=$(head -n 1 .github/release-label.txt 2>/dev/null | tr -d '\r')
+          echo "TITLE=Prism AI $version${label:+ — $label}" >> "$GITHUB_ENV"
       - uses: actions/download-artifact@v7
         with:
           name: PrismAI-android-apk
@@ -538,6 +541,22 @@ jobs:
         with:
           tag_name: v${{ env.VERSION }}
           target_commitish: ${{ github.sha }}
-          name: Prism AI ${{ env.VERSION }}
+          name: ${{ env.TITLE }}
           body_path: .github/release-notes.md
           files: dist/*
+      # Коммит со словом [hide-old-releases]: после публикации все прежние релизы становятся черновиками —
+      # их видят только владельцы репозитория. Обновление из приложения и Prism Store берут новый релиз.
+      - name: Hide older releases
+        if: contains(github.event.head_commit.message, '[hide-old-releases]')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release list --repo "$GITHUB_REPOSITORY" --limit 200 --json tagName,isDraft \
+            --jq '.[] | select(.isDraft | not) | .tagName' |
+          while read -r tag; do
+            if [ "$tag" != "v$VERSION" ]; then
+              echo "Hiding $tag"
+              gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --draft=true
+            fi
+          done

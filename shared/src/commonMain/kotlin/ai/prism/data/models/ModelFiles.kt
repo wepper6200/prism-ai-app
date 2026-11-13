@@ -22,6 +22,12 @@ interface ModelStorage {
     fun delete(file: ModelFile)
 
     fun freeSpaceBytes(): Long
+
+    /**
+     * Файл, скачанный под прежним именем ([ModelFile.oldFileNames]), получает новое имя — вместе с незавершённой
+     * частью, распакованным архивом и сжатыми копиями. Модели не приходится качать заново после переименования.
+     */
+    fun adoptOldFiles(file: ModelFile) = Unit
 }
 
 /** Скачивание файла модели с докачкой и проверкой SHA-256. */

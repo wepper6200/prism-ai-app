@@ -75,6 +75,7 @@ class DefaultModelRepository(
                 emptyList()
             }
             catalogModels.value = list.filter { model -> platform == null || model.availableOn(platform) }
+            withContext(ioContext) { adoptOldFiles() }
             statuses.value = catalogModels.value.associate { it.id to initialStatus(it) }
             chatReady.value = catalogModels.value.filter { storage.isDownloaded(it.mainFile) }.map { it.id }.toSet()
         }
@@ -162,6 +163,7 @@ class DefaultModelRepository(
     }
 
     override fun refresh() {
+        adoptOldFiles()
         val busy = jobs.value.filterValues { it.isActive }.keys
         statuses.update { current ->
             catalogModels.value.associate { model ->
@@ -169,6 +171,11 @@ class DefaultModelRepository(
             }
         }
         chatReady.value = catalogModels.value.filter { storage.isDownloaded(it.mainFile) }.map { it.id }.toSet()
+    }
+
+    /** Модели, скачанные под прежними именами файлов, получают новые имена. */
+    private fun adoptOldFiles() {
+        catalogModels.value.flatMap { it.files }.distinctBy { it.fileName }.forEach(storage::adoptOldFiles)
     }
 
     override fun catalogModel(modelId: String): CatalogModel? =

@@ -30,6 +30,8 @@ data class ModelLicense(
 /**
  * Один скачиваемый файл модели: адрес, имя на устройстве, размер и SHA-256 (проверяются при загрузке).
  * [archive] — архив `tar.bz2`: после загрузки он распаковывается в папку рядом (голоса Piper).
+ * [oldFileNames] — прежние имена файла на устройстве: скачанный под таким именем файл переименовывается,
+ * а не качается заново.
  */
 @Serializable
 data class ModelFile(
@@ -38,6 +40,7 @@ data class ModelFile(
     val sizeBytes: Long,
     val sha256: String,
     val archive: Boolean = false,
+    val oldFileNames: List<String> = emptyList(),
 )
 
 /** Что делает модель. */
@@ -172,8 +175,10 @@ data class ModelComponent(
     val sizeBytes: Long,
     val sha256: String,
     val archive: Boolean = false,
+    /** Прежние имена файла на устройстве (см. [ModelFile.oldFileNames]). */
+    val oldFileNames: List<String> = emptyList(),
 ) {
-    val file: ModelFile get() = ModelFile(url, fileName, sizeBytes, sha256, archive)
+    val file: ModelFile get() = ModelFile(url, fileName, sizeBytes, sha256, archive, oldFileNames)
 }
 
 /** Параметры генерации по умолчанию для модели изображений. */
@@ -239,9 +244,11 @@ data class CatalogModel(
     val speech: SpeechModelSettings? = null,
     /** Основной файл — архив `tar.bz2` (голоса Piper). */
     val archive: Boolean = false,
+    /** Прежние имена основного файла на устройстве (см. [ModelFile.oldFileNames]). */
+    val oldFileNames: List<String> = emptyList(),
 ) {
     /** Основной файл с весами модели. */
-    val mainFile: ModelFile get() = ModelFile(url, fileName, sizeBytes, sha256, archive)
+    val mainFile: ModelFile get() = ModelFile(url, fileName, sizeBytes, sha256, archive, oldFileNames)
 
     /** Все файлы модели в порядке загрузки. */
     val files: List<ModelFile> get() = listOfNotNull(mainFile, vision) + components.map { it.file }

@@ -53,6 +53,24 @@ class FileModelStorage(initialDirectory: File) : ModelStorage {
         }?.toList().orEmpty()
     }
 
+    override fun adoptOldFiles(file: ModelFile) {
+        for (old in file.oldFileNames) {
+            if (old == file.fileName) continue
+            moveIfFree(File(directory, old), file(file))
+            moveIfFree(File(directory, old + PART_SUFFIX), partFile(file))
+            moveIfFree(File(directory, old + UNPACKED_SUFFIX), unpackedDir(file))
+            directory.listFiles { candidate ->
+                candidate.isFile && candidate.name.startsWith("$old.") &&
+                    (candidate.name.endsWith(DERIVED_SUFFIX) || candidate.name.endsWith(DERIVED_SUFFIX + PART_SUFFIX))
+            }?.forEach { derived -> moveIfFree(derived, File(directory, file.fileName + derived.name.removePrefix(old))) }
+        }
+    }
+
+    /** Переименовывает, только если на новом месте ничего нет: уже скачанный под новым именем файл не трогаем. */
+    private fun moveIfFree(from: File, to: File) {
+        if (from.exists() && !to.exists()) from.renameTo(to)
+    }
+
     override fun freeSpaceBytes(): Long {
         directory.mkdirs()
         return directory.usableSpace
