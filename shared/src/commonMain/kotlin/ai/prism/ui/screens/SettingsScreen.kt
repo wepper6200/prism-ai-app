@@ -67,6 +67,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Slider
 import kotlin.math.roundToInt
 import ai.prism.domain.model.TextEncoderMode
+import ai.prism.domain.model.ThinkingLevel
 import ai.prism.domain.model.ThemeStyle
 import ai.prism.presentation.settings.SettingsComponent
 import ai.prism.presentation.settings.SettingsIntent
@@ -96,6 +97,12 @@ import ai.prism.resources.settings_context
 import ai.prism.resources.settings_context_desc
 import ai.prism.resources.settings_folder_depth
 import ai.prism.resources.settings_unlimited
+import ai.prism.resources.settings_thinking
+import ai.prism.resources.settings_thinking_desc
+import ai.prism.resources.thinking_high
+import ai.prism.resources.thinking_low
+import ai.prism.resources.thinking_medium
+import ai.prism.resources.thinking_off
 import ai.prism.resources.settings_models
 import ai.prism.resources.settings_privacy
 import ai.prism.resources.settings_privacy_text
@@ -423,6 +430,23 @@ fun SettingsScreen(
 private fun AgentLimits(settings: AppSettings, onIntent: (SettingsIntent) -> Unit) {
     val auto = stringResource(Res.string.settings_by_model)
     val unlimited = stringResource(Res.string.settings_unlimited)
+    SectionLabel(stringResource(Res.string.settings_thinking))
+    Text(
+        text = stringResource(Res.string.settings_thinking_desc),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    val thinkingNames = mapOf(
+        ThinkingLevel.OFF to stringResource(Res.string.thinking_off),
+        ThinkingLevel.LOW to stringResource(Res.string.thinking_low),
+        ThinkingLevel.MEDIUM to stringResource(Res.string.thinking_medium),
+        ThinkingLevel.HIGH to stringResource(Res.string.thinking_high),
+    )
+    VoiceModelChoice(
+        options = ThinkingLevel.entries.map { VoiceModelOption(it.name, thinkingNames.getValue(it)) },
+        selectedId = settings.thinkingLevel.name,
+        onSelect = { onIntent(SettingsIntent.SetThinkingLevel(ThinkingLevel.valueOf(it))) },
+    )
     SectionLabel(stringResource(Res.string.settings_context))
     Text(
         text = stringResource(Res.string.settings_context_desc),

@@ -4,6 +4,7 @@ import ai.prism.domain.agent.AgentStepStatus
 import ai.prism.domain.agent.AgentTool
 import ai.prism.domain.model.MessageRole
 import ai.prism.domain.model.MessageStatus
+import ai.prism.domain.model.ThinkingLevel
 import ai.prism.testing.FakeInferenceEngine
 import ai.prism.testing.TestApp
 import kotlinx.coroutines.runBlocking
@@ -36,6 +37,18 @@ class AgentServiceTest {
         val request = checkNotNull(app.engine.lastRequest)
         assertFalse("Инструменты" in request.systemPrompt)
         assertEquals("Просто ответ.", app.chats.messagesSnapshot(chat.id).last().content)
+    }
+
+    @Test
+    fun thinkingLevelFromSettingsReachesTheEngine(): Unit = runBlocking {
+        val app = app("Ответ.")
+        app.settings.setThinkingLevel(ThinkingLevel.MEDIUM)
+        val chat = app.chats.createChat()
+
+        app.generation.send(chat.id, "Сколько будет 17×23?")
+
+        assertEquals(ThinkingLevel.MEDIUM.budgetTokens, app.engine.lastRequest?.thinkingBudget)
+        assertEquals("Ответ.", app.chats.messagesSnapshot(chat.id).last().content)
     }
 
     @Test

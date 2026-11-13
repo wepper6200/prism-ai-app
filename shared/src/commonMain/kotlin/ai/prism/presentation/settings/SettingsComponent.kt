@@ -10,6 +10,7 @@ import ai.prism.domain.model.ModelStatus
 import ai.prism.domain.model.PlatformCapabilities
 import ai.prism.domain.model.TextEncoderMode
 import ai.prism.domain.model.ThemeStyle
+import ai.prism.domain.model.ThinkingLevel
 import ai.prism.domain.repository.ModelRepository
 import ai.prism.domain.repository.SettingsRepository
 import ai.prism.domain.update.AppUpdater
@@ -86,6 +87,7 @@ sealed interface SettingsIntent {
     data class SetContextLength(val tokens: Int) : SettingsIntent
     data class SetAgentSteps(val steps: Int) : SettingsIntent
     data class SetFolderDepth(val depth: Int) : SettingsIntent
+    data class SetThinkingLevel(val level: ThinkingLevel) : SettingsIntent
     data object CheckForUpdates : SettingsIntent
     data object InstallUpdate : SettingsIntent
     data object CancelUpdate : SettingsIntent
@@ -189,6 +191,7 @@ class DefaultSettingsComponent(
             is SettingsIntent.SetContextLength -> settingsRepository.setContextLength(intent.tokens)
             is SettingsIntent.SetAgentSteps -> settingsRepository.setAgentSteps(intent.steps)
             is SettingsIntent.SetFolderDepth -> settingsRepository.setFolderDepth(intent.depth)
+            is SettingsIntent.SetThinkingLevel -> settingsRepository.setThinkingLevel(intent.level)
             SettingsIntent.CheckForUpdates -> updates.check()
             SettingsIntent.InstallUpdate -> updates.install()
             SettingsIntent.CancelUpdate -> updates.cancel()

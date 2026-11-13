@@ -50,6 +50,12 @@
     <string name="settings_safe_mode">Безопасный режим</string>
     <string name="settings_safe_mode_desc">Не рисовать и не описывать откровенный и жестокий контент. Проверка работает на устройстве и не даёт полной гарантии.</string>
     <string name="settings_assistant">Ассистент</string>
+    <string name="settings_thinking">Размышления</string>
+    <string name="settings_thinking_desc">Перед ответом модель рассуждает про себя: точнее в задачах, коде и логике, но отвечает дольше. Работает у Prism 1 Flash, Plus, Pro, Pro Max и Quadron.</string>
+    <string name="thinking_off">Выкл</string>
+    <string name="thinking_low">Быстро</string>
+    <string name="thinking_medium">Средне</string>
+    <string name="thinking_high">Глубоко</string>
     <string name="settings_context">Контекст (память диалога)</string>
     <string name="settings_context_desc">Сколько текста модель держит в голове: длинные диалоги, файлы, работа агентом. Больше контекста — больше памяти устройства; если её не хватит, модель загрузится с меньшим. Модель не возьмёт больше, чем умеет.</string>
     <string name="settings_agent_steps">Шагов агента в одном ответе</string>

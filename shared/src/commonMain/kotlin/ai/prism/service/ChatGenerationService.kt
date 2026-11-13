@@ -375,6 +375,7 @@ class ChatGenerationService(
                     messages = history,
                     primer = persona.primer,
                     reminder = persona.reminder,
+                    thinkingBudget = settings.settings.value.thinkingLevel.budgetTokens,
                 )
                 val toolbox = agentToolbox(chatId, reply.id)
                 if (toolbox == null) {

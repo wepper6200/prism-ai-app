@@ -12,10 +12,14 @@ interface ReplyFilter {
     /** Остаток после окончания генерации. */
     fun finish(): String
 
+    /** Модель сейчас рассуждает (текст скрыт): по этому считается бюджет рассуждений. */
+    val isThinking: Boolean get() = false
+
     companion object {
-        fun forFormat(format: ChatFormat): ReplyFilter = when (format) {
+        /** @param thinking промпт открыл рассуждение (Qwen начинает ответ внутри `<think>`). */
+        fun forFormat(format: ChatFormat, thinking: Boolean = false): ReplyFilter = when (format) {
             ChatFormat.GEMMA4 -> Gemma4ReplyFilter()
-            ChatFormat.QWEN -> ThinkReplyFilter()
+            ChatFormat.QWEN -> ThinkReplyFilter(startThinking = thinking)
             ChatFormat.GEMMA3, ChatFormat.RAW -> PassThrough
         }
     }
@@ -39,6 +43,8 @@ class Gemma4ReplyFilter(private val flushLimit: Int = 4000) : ReplyFilter {
     private enum class Mode { PREAMBLE, THOUGHT, ANSWER }
 
     private var mode = Mode.PREAMBLE
+
+    override val isThinking: Boolean get() = mode != Mode.ANSWER
     private val buffer = StringBuilder()
 
     override fun push(piece: String): String {
@@ -125,9 +131,11 @@ class Gemma4ReplyFilter(private val flushLimit: Int = 4000) : ReplyFilter {
  * Фильтр скрывает такие блоки (пока идут — интерфейс показывает «думает…»). Если ответ начался без `<think>`,
  * текст показывается сразу; незакрытое размышление к концу генерации не показывается.
  */
-class ThinkReplyFilter : ReplyFilter {
+class ThinkReplyFilter(startThinking: Boolean = false) : ReplyFilter {
 
-    private var thinking = false
+    private var thinking = startThinking
+
+    override val isThinking: Boolean get() = thinking
     private var started = false
     private val buffer = StringBuilder()
 

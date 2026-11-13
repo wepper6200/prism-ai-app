@@ -53,6 +53,8 @@ data class AppSettings(
     val agentSteps: Int = DEFAULT_AGENT_STEPS,
     /** На сколько уровней `list_files` раскрывает вложенные папки; 0 — без ограничения. */
     val folderDepth: Int = DEFAULT_FOLDER_DEPTH,
+    /** Размышления перед ответом (у моделей, которые это умеют). */
+    val thinkingLevel: ThinkingLevel = ThinkingLevel.OFF,
 ) {
     companion object {
         const val DEFAULT_AGENT_STEPS = 50

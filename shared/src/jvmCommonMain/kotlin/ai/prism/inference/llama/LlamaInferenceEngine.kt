@@ -80,19 +80,24 @@ class LlamaInferenceEngine(
                 val projector = if (dialog.any { it.images.isNotEmpty() }) ensureProjectorLocked(model) else 0L
                 val pixels = decodeImages(dialog.flatMap { it.images })
                 val contextSize = LlamaNative.contextSize(session)
-                val replyBudget = request.maxTokens.coerceAtMost(contextSize / 2)
-                val prompt = fitPrompt(session, projector, model.chatFormat, request, contextSize - replyBudget, pixels)
+                val close = ChatPromptFormatter.thinkingClose(model.chatFormat)
+                val thinking = request.thinkingBudget > 0 && close != null
+                val replyBudget = (request.maxTokens + if (thinking) request.thinkingBudget else 0).coerceAtMost(contextSize / 2)
+                val prompt = fitPrompt(session, projector, model.chatFormat, request, contextSize - replyBudget, pixels, thinking)
                 val images = prompt.images.map { image -> image.id to checkNotNull(pixels[image.id]) }
                 val sampling = request.sampling
-                val filter = ReplyFilter.forFormat(model.chatFormat)
-                val status = LlamaNative.generate(
+                val filter = ReplyFilter.forFormat(model.chatFormat, thinking)
+                val generated = StringBuilder()
+                var thoughtTokens = 0
+                var overBudget = false
+                fun generateFrom(text: String, maxTokens: Int, countThoughts: Boolean): Int = LlamaNative.generate(
                     session = session,
                     projector = projector,
-                    prompt = prompt.text.encodeToByteArray(),
+                    prompt = text.encodeToByteArray(),
                     imagePixels = images.takeIf { it.isNotEmpty() }?.map { it.second.rgb }?.toTypedArray(),
                     imageSizes = images.takeIf { it.isNotEmpty() }?.let { list -> sizesOf(list.map { it.second }) },
                     imageIds = images.takeIf { it.isNotEmpty() }?.map { it.first }?.toTypedArray(),
-                    maxTokens = replyBudget,
+                    maxTokens = maxTokens,
                     temperature = sampling.temperature,
                     topP = sampling.topP,
                     topK = sampling.topK,
@@ -103,12 +108,25 @@ class LlamaInferenceEngine(
                         override fun onPrefill(done: Int, total: Int): Boolean = producer.isActive
 
                         override fun onToken(bytes: ByteArray): Boolean {
-                            val visible = filter.push(bytes.decodeToString())
+                            val piece = bytes.decodeToString()
+                            generated.append(piece)
+                            if (countThoughts && filter.isThinking && ++thoughtTokens > request.thinkingBudget) {
+                                overBudget = true
+                                return false
+                            }
+                            val visible = filter.push(piece)
                             if (visible.isNotEmpty()) producer.trySend(visible)
                             return producer.isActive
                         }
                     },
                 )
+                var status = generateFrom(prompt.text, replyBudget, countThoughts = thinking)
+                if (overBudget && close != null && producer.isActive) {
+                    // Бюджет рассуждений исчерпан: закрываем рассуждение и просим ответ. Начало промпта уже в кэше.
+                    filter.push(close)
+                    val continuation = prompt.text + generated + close
+                    status = generateFrom(continuation, request.maxTokens.coerceAtMost(contextSize / 2), countThoughts = false)
+                }
                 filter.finish().takeIf { it.isNotEmpty() }?.let { producer.trySend(it) }
                 when (status) {
                     LlamaNative.STATUS_DONE, LlamaNative.STATUS_MAX_TOKENS, LlamaNative.STATUS_CANCELLED -> Unit
@@ -318,11 +336,12 @@ class LlamaInferenceEngine(
         request: GenerationRequest,
         budget: Int,
         pixels: Map<String, RgbImage>,
+        thinking: Boolean = false,
     ): FittedPrompt {
         var messages = request.messages
         while (true) {
             val dialog = request.primer + ChatPromptFormatter.withReminder(messages, request.reminder)
-            val prompt = ChatPromptFormatter.format(format, request.systemPrompt, dialog)
+            val prompt = ChatPromptFormatter.format(format, request.systemPrompt, dialog, thinking)
             val images = dialog.flatMap { it.images }
             val sizes = if (images.isEmpty()) null else sizesOf(images.map { checkNotNull(pixels[it.id]) })
             val tokens = LlamaNative.tokenCount(session, projector, prompt.encodeToByteArray(), sizes)

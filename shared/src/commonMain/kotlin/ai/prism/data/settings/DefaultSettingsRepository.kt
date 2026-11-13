@@ -4,6 +4,7 @@ import ai.prism.domain.model.AppSettings
 import ai.prism.domain.model.DarkMode
 import ai.prism.domain.model.TextEncoderMode
 import ai.prism.domain.model.ThemeStyle
+import ai.prism.domain.model.ThinkingLevel
 import ai.prism.domain.repository.SettingsRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -52,6 +53,8 @@ class DefaultSettingsRepository(
 
     override fun setFolderDepth(depth: Int) = update { it.copy(folderDepth = depth.coerceAtLeast(0)) }
 
+    override fun setThinkingLevel(level: ThinkingLevel) = update { it.copy(thinkingLevel = level) }
+
     override fun setSpeechRate(rate: Float) = update {
         it.copy(speechRate = rate.coerceIn(AppSettings.MIN_SPEECH_RATE, AppSettings.MAX_SPEECH_RATE))
     }
@@ -81,6 +84,7 @@ class DefaultSettingsRepository(
             contextLength = store.getString(KEY_CONTEXT)?.toIntOrNull()?.coerceIn(0, MAX_CONTEXT) ?: defaults.contextLength,
             agentSteps = store.getString(KEY_AGENT_STEPS)?.toIntOrNull()?.coerceAtLeast(0) ?: defaults.agentSteps,
             folderDepth = store.getString(KEY_FOLDER_DEPTH)?.toIntOrNull()?.coerceAtLeast(0) ?: defaults.folderDepth,
+            thinkingLevel = parseEnum(store.getString(KEY_THINKING), defaults.thinkingLevel),
         )
     }
 
@@ -101,6 +105,7 @@ class DefaultSettingsRepository(
         store.putString(KEY_CONTEXT, settings.contextLength.toString())
         store.putString(KEY_AGENT_STEPS, settings.agentSteps.toString())
         store.putString(KEY_FOLDER_DEPTH, settings.folderDepth.toString())
+        store.putString(KEY_THINKING, settings.thinkingLevel.name)
     }
 
     private inline fun <reified E : Enum<E>> parseEnum(raw: String?, default: E): E =
@@ -123,6 +128,7 @@ class DefaultSettingsRepository(
         const val KEY_CONTEXT = "context_length"
         const val KEY_AGENT_STEPS = "agent_steps"
         const val KEY_FOLDER_DEPTH = "folder_depth"
+        const val KEY_THINKING = "thinking_level"
         const val MAX_CONTEXT = 131_072
         const val MAX_VIDEO_SECONDS = 60
     }

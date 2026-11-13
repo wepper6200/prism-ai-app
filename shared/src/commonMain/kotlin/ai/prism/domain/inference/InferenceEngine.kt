@@ -87,6 +87,11 @@ data class GenerationRequest(
     val reminder: String = "",
     val maxTokens: Int = 2048,
     val sampling: SamplingParams = SamplingParams(),
+    /**
+     * Сколько токенов модель может рассуждать перед ответом (0 — без рассуждений). Рассуждения не показываются
+     * и не входят в [maxTokens]; по исчерпании бюджета рассуждение закрывается и модель отвечает.
+     */
+    val thinkingBudget: Int = 0,
 )
 
 enum class InferenceError {

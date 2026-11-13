@@ -4,6 +4,7 @@ import ai.prism.domain.model.AppSettings
 import ai.prism.domain.model.DarkMode
 import ai.prism.domain.model.TextEncoderMode
 import ai.prism.domain.model.ThemeStyle
+import ai.prism.domain.model.ThinkingLevel
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -37,6 +38,7 @@ class DefaultSettingsRepositoryTest {
             setContextLength(32_768)
             setAgentSteps(0)
             setFolderDepth(20)
+            setThinkingLevel(ThinkingLevel.HIGH)
         }
 
         val restarted = DefaultSettingsRepository(store)
@@ -51,6 +53,7 @@ class DefaultSettingsRepositoryTest {
                 contextLength = 32_768,
                 agentSteps = 0,
                 folderDepth = 20,
+                thinkingLevel = ThinkingLevel.HIGH,
             ),
             restarted.settings.value,
         )

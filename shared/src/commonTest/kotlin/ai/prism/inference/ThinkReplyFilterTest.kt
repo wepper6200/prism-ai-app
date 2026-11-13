@@ -20,6 +20,15 @@ class ThinkReplyFilterTest {
     }
 
     @Test
+    fun reasoningOpenedByThePromptIsHiddenAndReported() {
+        val filter = ThinkReplyFilter(startThinking = true)
+        assertEquals(true, filter.isThinking)
+        val shown = filter.push("Считаю 2+2…") + filter.push("\n</think>\n\n4")
+        assertEquals("4", shown + filter.finish())
+        assertEquals(false, filter.isThinking)
+    }
+
+    @Test
     fun answerWithoutThinkingIsShownAsIs() {
         for (size in listOf(1, 4, 100)) assertEquals("Привет! Я Prism AI.", run("\n\nПривет! Я Prism AI.", size))
     }

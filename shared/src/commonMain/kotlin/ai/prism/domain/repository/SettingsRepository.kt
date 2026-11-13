@@ -4,6 +4,7 @@ import ai.prism.domain.model.AppSettings
 import ai.prism.domain.model.DarkMode
 import ai.prism.domain.model.TextEncoderMode
 import ai.prism.domain.model.ThemeStyle
+import ai.prism.domain.model.ThinkingLevel
 import kotlinx.coroutines.flow.StateFlow
 
 interface SettingsRepository {
@@ -44,4 +45,6 @@ interface SettingsRepository {
 
     /** Глубина просмотра папок; 0 — без ограничения. */
     fun setFolderDepth(depth: Int)
+
+    fun setThinkingLevel(level: ThinkingLevel)
 }
