@@ -144,7 +144,7 @@ class RootComponentTest {
     }
 
     @Test
-    fun settingsScreenChangesThemeAndListsModelLicenses(): Unit = runOnUiThread {
+    fun settingsScreenChangesTheme(): Unit = runOnUiThread {
         val root = createRoot()
         root.chatList.onIntent(ChatListIntent.OpenSettings)
         val settings = assertIs<RootComponent.Child.Settings>(root.active).component
@@ -153,7 +153,6 @@ class RootComponentTest {
 
         assertEquals(ThemeStyle.LIQUID_GLASS, root.settings.value.themeStyle)
         assertEquals(ThemeStyle.LIQUID_GLASS, settings.state.value.settings.themeStyle)
-        assertEquals(listOf("Apache 2.0"), settings.state.value.modelLicenses.map { it.licenseName })
     }
 
     @Test

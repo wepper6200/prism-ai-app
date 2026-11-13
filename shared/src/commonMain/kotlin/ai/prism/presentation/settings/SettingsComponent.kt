@@ -27,14 +27,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlin.coroutines.CoroutineContext
 
-/** Модель Prism, открытая модель, на которой она основана, и её лицензия — для раздела «О приложении». */
-data class ModelLicenseInfo(
-    val name: String,
-    val origin: String,
-    val licenseName: String,
-    val licenseUrl: String,
-)
-
 /** Скачанная модель речи для выбора в настройках. */
 data class VoiceModelOption(val id: String, val name: String)
 
@@ -55,7 +47,6 @@ data class SettingsState(
     val settings: AppSettings,
     val supportsDynamicColor: Boolean,
     val versionName: String,
-    val modelLicenses: List<ModelLicenseInfo> = emptyList(),
     val voice: VoiceSettings = VoiceSettings(),
     /** Скачанные модели видео (выбор показывается, если их несколько). */
     val videoModels: List<VoiceModelOption> = emptyList(),
@@ -130,12 +121,6 @@ class DefaultSettingsComponent(
             toState(settings, capabilities.supportsDynamicColor).copy(
                 update = update,
                 modelFolder = folder,
-                modelLicenses = models
-                    .map { entry ->
-                        val model = entry.model
-                        ModelLicenseInfo(model.name, "${model.family} ${model.parameters}", model.license.name, model.license.url)
-                    }
-                    .distinctBy { it.name },
                 voice = voiceSettings(models, settings),
             ).let { state ->
                 val downloadedVideos = models.filter { it.model.kind == ModelKind.VIDEO && it.status == ModelStatus.Downloaded }

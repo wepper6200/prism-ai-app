@@ -72,6 +72,7 @@ import ai.prism.domain.model.ThemeStyle
 import ai.prism.presentation.settings.SettingsComponent
 import ai.prism.presentation.settings.SettingsIntent
 import ai.prism.resources.Res
+import org.jetbrains.compose.resources.ExperimentalResourceApi
 import ai.prism.resources.app_name
 import ai.prism.resources.dark_mode_dark
 import ai.prism.resources.dark_mode_light
@@ -89,21 +90,19 @@ import ai.prism.resources.settings_internet
 import ai.prism.resources.settings_internet_desc
 import ai.prism.resources.settings_safe_mode
 import ai.prism.resources.settings_safe_mode_desc
-import ai.prism.resources.settings_identity_note
-import ai.prism.resources.settings_model_origin
 import ai.prism.resources.settings_agent_steps
 import ai.prism.resources.settings_by_model
 import ai.prism.resources.settings_context
 import ai.prism.resources.settings_context_desc
 import ai.prism.resources.settings_folder_depth
 import ai.prism.resources.settings_unlimited
+import ai.prism.resources.settings_notices
 import ai.prism.resources.settings_thinking
 import ai.prism.resources.settings_thinking_desc
 import ai.prism.resources.thinking_high
 import ai.prism.resources.thinking_low
 import ai.prism.resources.thinking_medium
 import ai.prism.resources.thinking_off
-import ai.prism.resources.settings_models
 import ai.prism.resources.settings_privacy
 import ai.prism.resources.settings_privacy_text
 import ai.prism.resources.settings_theme_style
@@ -123,7 +122,6 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -157,8 +155,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import ai.prism.presentation.settings.ModelLicenseInfo
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -168,9 +166,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.StringResource
@@ -418,7 +414,7 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                ModelLicensesBlock(state.modelLicenses)
+                NoticesBlock()
             }
             Spacer(Modifier.height(12.dp))
         }
@@ -473,29 +469,24 @@ private fun AgentLimits(settings: AppSettings, onIntent: (SettingsIntent) -> Uni
     )
 }
 
-/** Модели и лицензии: свёрнуто, раскрывается по нажатию. */
+/** Лицензии открытых компонентов: свёрнуто, текст из ресурсов приложения (без интернета). */
+@OptIn(ExperimentalResourceApi::class)
 @Composable
-private fun ModelLicensesBlock(licenses: List<ModelLicenseInfo>) {
+private fun NoticesBlock() {
     var expanded by remember { mutableStateOf(false) }
-    TextButton(onClick = { expanded = !expanded }, modifier = Modifier.testTag("model_licenses")) {
-        Text(stringResource(Res.string.settings_models))
+    var text by remember { mutableStateOf("") }
+    LaunchedEffect(expanded) {
+        if (expanded && text.isEmpty()) text = Res.readBytes(NOTICES_FILE).decodeToString()
     }
-    if (!expanded) return
-    val uriHandler = LocalUriHandler.current
-    Text(
-        text = stringResource(Res.string.settings_identity_note),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-    licenses.forEach { license ->
-        Text(
-            text = stringResource(Res.string.settings_model_origin, license.name, license.origin, license.licenseName),
-            style = MaterialTheme.typography.bodySmall.copy(textDecoration = TextDecoration.Underline),
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.clickable { uriHandler.openUri(license.licenseUrl) },
-        )
+    TextButton(onClick = { expanded = !expanded }, modifier = Modifier.testTag("notices")) {
+        Text(stringResource(Res.string.settings_notices), style = MaterialTheme.typography.bodySmall)
+    }
+    if (expanded && text.isNotEmpty()) {
+        Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
+
+private const val NOTICES_FILE = "files/notices.txt"
 
 /** Хранить модели в общей папке, которая остаётся после удаления приложения (Android). */
 @Composable
