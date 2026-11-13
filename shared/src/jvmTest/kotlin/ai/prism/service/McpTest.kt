@@ -116,8 +116,8 @@ class McpTest {
         assertEquals("Нашёл prism-ai-app.", reply.content)
         assertEquals(AgentTool.MCP, reply.steps.single().tool)
         assertEquals(AgentStepStatus.DONE, reply.steps.single().status)
-        assertEquals(McpServerStatus.READY, app.mcp?.states?.value?.single()?.status)
-        assertEquals(1, app.mcp?.states?.value?.single()?.toolCount)
+        assertEquals(McpServerStatus.READY, app.mcp.states.value.single().status)
+        assertEquals(1, app.mcp.states.value.single().toolCount)
     }
 
     @Test
