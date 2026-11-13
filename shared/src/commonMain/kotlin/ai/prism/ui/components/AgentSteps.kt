@@ -4,6 +4,7 @@ import ai.prism.domain.agent.AgentStep
 import ai.prism.domain.agent.AgentStepStatus
 import ai.prism.domain.agent.AgentTool
 import ai.prism.domain.agent.PendingAction
+import ai.prism.domain.model.ThinkingLevel
 import ai.prism.resources.Res
 import ai.prism.resources.agent_apply
 import ai.prism.resources.agent_approval_command
@@ -23,6 +24,11 @@ import ai.prism.resources.agent_step_search_files
 import ai.prism.resources.agent_step_web_search
 import ai.prism.resources.agent_step_write_file
 import ai.prism.resources.chat_internet
+import ai.prism.resources.chat_thinking
+import ai.prism.resources.thinking_high
+import ai.prism.resources.thinking_low
+import ai.prism.resources.thinking_medium
+import ai.prism.resources.thinking_off
 import ai.prism.resources.chat_workspace_choose
 import ai.prism.resources.chat_workspace_remove
 import androidx.compose.animation.AnimatedVisibility
@@ -47,11 +53,14 @@ import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.automirrored.outlined.ManageSearch
+import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.InputChip
@@ -60,6 +69,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -182,7 +192,7 @@ private fun DetailBox(text: String, modifier: Modifier = Modifier) {
     }
 }
 
-/** Над полем ввода: папка проекта диалога и переключатель интернета. */
+/** Над полем ввода: папка проекта диалога, переключатель интернета и уровень размышлений (`null` — модель не умеет). */
 @Composable
 fun AgentContextRow(
     workspaceName: String?,
@@ -190,6 +200,8 @@ fun AgentContextRow(
     onPickWorkspace: () -> Unit,
     onRemoveWorkspace: () -> Unit,
     onToggleInternet: () -> Unit,
+    thinkingLevel: ThinkingLevel? = null,
+    onSelectThinking: (ThinkingLevel) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Row(modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -224,8 +236,46 @@ fun AgentContextRow(
             leadingIcon = { Icon(Icons.Outlined.Public, contentDescription = null, modifier = Modifier.size(18.dp)) },
             modifier = Modifier.testTag("internet_toggle"),
         )
+        if (thinkingLevel != null) ThinkingChip(thinkingLevel, onSelectThinking)
     }
 }
+
+/** Уровень размышлений: на чипе — текущий, по нажатию — выбор (та же настройка, что в «Настройки → Ассистент»). */
+@Composable
+private fun ThinkingChip(level: ThinkingLevel, onSelect: (ThinkingLevel) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        FilterChip(
+            selected = level != ThinkingLevel.OFF,
+            onClick = { open = true },
+            label = { Text(stringResource(Res.string.chat_thinking, thinkingName(level))) },
+            leadingIcon = { Icon(Icons.Outlined.Psychology, contentDescription = null, modifier = Modifier.size(18.dp)) },
+            modifier = Modifier.testTag("thinking_chip"),
+        )
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            ThinkingLevel.entries.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(thinkingName(option)) },
+                    onClick = {
+                        open = false
+                        onSelect(option)
+                    },
+                    modifier = Modifier.testTag("thinking_${option.name}"),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun thinkingName(level: ThinkingLevel): String = stringResource(
+    when (level) {
+        ThinkingLevel.OFF -> Res.string.thinking_off
+        ThinkingLevel.LOW -> Res.string.thinking_low
+        ThinkingLevel.MEDIUM -> Res.string.thinking_medium
+        ThinkingLevel.HIGH -> Res.string.thinking_high
+    },
+)
 
 private fun AgentTool.icon(): ImageVector = when (this) {
     AgentTool.WEB_SEARCH -> Icons.Outlined.Search

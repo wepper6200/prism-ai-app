@@ -16,6 +16,7 @@ import ai.prism.domain.model.MessageRole
 import ai.prism.domain.model.MessageStatus
 import ai.prism.domain.model.ModelKind
 import ai.prism.domain.model.ModelStatus
+import ai.prism.domain.model.ThinkingLevel
 import ai.prism.domain.repository.ChatRepository
 import ai.prism.domain.repository.ChatDraft
 import ai.prism.domain.repository.DocumentRepository
@@ -198,6 +199,9 @@ data class ChatState(
     val workspaceName: String? = null,
     /** Ассистенту разрешён интернет (настройка). */
     val internetEnabled: Boolean = false,
+    /** Уровень размышлений и умеет ли активная модель рассуждать (переключатель показывается только тогда). */
+    val thinkingLevel: ThinkingLevel = ThinkingLevel.OFF,
+    val thinkingSupported: Boolean = false,
     /** Прогресс загрузки модели в память, пока ответ этого чата ждёт её. */
     val modelLoadingProgress: Float? = null,
     val isGenerating: Boolean = false,
@@ -242,6 +246,7 @@ sealed interface ChatIntent {
     data class ChooseWorkspace(val location: String) : ChatIntent
     data object RemoveWorkspace : ChatIntent
     data object ToggleInternet : ChatIntent
+    data class SetThinkingLevel(val level: ThinkingLevel) : ChatIntent
 
     /** Ответ на запрос разрешения действия ассистента. */
     data class ResolvePending(val actionId: String, val approved: Boolean) : ChatIntent
@@ -389,6 +394,7 @@ class DefaultChatComponent(
         val videoFromPhoto: Boolean,
         val videoDurations: List<Int>,
         val videoSeconds: Int,
+        val thinkingSupported: Boolean,
     )
 
     private val conversation = combine(
@@ -433,6 +439,7 @@ class DefaultChatComponent(
         val selectedVideo = generation.videoModel()
         val videoEntry = entries.firstOrNull { it.model.id == selectedVideo?.id } ?: entries.firstOrNull { it.model.kind == ModelKind.VIDEO }
         ModelPart(
+            thinkingSupported = entry?.model?.chatFormat?.let(ThinkingLevel::supports) == true,
             name = entry?.model?.name,
             downloaded = entry?.chatReady == true,
             vision = when {
@@ -486,14 +493,14 @@ class DefaultChatComponent(
         }
     }
 
-    private data class AgentPart(val workspaceName: String?, val internetEnabled: Boolean)
+    private data class AgentPart(val workspaceName: String?, val internetEnabled: Boolean, val thinkingLevel: ThinkingLevel)
 
     private val agentPart = combine(
         chatRepository.workspace(chatId).map { location ->
             location?.let { workspaceProvider.open(it)?.name ?: it.substringAfterLast('/').substringAfterLast("%2F") }
         },
-        settingsRepository.settings.map { it.internetEnabled },
-    ) { name, internet -> AgentPart(name, internet) }
+        settingsRepository.settings.map { it.internetEnabled to it.thinkingLevel },
+    ) { name, (internet, thinking) -> AgentPart(name, internet, thinking) }
 
     private val voicePart = combine(voice.state, voice.availability) { current, available ->
         val conversation = current.conversationChatId == chatId
@@ -564,6 +571,8 @@ class DefaultChatComponent(
             embeddingModelBytes = model.embeddingModelBytes,
             workspaceName = extra.agent.workspaceName,
             internetEnabled = extra.agent.internetEnabled,
+            thinkingLevel = extra.agent.thinkingLevel,
+            thinkingSupported = model.thinkingSupported,
             modelLoadingProgress = model.loadingProgress?.takeIf { chat.isGenerating },
             isGenerating = chat.isGenerating,
             busyInOtherChat = chat.busyElsewhere,
@@ -585,6 +594,7 @@ class DefaultChatComponent(
             is ChatIntent.ChooseWorkspace -> scope.launch { chatRepository.setWorkspace(chatId, intent.location) }
             ChatIntent.RemoveWorkspace -> scope.launch { chatRepository.setWorkspace(chatId, null) }
             ChatIntent.ToggleInternet -> settingsRepository.setInternetEnabled(!settingsRepository.settings.value.internetEnabled)
+            is ChatIntent.SetThinkingLevel -> settingsRepository.setThinkingLevel(intent.level)
             is ChatIntent.ResolvePending -> generation.resolvePending(intent.actionId, intent.approved)
             is ChatIntent.AttachImages -> attach(intent.files)
             ChatIntent.AttachFailed -> draftImages.update { it.copy(error = AttachmentError.UNREADABLE) }

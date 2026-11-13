@@ -4,6 +4,7 @@ import ai.prism.desktop.runOnUiThread
 import ai.prism.domain.model.MessageRole
 import ai.prism.domain.model.MessageStatus
 import ai.prism.domain.model.ThemeStyle
+import ai.prism.domain.model.ThinkingLevel
 import ai.prism.domain.model.ModelEntry
 import ai.prism.domain.model.ModelStatus
 import ai.prism.presentation.chat.AttachmentError
@@ -114,6 +115,18 @@ class RootComponentTest {
         again.onIntent(ChatIntent.Send)
         again.onIntent(ChatIntent.Back)
         assertEquals(ChatDraft(), app.drafts.draft(chatId))
+    }
+
+    @Test
+    fun thinkingLevelIsChosenFromTheChat(): Unit = runOnUiThread {
+        val root = createRoot()
+        root.chatList.onIntent(ChatListIntent.NewChat)
+        val chat = assertIs<RootComponent.Child.Chat>(root.active).component
+
+        chat.onIntent(ChatIntent.SetThinkingLevel(ThinkingLevel.HIGH))
+
+        assertEquals(ThinkingLevel.HIGH, chat.state.value.thinkingLevel)
+        assertEquals(ThinkingLevel.HIGH, app.settings.settings.value.thinkingLevel)
     }
 
     @Test

@@ -330,6 +330,8 @@ fun ChatScreen(
             onPickWorkspace = folderPicker::pickFolder,
             onRemoveWorkspace = { component.onIntent(ChatIntent.RemoveWorkspace) },
             onToggleInternet = { component.onIntent(ChatIntent.ToggleInternet) },
+            thinkingLevel = state.thinkingLevel.takeIf { state.thinkingSupported },
+            onSelectThinking = { component.onIntent(ChatIntent.SetThinkingLevel(it)) },
             modifier = Modifier.align(Alignment.CenterHorizontally).widthIn(max = 880.dp).fillMaxWidth(),
         )
         if (state.documents.isNotEmpty()) {
