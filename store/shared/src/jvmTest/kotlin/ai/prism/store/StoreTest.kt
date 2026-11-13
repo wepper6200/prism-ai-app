@@ -172,6 +172,7 @@ class StoreTest {
         assertEquals(true, Versions.isNewer("0.10.0", "0.9.9"))
         assertEquals(true, Versions.isNewer("1.0.0", ""))
         assertEquals(false, Versions.isNewer("1.0.0", "1.0.0"))
+        assertEquals(true, Versions.isNewer("0.9.2.1", "0.9.2"))
     }
 
     @Test

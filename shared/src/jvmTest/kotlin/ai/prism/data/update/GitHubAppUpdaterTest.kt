@@ -140,6 +140,9 @@ class GitHubAppUpdaterTest {
         assertTrue(AppVersion.isNewer("0.10.0", "0.9.9"))
         assertTrue(AppVersion.isNewer("v1.0", "0.99.0"))
         assertFalse(AppVersion.isNewer("0.8.0", "0.8.0"))
+        // Версии с четвёртым числом (исправления): 0.9.2.1 новее 0.9.2, но старше 0.9.3.
+        assertTrue(AppVersion.isNewer("0.9.2.1", "0.9.2"))
+        assertFalse(AppVersion.isNewer("0.9.2.1", "0.9.3"))
         assertFalse(AppVersion.isNewer("0.8.0-beta", "0.8.0"))
         assertFalse(AppVersion.isNewer("0.7.9", "0.8.0"))
     }
