@@ -155,7 +155,9 @@
     <string name="agent_tool_web_search">web_search (query) — поиск в интернете: заголовки, адреса и описания результатов.</string>
     <string name="agent_tool_fetch_page">fetch_page (url) — текст веб-страницы.</string>
     <string name="agent_tool_download_file">download_file (url, path) — скачать файл из интернета в папку проекта.</string>
-    <string name="agent_tool_list_files">list_files (path) — файлы и папки; «.» — корень проекта.</string>
+    <string name="agent_tool_list_files">list_files (path) — файлы и папки вместе с вложенными; «.» — весь проект сразу.</string>
+    <string name="agent_step_limit">Шаги закончились: инструменты больше недоступны. Не вызывай инструменты. Кратко напиши, что уже сделано и что осталось сделать, — пользователь попросит продолжить.</string>
+    <string name="agent_step_limit_notice">Ассистент сделал {steps} шагов и остановился. Напишите «продолжай», чтобы он закончил работу.</string>
     <string name="agent_tool_read_file">read_file (path) — текст файла.</string>
     <string name="agent_tool_search_files">search_files (query) — строки файлов проекта, где встречается текст.</string>
     <string name="agent_tool_write_file">write_file (path, content) — создать или перезаписать файл целиком.</string>
@@ -297,6 +299,7 @@
     <string name="update_error_permission">Разрешите Prism AI устанавливать приложения на открывшемся экране и нажмите «Повторить».</string>
     <string name="update_error_cancelled">Установка отменена.</string>
     <string name="update_error_install">Не удалось установить обновление.</string>
+    <string name="update_error_signature">Эта версия Prism AI подписана другим ключом (сборка из CI до постоянного ключа), поэтому Android не ставит обновление поверх. Удалите Prism AI один раз и установите новую версию — дальше обновления пойдут поверх. Чтобы не скачивать модели заново, перед удалением перенесите их в «Настройки → Хранение моделей → Download/PrismAI», если этот пункт есть.</string>
     <string name="settings_model_storage">Хранение моделей</string>
     <string name="model_folder_shared">Хранить модели в папке %1$s</string>
     <string name="model_folder_desc">Модели останутся на телефоне, даже если удалить приложение. После переустановки включите настройку снова — скачанные модели найдутся. Нужно разрешение «Доступ ко всем файлам».</string>

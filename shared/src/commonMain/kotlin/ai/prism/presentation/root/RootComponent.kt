@@ -5,6 +5,7 @@ import ai.prism.domain.model.AppSettings
 import ai.prism.domain.model.DeviceInfo
 import ai.prism.domain.model.PlatformCapabilities
 import ai.prism.domain.repository.ChatRepository
+import ai.prism.domain.repository.DraftRepository
 import ai.prism.domain.agent.WorkspaceProvider
 import ai.prism.domain.repository.DocumentRepository
 import ai.prism.domain.repository.ImageStore
@@ -83,6 +84,8 @@ class AppDependencies(
     val updateService: UpdateService = UpdateService(AppUpdater.None, CoroutineScope(SupervisorJob())),
     /** Где хранятся модели (Android: можно в общей папке, которая переживает удаление приложения). */
     val modelFolder: ModelFolder = ModelFolder.None,
+    /** Неотправленные сообщения диалогов. */
+    val drafts: DraftRepository = DraftRepository.None,
 )
 
 class DefaultRootComponent(
@@ -146,6 +149,7 @@ class DefaultRootComponent(
                     imageStore = deps.imageStore,
                     voice = deps.voiceService,
                     audioOutput = deps.audioOutput,
+                    drafts = deps.drafts,
                     mainContext = mainContext,
                     onOpenModels = { openScreen(Config.Models) },
                     onBack = ::onBack,

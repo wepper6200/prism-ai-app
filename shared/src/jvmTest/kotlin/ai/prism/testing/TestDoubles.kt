@@ -4,6 +4,7 @@ import ai.prism.domain.update.AppRelease
 import ai.prism.domain.update.AppUpdater
 import ai.prism.domain.update.ReleaseAsset
 import ai.prism.service.update.UpdateService
+import ai.prism.data.drafts.KeyValueDraftRepository
 import ai.prism.data.agent.FileWorkspaceProvider
 import ai.prism.data.chat.SqlChatRepository
 import ai.prism.data.documents.SqlDocumentRepository
@@ -476,6 +477,8 @@ class TestApp(
     totalRamBytes: Long = 0L,
 ) {
     val settings = DefaultSettingsRepository(MapKeyValueStore())
+    val draftStore = MapKeyValueStore()
+    val drafts = KeyValueDraftRepository(draftStore)
     val images = MemoryImageStore()
     val database = inMemoryDatabase()
     val chats = inMemoryChatRepository(images, database)
@@ -510,6 +513,8 @@ class TestApp(
                 agentInstructions = "Инструменты.\n{context}\n{tools}",
                 agentWorkspaceNote = "Папка: {name}",
                 agentInternetNote = "Интернет включён",
+                agentStepLimit = "Шаги закончились.",
+                agentStepLimitNotice = "Сделано {steps} шагов.",
             )
         },
         images = images,
@@ -521,6 +526,7 @@ class TestApp(
         workspaces = FileWorkspaceProvider(Dispatchers.Unconfined),
         commands = commands,
         totalRamBytes = totalRamBytes,
+        drafts = drafts,
         today = { "среда, 11 ноября 2026 г. (2026-11-11)" },
     )
     val voice = VoiceService(
@@ -550,6 +556,7 @@ class TestApp(
         voiceService = voice,
         audioOutput = audioOutput,
         updateService = UpdateService(updater, scope, currentVersion = "0.8.0"),
+        drafts = drafts,
     )
 }
 

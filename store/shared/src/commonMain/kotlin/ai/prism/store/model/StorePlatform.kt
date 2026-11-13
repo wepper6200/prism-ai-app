@@ -22,6 +22,9 @@ enum class StoreError {
     /** Windows: приложение открыто — его файлы заняты. */
     APP_RUNNING,
 
+    /** Android: установленное приложение подписано другим ключом — его нужно один раз удалить. */
+    SIGNATURE,
+
     INSTALL,
 }
 

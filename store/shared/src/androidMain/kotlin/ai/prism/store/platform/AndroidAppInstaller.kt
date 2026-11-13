@@ -50,6 +50,10 @@ class AndroidAppInstaller(private val context: Context) : AppInstaller {
             )
             throw StoreException(StoreError.PERMISSION, "Нужно разрешить установку приложений")
         }
+        val packageName = app.android?.packageName
+        if (packageName != null && withContext(Dispatchers.IO) { ApkSignatures.conflicts(context, path, packageName) }) {
+            throw StoreException(StoreError.SIGNATURE, "${app.name}: установлена версия с другим ключом подписи")
+        }
         val installer = packageManager.packageInstaller
         val sessionId = withContext(Dispatchers.IO) {
             val apk = File(path)
@@ -85,6 +89,8 @@ class AndroidAppInstaller(private val context: Context) : AppInstaller {
             PackageInstaller.STATUS_SUCCESS -> Unit
             PackageInstaller.STATUS_FAILURE_ABORTED -> throw StoreException(StoreError.CANCELLED, "Установка отменена")
             PackageInstaller.STATUS_FAILURE_STORAGE -> throw StoreException(StoreError.STORAGE, result.message)
+            PackageInstaller.STATUS_FAILURE_CONFLICT, PackageInstaller.STATUS_FAILURE_INCOMPATIBLE ->
+                throw StoreException(StoreError.SIGNATURE, result.message)
             else -> throw StoreException(StoreError.INSTALL, result.message)
         }
     }

@@ -5,11 +5,13 @@ import ai.prism.data.chat.SqlChatRepository
 import ai.prism.data.db.PrismDatabase
 import ai.prism.data.documents.SqlDocumentRepository
 import ai.prism.data.models.DefaultModelRepository
+import ai.prism.data.drafts.KeyValueDraftRepository
 import ai.prism.data.settings.DefaultSettingsRepository
 import ai.prism.domain.model.DeviceInfo
 import ai.prism.domain.model.PlatformCapabilities
 import ai.prism.domain.repository.ChatRepository
 import ai.prism.domain.repository.DocumentRepository
+import ai.prism.domain.repository.DraftRepository
 import ai.prism.domain.repository.ModelRepository
 import ai.prism.domain.repository.SettingsRepository
 import ai.prism.presentation.root.AppDependencies
@@ -39,6 +41,7 @@ val sharedModule: Module = module {
     // Область приложения: загрузки моделей и генерация ответов живут дольше экранов.
     single<CoroutineScope> { CoroutineScope(SupervisorJob() + Dispatchers.Default) }
     single<SettingsRepository> { DefaultSettingsRepository(store = get()) }
+    single<DraftRepository> { KeyValueDraftRepository(store = get()) }
     single { PrismDatabase(get()) }
     single<ChatRepository> { SqlChatRepository(database = get(), imageStore = get()) }
     single { ModelCatalog() }
@@ -79,6 +82,7 @@ val sharedModule: Module = module {
             workspaces = get(),
             commands = get(),
             totalRamBytes = get<DeviceInfo>().totalRamBytes,
+            drafts = get(),
         )
     }
     single {
@@ -112,6 +116,7 @@ val sharedModule: Module = module {
             audioOutput = get(),
             updateService = get(),
             modelFolder = get(),
+            drafts = get(),
         )
     }
     single { RootComponentFactory(dependencies = get()) }

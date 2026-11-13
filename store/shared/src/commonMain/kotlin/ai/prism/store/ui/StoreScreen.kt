@@ -16,6 +16,7 @@ import ai.prism.store.resources.app_version
 import ai.prism.store.resources.bytes_gb
 import ai.prism.store.resources.bytes_mb
 import ai.prism.store.resources.error_app_running
+import ai.prism.store.resources.error_signature
 import ai.prism.store.resources.error_cancelled
 import ai.prism.store.resources.error_catalog
 import ai.prism.store.resources.error_checksum
@@ -273,6 +274,7 @@ private fun ErrorText(error: StoreError) {
                 StoreError.PERMISSION -> Res.string.error_permission
                 StoreError.CANCELLED -> Res.string.error_cancelled
                 StoreError.APP_RUNNING -> Res.string.error_app_running
+                StoreError.SIGNATURE -> Res.string.error_signature
                 StoreError.INSTALL -> Res.string.error_install
             },
         ),

@@ -34,6 +34,7 @@ import ai.prism.domain.model.ModelKind
 import ai.prism.domain.model.ModelStatus
 import ai.prism.domain.model.TextEncoderMode
 import ai.prism.domain.repository.ChatRepository
+import ai.prism.domain.repository.DraftRepository
 import ai.prism.domain.repository.ImageException
 import ai.prism.domain.repository.ImageStore
 import ai.prism.domain.repository.ModelRepository
@@ -51,6 +52,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.flow.transformWhile
 import kotlinx.coroutines.flow.update
@@ -93,6 +95,10 @@ data class AssistantPersona(
     val agentInternetNote: String = "",
     /** Описание каждого инструмента для модели. */
     val toolDescriptions: Map<AgentTool, String> = emptyMap(),
+    /** Добавляется к результату последнего разрешённого шага: инструментов больше нет, нужно подвести итог. */
+    val agentStepLimit: String = "",
+    /** Видимая пользователю подсказка, если модель и после предела шагов не подвела итог. */
+    val agentStepLimitNotice: String = "",
 )
 
 /** Личность Prism AI на языке интерфейса. */
@@ -168,6 +174,8 @@ class ChatGenerationService(
     private val today: () -> String = ::todayText,
     /** Объём оперативной памяти: от него зависит текстовый энкодер видео по умолчанию (0 — неизвестен). */
     private val totalRamBytes: Long = 0L,
+    /** Черновики диалогов: их фото не удаляются как брошенные. */
+    private val drafts: DraftRepository = DraftRepository.None,
 ) {
     private val mutableActive = MutableStateFlow<ActiveGeneration?>(null)
     val active: StateFlow<ActiveGeneration?> = mutableActive.asStateFlow()
@@ -181,8 +189,10 @@ class ChatGenerationService(
     init {
         scope.launch {
             chats.markInterruptedGenerations()
-            // Изображения брошенных черновиков, на которые не ссылается ни одно сообщение.
-            images.deleteOrphans(chats.referencedImageFiles(), ORPHAN_IMAGE_AGE_MS)
+            // Черновики удалённых диалогов больше не нужны.
+            drafts.retainChats(chats.chats.first().mapTo(mutableSetOf()) { it.id })
+            // Изображения, на которые не ссылаются ни сообщения, ни черновики.
+            images.deleteOrphans(chats.referencedImageFiles() + drafts.referencedImageFiles(), ORPHAN_IMAGE_AGE_MS)
         }
     }
 
@@ -583,7 +593,10 @@ class ChatGenerationService(
             live.append((parts + current).filter { it.isNotBlank() }.joinToString("\n\n"))
             mutableActive.value = ActiveGeneration(chatId, replyId, live.toString(), steps = steps.toList())
         }
-        for (round in 0..MAX_AGENT_STEPS) {
+        var executed = 0
+        while (true) {
+            // После последнего разрешённого шага модель только подводит итог: её новый вызов не выполняется.
+            val finalRound = executed == MAX_AGENT_STEPS
             val raw = StringBuilder()
             val request = base.copy(
                 systemPrompt = base.systemPrompt + "\n\n" + instructions,
@@ -601,14 +614,28 @@ class ChatGenerationService(
             val call = ToolCallProtocol.parse(raw.toString())
             parts += visible
             show("")
-            if (stopRequested || call == null || round == MAX_AGENT_STEPS) return
+            if (stopRequested || call == null) return
+            if (finalRound) {
+                // Модель не остановилась: говорим пользователю, что работу можно продолжить следующим сообщением.
+                persona.agentStepLimitNotice.takeIf { it.isNotBlank() }?.let { notice ->
+                    parts += notice.replace("{steps}", MAX_AGENT_STEPS.toString())
+                    show("")
+                }
+                return
+            }
             val outcome = toolbox.execute(call)
             outcome.step?.let { steps += it }
+            executed++
             show("")
             if (stopRequested) return
+            val limitNote = if (executed == MAX_AGENT_STEPS && persona.agentStepLimit.isNotBlank()) {
+                "\n\n" + persona.agentStepLimit
+            } else {
+                ""
+            }
             dialog = dialog +
                 PromptMessage(MessageRole.ASSISTANT, ToolCallProtocol.callText(raw.toString())) +
-                PromptMessage(MessageRole.USER, ToolCallProtocol.result(call.name, outcome.result))
+                PromptMessage(MessageRole.USER, ToolCallProtocol.result(call.name, outcome.result) + limitNote)
         }
     }
 
@@ -861,7 +888,7 @@ class ChatGenerationService(
         private const val TRANSLATION_MAX_TOKENS = 400
 
         /** Сколько раз подряд ассистент может вызвать инструменты в одном ответе. */
-        const val MAX_AGENT_STEPS = 12
+        const val MAX_AGENT_STEPS = 30
         private const val DOCUMENT_CHARS_PER_CONTEXT_TOKEN = 0.9
         private const val MIN_DOCUMENT_CHARS = 2_000
         private const val MAX_DOCUMENT_CHARS = 9_000

@@ -8,6 +8,7 @@ import ai.prism.domain.agent.PendingAction
 import ai.prism.domain.agent.WebClient
 import ai.prism.domain.agent.WebException
 import ai.prism.domain.agent.Workspace
+import ai.prism.domain.agent.WorkspaceEntry
 import ai.prism.domain.agent.WorkspaceException
 
 /** Итог вызова инструмента: текст для модели и шаг для показа пользователю (`null` — вызов не распознан). */
@@ -80,13 +81,39 @@ class AgentToolbox(
         return done(AgentTool.DOWNLOAD_FILE, path, "saved $path (${bytes.size} bytes)", url)
     }
 
+    /**
+     * Файлы и папки вместе с вложенными (до [LIST_DEPTH] уровней): модели не нужно открывать каждую папку
+     * отдельным шагом. Служебные папки (.git, build…) показываются, но не раскрываются.
+     */
     private suspend fun listFiles(path: String): ToolOutcome {
-        val entries = checkNotNull(workspace).list(path)
+        val folder = checkNotNull(workspace)
+        val entries = mutableListOf<WorkspaceEntry>()
+        var level = folder.list(path)
+        var depth = 1
+        var truncated = false
+        while (level.isNotEmpty()) {
+            val room = MAX_ENTRIES - entries.size
+            if (level.size > room) {
+                entries += level.take(room)
+                truncated = true
+                break
+            }
+            entries += level
+            if (depth == LIST_DEPTH) {
+                truncated = level.any { it.isDirectory && it.path.substringAfterLast('/') !in SKIPPED_FOLDERS }
+                break
+            }
+            level = level
+                .filter { it.isDirectory && it.path.substringAfterLast('/') !in SKIPPED_FOLDERS }
+                .flatMap { folder.list(it.path) }
+            depth++
+        }
         val text = if (entries.isEmpty()) {
             "empty folder"
         } else {
-            entries.take(MAX_ENTRIES).joinToString("\n") { if (it.isDirectory) it.path + "/" else "${it.path} (${it.sizeBytes} bytes)" } +
-                if (entries.size > MAX_ENTRIES) "\n… and ${entries.size - MAX_ENTRIES} more" else ""
+            entries.sortedBy { it.path }
+                .joinToString("\n") { if (it.isDirectory) it.path + "/" else "${it.path} (${it.sizeBytes} bytes)" } +
+                if (truncated) "\n… (more inside; list a subfolder to see it)" else ""
         }
         return done(AgentTool.LIST_FILES, path, text, text.take(DETAIL_CHARS))
     }
@@ -180,7 +207,9 @@ class AgentToolbox(
         const val DETAIL_CHARS = 2_000
         const val APPROVAL_CHARS = 8_000
         const val LINE_CHARS = 200
-        const val MAX_ENTRIES = 200
+        const val MAX_ENTRIES = 300
+        const val LIST_DEPTH = 6
+        val SKIPPED_FOLDERS = setOf(".git", ".gradle", ".idea", "build", "node_modules", ".venv", "venv", "__pycache__", ".kotlin")
         const val MAX_HITS = 50
         const val MAX_DOWNLOAD_BYTES = 50L * 1024 * 1024
         const val COMMAND_TIMEOUT_MS = 120_000L

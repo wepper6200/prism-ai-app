@@ -30,6 +30,7 @@ import ai.prism.resources.update_downloading
 import ai.prism.resources.update_error_cancelled
 import ai.prism.resources.update_error_checksum
 import ai.prism.resources.update_error_install
+import ai.prism.resources.update_error_signature
 import ai.prism.resources.update_error_network
 import ai.prism.resources.update_error_no_package
 import ai.prism.resources.update_error_permission
@@ -536,6 +537,7 @@ private fun UpdateBlock(update: UpdateState, onIntent: (SettingsIntent) -> Unit)
                         UpdateError.STORAGE -> Res.string.update_error_storage
                         UpdateError.PERMISSION -> Res.string.update_error_permission
                         UpdateError.CANCELLED -> Res.string.update_error_cancelled
+                        UpdateError.SIGNATURE -> Res.string.update_error_signature
                         UpdateError.INSTALL -> Res.string.update_error_install
                     },
                 ),

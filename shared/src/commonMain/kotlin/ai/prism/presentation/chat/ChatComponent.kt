@@ -17,7 +17,9 @@ import ai.prism.domain.model.MessageStatus
 import ai.prism.domain.model.ModelKind
 import ai.prism.domain.model.ModelStatus
 import ai.prism.domain.repository.ChatRepository
+import ai.prism.domain.repository.ChatDraft
 import ai.prism.domain.repository.DocumentRepository
+import ai.prism.domain.repository.DraftRepository
 import ai.prism.domain.repository.ImageException
 import ai.prism.domain.repository.ImageStore
 import ai.prism.domain.repository.ModelRepository
@@ -35,10 +37,13 @@ import ai.prism.domain.voice.VoiceException
 import ai.prism.core.PcmAudio
 import com.arkivanov.essenty.lifecycle.doOnDestroy
 import com.arkivanov.decompose.ComponentContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -310,6 +315,7 @@ class DefaultChatComponent(
     private val imageStore: ImageStore,
     private val voice: VoiceService,
     private val audioOutput: AudioOutput,
+    private val drafts: DraftRepository = DraftRepository.None,
     mainContext: CoroutineContext,
     private val onOpenModels: () -> Unit,
     private val onBack: () -> Unit,
@@ -317,8 +323,10 @@ class DefaultChatComponent(
 
     private val scope = componentScope(mainContext)
 
-    // Черновик и его изображения переживают пересоздание Activity (поворот экрана, смена темы).
-    private val draft = MutableStateFlow(stateKeeper.consume(KEY_DRAFT, String.serializer()) ?: "")
+    // Черновик и его изображения переживают пересоздание Activity (поворот экрана, смена темы),
+    // а в [drafts] — уход из диалога и перезапуск приложения.
+    private val saved = drafts.draft(chatId)
+    private val draft = MutableStateFlow(stateKeeper.consume(KEY_DRAFT, String.serializer()) ?: saved.text)
 
     private data class DraftImages(
         val items: List<ImageAttachment> = emptyList(),
@@ -330,7 +338,7 @@ class DefaultChatComponent(
     private val videoMode = MutableStateFlow(stateKeeper.consume(KEY_VIDEO_MODE, Boolean.serializer()) ?: false)
 
     private val draftImages = MutableStateFlow(
-        DraftImages(items = stateKeeper.consume(KEY_ATTACHMENTS, ATTACHMENTS_SERIALIZER).orEmpty()),
+        DraftImages(items = stateKeeper.consume(KEY_ATTACHMENTS, ATTACHMENTS_SERIALIZER) ?: saved.images),
     )
 
     init {
@@ -339,6 +347,16 @@ class DefaultChatComponent(
             val current = voice.state.value
             if (current.conversationChatId == chatId || current.dictationChatId == chatId) voice.stop()
         }
+        scope.launch {
+            combine(draft, draftImages) { text, images -> ChatDraft(text, images.items) }
+                .distinctUntilChanged()
+                .collectLatest { current ->
+                    // Пока пользователь печатает, черновик не пишется на диск после каждой буквы.
+                    delay(DRAFT_SAVE_DELAY_MS)
+                    drafts.save(chatId, current)
+                }
+        }
+        lifecycle.doOnDestroy { drafts.save(chatId, ChatDraft(draft.value, draftImages.value.items)) }
         stateKeeper.register(KEY_DRAFT, String.serializer()) { draft.value }
         stateKeeper.register(KEY_ATTACHMENTS, ATTACHMENTS_SERIALIZER) { draftImages.value.items }
         stateKeeper.register(KEY_DRAW_MODE, Boolean.serializer()) { drawMode.value }
@@ -684,6 +702,7 @@ class DefaultChatComponent(
 
     private companion object {
         const val KEY_DRAFT = "chat_draft"
+        const val DRAFT_SAVE_DELAY_MS = 500L
         const val KEY_ATTACHMENTS = "chat_attachments"
         const val KEY_DRAW_MODE = "chat_draw_mode"
         const val KEY_VIDEO_MODE = "chat_video_mode"

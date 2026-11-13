@@ -24,6 +24,7 @@
     <string name="error_cancelled">Установка отменена.</string>
     <string name="error_app_running">Закройте приложение и нажмите кнопку снова.</string>
     <string name="error_install">Не удалось установить приложение.</string>
+    <string name="error_signature">Установленная версия подписана другим ключом (например, сборка из CI), поэтому Android не ставит новую поверх. Удалите приложение один раз и установите заново — дальше обновления пойдут поверх.</string>
     <string name="bytes_mb">%1$s МБ</string>
     <string name="bytes_gb">%1$s ГБ</string>
 </resources>

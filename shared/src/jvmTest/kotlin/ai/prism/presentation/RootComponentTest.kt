@@ -15,6 +15,8 @@ import ai.prism.presentation.root.DefaultRootComponent
 import ai.prism.presentation.root.RootComponent
 import ai.prism.presentation.settings.SettingsIntent
 import ai.prism.testing.FakeModelRepository
+import ai.prism.data.drafts.KeyValueDraftRepository
+import ai.prism.domain.repository.ChatDraft
 import ai.prism.testing.TestApp
 import ai.prism.testing.testModel
 import ai.prism.testing.testVision
@@ -85,6 +87,33 @@ class RootComponentTest {
         assertEquals("Привет! Я Prism AI.", state.messages.last().text)
         assertEquals(MessageStatus.COMPLETE, state.messages.last().status)
         assertTrue(!state.isGenerating)
+    }
+
+    @Test
+    fun unsentTextAndPhotosStayInChatAfterLeavingIt(): Unit = runOnUiThread {
+        val root = createRoot()
+        root.chatList.onIntent(ChatListIntent.NewChat)
+        val chatId = root.chatList.state.value.chats.first().id
+        val chat = assertIs<RootComponent.Child.Chat>(root.active).component
+        chat.onIntent(ChatIntent.DraftChanged("Недописанный вопрос"))
+        chat.onIntent(ChatIntent.AttachImages(listOf(byteArrayOf(1, 2, 3))))
+
+        chat.onIntent(ChatIntent.Back)
+        root.chatList.onIntent(ChatListIntent.OpenChat(chatId))
+
+        val reopened = assertIs<RootComponent.Child.Chat>(root.active).component.state.value
+        assertEquals("Недописанный вопрос", reopened.draft)
+        assertEquals(1, reopened.attachments.size)
+
+        // После перезапуска приложения черновик тоже на месте, а его фото не считаются брошенными.
+        assertEquals("Недописанный вопрос", KeyValueDraftRepository(app.draftStore).draft(chatId).text)
+        assertEquals(setOf(reopened.attachments.single().fileName), app.drafts.referencedImageFiles())
+
+        // Отправленное сообщение черновик очищает.
+        val again = assertIs<RootComponent.Child.Chat>(root.active).component
+        again.onIntent(ChatIntent.Send)
+        again.onIntent(ChatIntent.Back)
+        assertEquals(ChatDraft(), app.drafts.draft(chatId))
     }
 
     @Test

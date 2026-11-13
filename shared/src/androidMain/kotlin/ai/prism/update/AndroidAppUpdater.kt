@@ -37,6 +37,9 @@ class AndroidAppUpdater(private val context: Context) :
             )
             throw UpdateException(UpdateError.PERMISSION, "Нужно разрешить установку обновлений")
         }
+        if (withContext(Dispatchers.IO) { ApkSignatures.conflicts(context, path, context.packageName) }) {
+            throw UpdateException(UpdateError.SIGNATURE, "Обновление подписано другим ключом, чем установленная версия")
+        }
         val installer = packageManager.packageInstaller
         val sessionId = withContext(Dispatchers.IO) {
             val apk = File(path)
@@ -73,6 +76,8 @@ class AndroidAppUpdater(private val context: Context) :
             PackageInstaller.STATUS_SUCCESS -> Unit
             PackageInstaller.STATUS_FAILURE_ABORTED -> throw UpdateException(UpdateError.CANCELLED, "Установка отменена")
             PackageInstaller.STATUS_FAILURE_STORAGE -> throw UpdateException(UpdateError.STORAGE, result.message)
+            PackageInstaller.STATUS_FAILURE_CONFLICT, PackageInstaller.STATUS_FAILURE_INCOMPATIBLE ->
+                throw UpdateException(UpdateError.SIGNATURE, result.message)
             else -> throw UpdateException(UpdateError.INSTALL, result.message)
         }
     }

@@ -116,12 +116,18 @@ Prism AI — полностью офлайн ИИ-ассистент для **Wi
 - **Агент (Этап 5):** протокол вызова инструментов для локальных моделей — разметка без экранирования
   (`<tool name="write_file"><path>…</path><content>…</content></tool>`, результат — `<result name="…">`),
   `ToolCallProtocol`; генерация останавливается на `</tool>`, `ChatGenerationService.runAgent` выполняет вызов
-  (`AgentToolbox`) и продолжает, не больше 12 шагов. Инструменты зависят от диалога: папка проекта (`chat.workspace`,
+  (`AgentToolbox`) и продолжает, не больше 30 шагов (`MAX_AGENT_STEPS`); к результату последнего шага добавляется
+  `agent_step_limit` (подвести итог без инструментов), а если модель всё равно вызывает инструмент — ответ заканчивается
+  подсказкой `agent_step_limit_notice` («напишите „продолжай“»). `list_files` показывает вложенные папки
+  (до 6 уровней, 300 строк, служебные папки не раскрываются) — модель не тратит шаг на каждую папку. Инструменты зависят от диалога: папка проекта (`chat.workspace`,
   миграция `3.sqm`; Desktop — `FileWorkspace` на java.nio, Android — `SafWorkspace` через Storage Access Framework,
   пути вне папки отклоняются), интернет (`HttpWebClient`: HTML-версия DuckDuckGo, страницы → текст `HtmlText`),
   команды (`ProcessCommandRunner`, только Desktop: `cmd /c`). Запись/правка/скачивание ждут разрешения
   (`PendingAction`, разница «было/стало»), если не включено «Править файлы без подтверждения»; команды — всегда.
   Шаги ответа хранятся в `message_step` и показываются под ответом.
+- **Черновики:** неотправленный текст и фото диалога хранятся в `DraftRepository` (`KeyValueDraftRepository`:
+  JSON в `KeyValueStore`, ключ `chat_drafts`) — переживают уход из диалога и перезапуск; фото черновиков не удаляются
+  как брошенные, черновики удалённых диалогов чистятся при запуске. Файлы (PDF, DOCX…) прикладываются к диалогу сразу.
 
 - **Видео (Этап 6):** Wan в stable-diffusion.cpp через тот же процесс `prism_imagegen`: команда `generate_video`
   (`generate_video()` C API), ролик пишется в MJPEG AVI (`write_mjpeg_avi`: кадры JPEG, индекс idx1) — его открывают
@@ -220,6 +226,10 @@ Prism AI — полностью офлайн ИИ-ассистент для **Wi
   PackageInstaller, разрешение REQUEST_INSTALL_PACKAGES, ответ — `UpdateInstallReceiver`. Windows — `DesktopAppUpdater`:
   zip распаковывается в `%LOCALAPPDATA%\PrismAI\updates`, скрипт PowerShell ждёт выхода программы, копирует файлы
   (robocopy) в папку `jpackage.app-path` и запускает её снова. Модели и данные не затрагиваются.
+  Перед установкой на Android сравниваются ключи подписи APK и установленного приложения (`ApkSignatures`, так же
+  в Prism Store): при несовпадении — ошибка `SIGNATURE` с советом удалить приложение один раз (установщик OnePlus
+  и других телефонов в этом случае просто висит). Сборки CI до постоянного ключа (0.9.0 из артефактов) подписаны
+  временным ключом.
 - **Папка моделей (Android 11+):** «Настройки → Хранение моделей» — `SwitchableModelFolder` переносит файлы
   моделей между `filesDir/models` и `Download/PrismAI/models` (разрешение MANAGE_EXTERNAL_STORAGE,
   `AndroidSharedStorageAccess`); общая папка остаётся после удаления приложения. Перенос по одному файлу

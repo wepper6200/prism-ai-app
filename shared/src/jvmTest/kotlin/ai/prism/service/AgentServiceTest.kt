@@ -39,6 +39,52 @@ class AgentServiceTest {
     }
 
     @Test
+    fun listFilesShowsNestedFoldersInOneStep(): Unit = runBlocking {
+        val folder = projectFolder()
+        folder.resolve("app/src/main/java/com/prism").mkdirs()
+        folder.resolve("app/src/main/java/com/prism/App.kt").writeText("class App")
+        folder.resolve("build/tmp").mkdirs()
+        folder.resolve("build/tmp/junk.bin").writeText("x")
+        val app = app("<tool name=\"list_files\">\n<path>.</path>\n</tool>", "Нашёл App.kt.")
+        val chat = app.chats.createChat()
+        app.chats.setWorkspace(chat.id, folder.path)
+
+        app.generation.send(chat.id, "Что в проекте?")
+
+        val result = app.engine.requests.last().messages.last().content
+        assertTrue("app/src/main/java/com/prism/App.kt" in result, result)
+        assertTrue("junk.bin" !in result, "служебные папки не раскрываются: $result")
+        assertEquals(1, app.chats.messagesSnapshot(chat.id).last().steps.size)
+    }
+
+    @Test
+    fun afterStepLimitTheModelSummarizesAndUserCanContinue(): Unit = runBlocking {
+        val folder = projectFolder()
+        folder.resolve("main.py").writeText("print(1)\n")
+        val call = "<tool name=\"read_file\">\n<path>main.py</path>\n</tool>"
+        val engine = FakeInferenceEngine(reply = listOf(call))
+        val app = TestApp(engine = engine)
+        val chat = app.chats.createChat()
+        app.chats.setWorkspace(chat.id, folder.path)
+
+        app.generation.send(chat.id, "Прочитай всё")
+
+        val limit = ChatGenerationService.MAX_AGENT_STEPS
+        val reply = app.chats.messagesSnapshot(chat.id).last()
+        assertEquals(limit, reply.steps.size)
+        // Последний результат просит подвести итог; модель снова вызвала инструмент — пользователь видит подсказку.
+        assertTrue(engine.requests.last().messages.last().content.endsWith("Шаги закончились."))
+        assertEquals("Сделано $limit шагов.", reply.content)
+        assertEquals(MessageStatus.COMPLETE, reply.status)
+
+        // Модель, которая подводит итог, подсказки не получает.
+        repeat(limit) { engine.queuedReplies += listOf(call) }
+        engine.queuedReplies += listOf("Прочитал main.py, осталось написать тесты.")
+        app.generation.send(chat.id, "Ещё раз")
+        assertEquals("Прочитал main.py, осталось написать тесты.", app.chats.messagesSnapshot(chat.id).last().content)
+    }
+
+    @Test
     fun internetSearchIsUsedAndShownAsStep(): Unit = runBlocking {
         val app = app(
             "Сейчас поищу.\n<tool name=\"web_search\">\n<query>погода Москва</query>\n</tool>\nлишний текст",
