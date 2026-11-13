@@ -1,7 +1,16 @@
 package ai.prism.domain.agent
 
-/** Инструменты ассистента. Имена — то, что модель пишет в вызове `<tool name="…">`. */
-enum class AgentTool(val toolName: String, val needsInternet: Boolean = false, val needsWorkspace: Boolean = false) {
+/**
+ * Инструменты ассистента. Имена — то, что модель пишет в вызове `<tool name="…">`.
+ * [needsWorkspace] — работает с файлами: в папке проекта или (если включён «Компьютер») по полному пути.
+ * [needsComputer] — только с включённым «Компьютер» (Desktop).
+ */
+enum class AgentTool(
+    val toolName: String,
+    val needsInternet: Boolean = false,
+    val needsWorkspace: Boolean = false,
+    val needsComputer: Boolean = false,
+) {
     WEB_SEARCH("web_search", needsInternet = true),
     FETCH_PAGE("fetch_page", needsInternet = true),
     DOWNLOAD_FILE("download_file", needsInternet = true, needsWorkspace = true),
@@ -11,6 +20,8 @@ enum class AgentTool(val toolName: String, val needsInternet: Boolean = false, v
     WRITE_FILE("write_file", needsWorkspace = true),
     EDIT_FILE("edit_file", needsWorkspace = true),
     RUN_COMMAND("run_command", needsWorkspace = true),
+    SYSTEM_INFO("system_info", needsComputer = true),
+    OPEN_PROGRAM("open_program", needsComputer = true),
     ;
 
     companion object {
@@ -42,7 +53,12 @@ data class PendingAction(
     val tool: AgentTool,
     val title: String,
     val detail: String,
+    /** Действие с файлами вне папки проекта (на компьютере пользователя). */
+    val outsideProject: Boolean = false,
 )
+
+/** Инструмент, который выполняется прямо сейчас (долгая команда): последние строки вывода. */
+data class RunningTool(val tool: AgentTool, val title: String, val output: String)
 
 /** Файл или папка в папке проекта; [path] — относительно её корня, через `/`. */
 data class WorkspaceEntry(val path: String, val isDirectory: Boolean, val sizeBytes: Long)
@@ -98,18 +114,66 @@ interface WebClient {
 
 data class CommandResult(val exitCode: Int?, val output: String, val timedOut: Boolean)
 
-/** Запуск команд в папке проекта (только Windows и другие настольные системы). */
+/** Оболочка команды: [DEFAULT] — cmd на Windows (sh на других системах), [POWERSHELL] — PowerShell. */
+enum class Shell { DEFAULT, POWERSHELL }
+
+/**
+ * Запуск команд (только Windows и другие настольные системы). Отмена корутины завершает процесс
+ * вместе с дочерними; [onOutput] получает каждую строку вывода, пока команда работает.
+ */
 interface CommandRunner {
     val isSupported: Boolean
 
-    suspend fun run(directory: String, command: String, timeoutMs: Long): CommandResult
+    suspend fun run(
+        directory: String,
+        command: String,
+        timeoutMs: Long,
+        shell: Shell = Shell.DEFAULT,
+        onOutput: (String) -> Unit = {},
+    ): CommandResult
 
     companion object {
         val None = object : CommandRunner {
             override val isSupported: Boolean = false
 
-            override suspend fun run(directory: String, command: String, timeoutMs: Long): CommandResult =
-                CommandResult(exitCode = null, output = "", timedOut = false)
+            override suspend fun run(
+                directory: String,
+                command: String,
+                timeoutMs: Long,
+                shell: Shell,
+                onOutput: (String) -> Unit,
+            ): CommandResult = CommandResult(exitCode = null, output = "", timedOut = false)
         }
     }
+}
+
+/**
+ * Файл или папка на компьютере по полному пути: папка [folder], в которой он лежит (ближайшая существующая),
+ * путь внутри неё [relative] и полный путь для показа [display].
+ */
+class ComputerPath(val folder: Workspace, val relative: String, val display: String)
+
+/**
+ * Компьютер пользователя за пределами папки проекта (Desktop, если включён «Компьютер»): файлы по полному пути,
+ * сведения о системе и запуск программ. Чтение и изменение файлов вне папки проекта ассистент делает
+ * только с разрешения пользователя.
+ */
+interface Computer {
+    /** Домашняя папка: в ней выполняются команды, если папка проекта не выбрана. */
+    val homePath: String
+
+    /** Полный ли это путь на этом компьютере (`C:\…`, `~/…`; на Windows `/src/…` — путь в проекте). */
+    fun isAbsolute(path: String): Boolean
+
+    /** Находит файл или папку по полному пути; `null`, если путь не полный или такого диска нет. */
+    suspend fun locate(path: String): ComputerPath?
+
+    /** Лежит ли полный [path] внутри папки [root]; если да — путь относительно неё. */
+    fun relativeTo(root: String, path: String): String?
+
+    /** Система, процессор, память, диски, видеокарта, экран, основные папки пользователя. */
+    suspend fun systemInfo(): String
+
+    /** Открывает программу, файл, папку или адрес как двойной щелчок; ошибки — [WorkspaceException]. */
+    suspend fun open(target: String, arguments: String)
 }

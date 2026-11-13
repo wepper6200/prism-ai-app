@@ -65,7 +65,8 @@ class FileWorkspace(root: File, private val ioContext: CoroutineContext = Dispat
     private fun resolve(path: String): File {
         val clean = path.trim().replace('\\', '/').trimStart('/').ifEmpty { "." }
         val file = File(root, clean).canonicalFile
-        if (file != root && !file.path.startsWith(root.path + File.separator)) {
+        // Корень диска (C:\, /) уже оканчивается разделителем.
+        if (file != root && !file.path.startsWith(root.path.trimEnd(File.separatorChar) + File.separator)) {
             throw WorkspaceException("path is outside the project folder: $path")
         }
         return file

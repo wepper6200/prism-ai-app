@@ -39,6 +39,7 @@ class DefaultSettingsRepositoryTest {
             setAgentSteps(0)
             setFolderDepth(20)
             setThinkingLevel(ThinkingLevel.HIGH)
+            setComputerEnabled(true)
         }
 
         val restarted = DefaultSettingsRepository(store)
@@ -54,6 +55,7 @@ class DefaultSettingsRepositoryTest {
                 agentSteps = 0,
                 folderDepth = 20,
                 thinkingLevel = ThinkingLevel.HIGH,
+                computerEnabled = true,
             ),
             restarted.settings.value,
         )

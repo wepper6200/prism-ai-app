@@ -6,4 +6,6 @@ data class PlatformCapabilities(
     val supportsDynamicColor: Boolean,
     /** `android` или `desktop` — для выбора моделей каталога. */
     val platform: String = "desktop",
+    /** Ассистент может работать с компьютером: файлы вне проекта, программы, сведения о системе (Desktop). */
+    val supportsComputer: Boolean = false,
 )

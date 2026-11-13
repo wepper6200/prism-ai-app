@@ -20,6 +20,8 @@ interface SettingsRepository {
 
     fun setInternetEnabled(enabled: Boolean)
 
+    fun setComputerEnabled(enabled: Boolean)
+
     fun setAutoApplyEdits(enabled: Boolean)
 
     fun setSpeechModel(modelId: String)

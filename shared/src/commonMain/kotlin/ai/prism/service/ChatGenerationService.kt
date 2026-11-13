@@ -5,7 +5,9 @@ import ai.prism.core.todayText
 import ai.prism.domain.agent.AgentStep
 import ai.prism.domain.agent.AgentTool
 import ai.prism.domain.agent.CommandRunner
+import ai.prism.domain.agent.Computer
 import ai.prism.domain.agent.PendingAction
+import ai.prism.domain.agent.RunningTool
 import ai.prism.domain.agent.WebClient
 import ai.prism.domain.agent.WorkspaceProvider
 import ai.prism.domain.documents.DocumentChunk
@@ -43,13 +45,19 @@ import ai.prism.domain.repository.ModelRepository
 import ai.prism.domain.repository.SettingsRepository
 import ai.prism.inference.ChatPromptFormatter
 import ai.prism.service.agent.AgentToolbox
+import ai.prism.service.agent.ToolCall
 import ai.prism.service.agent.ToolCallProtocol
+import ai.prism.service.agent.ToolOutcome
 import ai.prism.service.documents.DocumentRetriever
 import ai.prism.service.video.VideoClipBuilder
 import ai.prism.service.video.VideoPlan
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -95,6 +103,8 @@ data class AssistantPersona(
     val agentWorkspaceNote: String = "{name}",
     /** Про включённый интернет. */
     val agentInternetNote: String = "",
+    /** Про доступ к компьютеру (файлы вне проекта, команды, программы); `{home}` — домашняя папка. */
+    val agentComputerNote: String = "",
     /** Описание каждого инструмента для модели. */
     val toolDescriptions: Map<AgentTool, String> = emptyMap(),
     /** Добавляется к результату последнего разрешённого шага: инструментов больше нет, нужно подвести итог. */
@@ -158,6 +168,8 @@ data class ActiveGeneration(
     val steps: List<AgentStep> = emptyList(),
     /** Действие, которое ждёт разрешения пользователя. */
     val pending: PendingAction? = null,
+    /** Инструмент, который выполняется сейчас (долгая команда) — с последними строками вывода. */
+    val running: RunningTool? = null,
 )
 
 /**
@@ -180,6 +192,8 @@ class ChatGenerationService(
     /** Папки проектов, выбранные для диалогов. */
     private val workspaces: WorkspaceProvider? = null,
     private val commands: CommandRunner = CommandRunner.None,
+    /** Компьютер пользователя вне папки проекта (Desktop; используется, только если включён «Компьютер»). */
+    private val computer: Computer? = null,
     /** Сегодняшняя дата на устройстве для промпта. */
     private val today: () -> String = ::todayText,
     /** Объём оперативной памяти: от него зависит текстовый энкодер видео по умолчанию (0 — неизвестен). */
@@ -197,6 +211,10 @@ class ChatGenerationService(
 
     @Volatile
     private var decision: CompletableDeferred<Boolean>? = null
+
+    /** Инструмент, который выполняется сейчас: «Стоп» отменяет его (и завершает долгую команду). */
+    @Volatile
+    private var toolJob: Job? = null
 
     init {
         scope.launch {
@@ -296,6 +314,7 @@ class ChatGenerationService(
     fun stop() {
         stopRequested = true
         decision?.complete(false)
+        toolJob?.cancel()
         engine.cancel()
         imageGenerator.cancel()
     }
@@ -643,13 +662,16 @@ class ChatGenerationService(
         val current = settings.settings.value
         val internet = web?.takeIf { current.internetEnabled }
         val folder = chats.workspaceOf(chatId)?.let { location -> workspaces?.open(location) }
-        if (internet == null && folder == null) return null
+        val pc = computer?.takeIf { current.computerEnabled }
+        if (internet == null && folder == null && pc == null) return null
         return AgentToolbox(
             workspace = folder,
             web = internet,
             commands = commands,
             autoApplyEdits = current.autoApplyEdits,
             folderDepth = current.folderDepth,
+            computer = pc,
+            onRunning = { running -> mutableActive.update { it?.copy(running = running) } },
             approve = { action -> askApproval(chatId, replyId, action) },
             newId = ::newId,
         ).takeIf { it.tools.isNotEmpty() }
@@ -677,6 +699,8 @@ class ChatGenerationService(
         val context = listOfNotNull(
             workspaceName?.let { persona.agentWorkspaceNote.replace("{name}", it) },
             persona.agentInternetNote.takeIf { AgentTool.WEB_SEARCH in toolbox.tools && it.isNotBlank() },
+            persona.agentComputerNote.takeIf { AgentTool.SYSTEM_INFO in toolbox.tools && it.isNotBlank() }
+                ?.replace("{home}", computer?.homePath.orEmpty()),
         ).joinToString("\n")
         val tools = toolbox.tools.joinToString("\n") { tool -> "- " + (persona.toolDescriptions[tool] ?: tool.toolName) }
         val instructions = persona.agentInstructions.replace("{context}", context).replace("{tools}", tools)
@@ -720,7 +744,7 @@ class ChatGenerationService(
                 }
                 return
             }
-            val outcome = toolbox.execute(call)
+            val outcome = runTool(toolbox, call) ?: return
             outcome.step?.let { steps += it }
             executed++
             show("")
@@ -733,6 +757,20 @@ class ChatGenerationService(
             dialog = dialog +
                 PromptMessage(MessageRole.ASSISTANT, ToolCallProtocol.callText(raw.toString())) +
                 PromptMessage(MessageRole.USER, ToolCallProtocol.result(call.name, outcome.result) + limitNote)
+        }
+    }
+
+    /** Выполняет вызов; `null` — пользователь нажал «Стоп», пока инструмент работал (команда завершена). */
+    private suspend fun runTool(toolbox: AgentToolbox, call: ToolCall): ToolOutcome? = coroutineScope {
+        val job = async { toolbox.execute(call) }
+        toolJob = job
+        try {
+            job.await()
+        } catch (e: CancellationException) {
+            if (!stopRequested || !isActive) throw e
+            null
+        } finally {
+            toolJob = null
         }
     }
 

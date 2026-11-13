@@ -12,8 +12,11 @@ import ai.prism.data.documents.SqlDocumentRepository
 import ai.prism.data.db.PrismDatabase
 import ai.prism.data.settings.DefaultSettingsRepository
 import ai.prism.data.settings.MapKeyValueStore
+import ai.prism.data.agent.DesktopComputer
 import ai.prism.domain.agent.CommandResult
 import ai.prism.domain.agent.CommandRunner
+import ai.prism.domain.agent.Computer
+import ai.prism.domain.agent.Shell
 import ai.prism.domain.agent.WebClient
 import ai.prism.domain.agent.WebException
 import ai.prism.domain.agent.WebResult
@@ -62,8 +65,10 @@ import ai.prism.core.MjpegAvi
 import ai.prism.service.voice.VoiceService
 import ai.prism.service.documents.DocumentService
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
+import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -393,14 +398,58 @@ class FakeWebClient(
         (pages[url] ?: throw WebException("server answered 404 for $url")).encodeToByteArray()
 }
 
-/** Команды для тестов: запоминает команды и отвечает заданным выводом. */
+/**
+ * Команды для тестов: запоминает команды, отдаёт вывод по строкам и отвечает им. [whileRunning] вызывается после
+ * вывода (можно проверить, что видит пользователь); [hang] — команда не заканчивается, пока её не отменят.
+ */
 class FakeCommandRunner(var output: String = "BUILD SUCCESSFUL", var exitCode: Int = 0) : CommandRunner {
     val commands = mutableListOf<Pair<String, String>>()
+    val shells = mutableListOf<Shell>()
+    val timeouts = mutableListOf<Long>()
+    var whileRunning: () -> Unit = {}
+    var hang = false
+    var cancelled = false
     override val isSupported: Boolean = true
 
-    override suspend fun run(directory: String, command: String, timeoutMs: Long): CommandResult {
+    override suspend fun run(
+        directory: String,
+        command: String,
+        timeoutMs: Long,
+        shell: Shell,
+        onOutput: (String) -> Unit,
+    ): CommandResult {
         commands += directory to command
+        shells += shell
+        timeouts += timeoutMs
+        output.lines().forEach(onOutput)
+        whileRunning()
+        if (hang) {
+            try {
+                awaitCancellation()
+            } finally {
+                cancelled = true
+            }
+        }
         return CommandResult(exitCode, output, timedOut = false)
+    }
+}
+
+/** Компьютер для тестов: настоящие файлы и сведения о системе, но программы не запускаются, а запоминаются. */
+class FakeComputer(home: File) : Computer {
+    private val real = DesktopComputer(Dispatchers.Unconfined, homePath = home.path, windows = false)
+    val opened = mutableListOf<String>()
+    override val homePath: String = home.path
+
+    override fun isAbsolute(path: String) = real.isAbsolute(path)
+
+    override suspend fun locate(path: String) = real.locate(path)
+
+    override fun relativeTo(root: String, path: String) = real.relativeTo(root, path)
+
+    override suspend fun systemInfo(): String = "OS: Test OS\nRAM: 16.0 GB total"
+
+    override suspend fun open(target: String, arguments: String) {
+        opened += listOf(target, arguments).filter { it.isNotBlank() }.joinToString(" ")
     }
 }
 
@@ -466,6 +515,8 @@ class TestApp(
     val extractor: FakeTextExtractor = FakeTextExtractor(),
     val web: FakeWebClient = FakeWebClient(),
     val commands: FakeCommandRunner = FakeCommandRunner(),
+    /** Компьютер для инструментов «Компьютер»; `null` — как на Android. */
+    val computer: Computer? = null,
     /** Справка о дате в персоне; пусто — системный промпт без даты. */
     currentDateNote: String = "",
     val speechEngine: FakeSpeechEngine = FakeSpeechEngine(),
@@ -513,6 +564,7 @@ class TestApp(
                 agentInstructions = "Инструменты.\n{context}\n{tools}",
                 agentWorkspaceNote = "Папка: {name}",
                 agentInternetNote = "Интернет включён",
+                agentComputerNote = "Компьютер: {home}",
                 agentStepLimit = "Шаги закончились.",
                 agentStepLimitNotice = "Сделано {steps} шагов.",
                 memoryNote = "О пользователе:\n{facts}",
@@ -529,6 +581,7 @@ class TestApp(
         web = web,
         workspaces = FileWorkspaceProvider(Dispatchers.Unconfined),
         commands = commands,
+        computer = computer,
         totalRamBytes = totalRamBytes,
         drafts = drafts,
         memories = memories,

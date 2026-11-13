@@ -91,6 +91,7 @@ import ai.prism.ui.components.VideoAudioPlayer
 import ai.prism.ui.components.AgentSteps
 import ai.prism.ui.components.DocumentStrip
 import ai.prism.ui.components.PendingActionCard
+import ai.prism.ui.components.RunningToolCard
 import ai.prism.ui.components.rememberFolderPicker
 import ai.prism.ui.components.SourcesLine
 import ai.prism.ui.components.rememberDocumentPicker
@@ -330,6 +331,8 @@ fun ChatScreen(
             onPickWorkspace = folderPicker::pickFolder,
             onRemoveWorkspace = { component.onIntent(ChatIntent.RemoveWorkspace) },
             onToggleInternet = { component.onIntent(ChatIntent.ToggleInternet) },
+            computerEnabled = state.computerEnabled,
+            onToggleComputer = { component.onIntent(ChatIntent.ToggleComputer) },
             thinkingLevel = state.thinkingLevel.takeIf { state.thinkingSupported },
             onSelectThinking = { component.onIntent(ChatIntent.SetThinkingLevel(it)) },
             modifier = Modifier.align(Alignment.CenterHorizontally).widthIn(max = 880.dp).fillMaxWidth(),
@@ -802,13 +805,14 @@ private fun AssistantMessage(
                 )
             }
             if (message.steps.isNotEmpty()) AgentSteps(message.steps)
+            message.running?.let { running -> RunningToolCard(running) }
             message.pending?.let { action ->
                 PendingActionCard(action, onResolve = { approved -> onResolve(action.id, approved) })
             }
             when {
                 message.drawing != null -> Drawing(message.drawing)
                 loadingProgress != null && message.text.isEmpty() -> ModelLoading(loadingProgress)
-                message.isStreaming && message.text.isEmpty() && message.pending == null -> TypingIndicator()
+                message.isStreaming && message.text.isEmpty() && message.pending == null && message.running == null -> TypingIndicator()
                 message.text.isNotEmpty() -> SelectionContainer {
                     Text(
                         text = if (message.isStreaming) message.text + CURSOR else message.text,

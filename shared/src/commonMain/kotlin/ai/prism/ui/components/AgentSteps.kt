@@ -4,12 +4,24 @@ import ai.prism.domain.agent.AgentStep
 import ai.prism.domain.agent.AgentStepStatus
 import ai.prism.domain.agent.AgentTool
 import ai.prism.domain.agent.PendingAction
+import ai.prism.domain.agent.RunningTool
 import ai.prism.domain.model.ThinkingLevel
 import ai.prism.resources.Res
+import ai.prism.resources.agent_allow
 import ai.prism.resources.agent_apply
 import ai.prism.resources.agent_approval_command
 import ai.prism.resources.agent_approval_download
+import ai.prism.resources.agent_approval_download_outside
 import ai.prism.resources.agent_approval_edit
+import ai.prism.resources.agent_approval_edit_outside
+import ai.prism.resources.agent_approval_list_outside
+import ai.prism.resources.agent_approval_open
+import ai.prism.resources.agent_approval_read_outside
+import ai.prism.resources.agent_open
+import ai.prism.resources.agent_running
+import ai.prism.resources.agent_step_open_program
+import ai.prism.resources.agent_step_system_info
+import ai.prism.resources.chat_computer
 import ai.prism.resources.agent_reject
 import ai.prism.resources.agent_run
 import ai.prism.resources.agent_status_failed
@@ -46,7 +58,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Computer
+import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Folder
@@ -64,6 +79,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.InputChip
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -146,13 +162,7 @@ fun PendingActionCard(action: PendingAction, onResolve: (Boolean) -> Unit, modif
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(action.tool.icon(), contentDescription = null, modifier = Modifier.size(20.dp))
                 Text(
-                    text = stringResource(
-                        when (action.tool) {
-                            AgentTool.RUN_COMMAND -> Res.string.agent_approval_command
-                            AgentTool.DOWNLOAD_FILE -> Res.string.agent_approval_download
-                            else -> Res.string.agent_approval_edit
-                        },
-                    ),
+                    text = stringResource(action.question()),
                     style = MaterialTheme.typography.titleSmall,
                 )
             }
@@ -160,13 +170,51 @@ fun PendingActionCard(action: PendingAction, onResolve: (Boolean) -> Unit, modif
             if (action.detail.isNotBlank() && action.detail != action.title) DetailBox(action.detail)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = { onResolve(true) }, modifier = Modifier.testTag("pending_approve")) {
-                    Text(stringResource(if (action.tool == AgentTool.RUN_COMMAND) Res.string.agent_run else Res.string.agent_apply))
+                    Text(stringResource(action.approveLabel()))
                 }
                 OutlinedButton(onClick = { onResolve(false) }, modifier = Modifier.testTag("pending_reject")) {
                     Text(stringResource(Res.string.agent_reject))
                 }
             }
         }
+    }
+}
+
+/** Что спрашивается у пользователя. */
+private fun PendingAction.question(): StringResource = when (tool) {
+    AgentTool.RUN_COMMAND -> Res.string.agent_approval_command
+    AgentTool.OPEN_PROGRAM -> Res.string.agent_approval_open
+    AgentTool.DOWNLOAD_FILE -> if (outsideProject) Res.string.agent_approval_download_outside else Res.string.agent_approval_download
+    AgentTool.READ_FILE -> Res.string.agent_approval_read_outside
+    AgentTool.LIST_FILES, AgentTool.SEARCH_FILES -> Res.string.agent_approval_list_outside
+    else -> if (outsideProject) Res.string.agent_approval_edit_outside else Res.string.agent_approval_edit
+}
+
+private fun PendingAction.approveLabel(): StringResource = when (tool) {
+    AgentTool.RUN_COMMAND -> Res.string.agent_run
+    AgentTool.OPEN_PROGRAM -> Res.string.agent_open
+    AgentTool.READ_FILE, AgentTool.LIST_FILES, AgentTool.SEARCH_FILES -> Res.string.agent_allow
+    else -> Res.string.agent_apply
+}
+
+/** Команда, которая выполняется сейчас: последние строки её вывода. */
+@Composable
+fun RunningToolCard(running: RunningTool, modifier: Modifier = Modifier) {
+    Column(modifier.fillMaxWidth().testTag("running_tool"), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Icon(running.tool.icon(), contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+            Text(stringResource(Res.string.agent_running), style = MaterialTheme.typography.labelLarge)
+            Text(
+                text = running.title,
+                style = MaterialTheme.typography.labelMedium.copy(fontFamily = FontFamily.Monospace),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+        }
+        LinearProgressIndicator(Modifier.fillMaxWidth())
+        if (running.output.isNotBlank()) DetailBox(running.output)
     }
 }
 
@@ -200,6 +248,9 @@ fun AgentContextRow(
     onPickWorkspace: () -> Unit,
     onRemoveWorkspace: () -> Unit,
     onToggleInternet: () -> Unit,
+    /** Переключатель «Компьютер»; `null` — платформа не умеет (Android). */
+    computerEnabled: Boolean? = null,
+    onToggleComputer: () -> Unit = {},
     thinkingLevel: ThinkingLevel? = null,
     onSelectThinking: (ThinkingLevel) -> Unit = {},
     modifier: Modifier = Modifier,
@@ -236,6 +287,15 @@ fun AgentContextRow(
             leadingIcon = { Icon(Icons.Outlined.Public, contentDescription = null, modifier = Modifier.size(18.dp)) },
             modifier = Modifier.testTag("internet_toggle"),
         )
+        if (computerEnabled != null) {
+            FilterChip(
+                selected = computerEnabled,
+                onClick = onToggleComputer,
+                label = { Text(stringResource(Res.string.chat_computer)) },
+                leadingIcon = { Icon(Icons.Outlined.Computer, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                modifier = Modifier.testTag("computer_toggle"),
+            )
+        }
         if (thinkingLevel != null) ThinkingChip(thinkingLevel, onSelectThinking)
     }
 }
@@ -286,6 +346,8 @@ private fun AgentTool.icon(): ImageVector = when (this) {
     AgentTool.SEARCH_FILES -> Icons.AutoMirrored.Outlined.ManageSearch
     AgentTool.WRITE_FILE, AgentTool.EDIT_FILE -> Icons.Outlined.Edit
     AgentTool.RUN_COMMAND -> Icons.Outlined.Terminal
+    AgentTool.SYSTEM_INFO -> Icons.Outlined.Memory
+    AgentTool.OPEN_PROGRAM -> Icons.AutoMirrored.Outlined.OpenInNew
 }
 
 private fun AgentTool.label(): StringResource = when (this) {
@@ -298,4 +360,6 @@ private fun AgentTool.label(): StringResource = when (this) {
     AgentTool.WRITE_FILE -> Res.string.agent_step_write_file
     AgentTool.EDIT_FILE -> Res.string.agent_step_edit_file
     AgentTool.RUN_COMMAND -> Res.string.agent_step_run_command
+    AgentTool.SYSTEM_INFO -> Res.string.agent_step_system_info
+    AgentTool.OPEN_PROGRAM -> Res.string.agent_step_open_program
 }

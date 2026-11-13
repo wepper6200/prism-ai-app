@@ -86,6 +86,8 @@ import ai.prism.resources.settings_assistant
 import ai.prism.resources.settings_auto_apply
 import ai.prism.resources.settings_auto_apply_desc
 import ai.prism.resources.settings_internet
+import ai.prism.resources.settings_computer
+import ai.prism.resources.settings_computer_desc
 import ai.prism.resources.settings_internet_desc
 import ai.prism.resources.settings_safe_mode
 import ai.prism.resources.settings_safe_mode_desc
@@ -317,6 +319,15 @@ fun SettingsScreen(
                     onCheckedChange = { component.onIntent(SettingsIntent.SetInternetEnabled(it)) },
                     tag = "internet_setting",
                 )
+                if (state.computerSupported) {
+                    SettingSwitch(
+                        title = stringResource(Res.string.settings_computer),
+                        description = stringResource(Res.string.settings_computer_desc),
+                        checked = state.settings.computerEnabled,
+                        onCheckedChange = { component.onIntent(SettingsIntent.SetComputerEnabled(it)) },
+                        tag = "computer_setting",
+                    )
+                }
                 SettingSwitch(
                     title = stringResource(Res.string.settings_auto_apply),
                     description = stringResource(Res.string.settings_auto_apply_desc),

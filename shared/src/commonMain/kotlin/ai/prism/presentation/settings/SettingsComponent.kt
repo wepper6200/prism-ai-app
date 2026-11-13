@@ -50,6 +50,8 @@ data class SettingsState(
     val settings: AppSettings,
     val supportsDynamicColor: Boolean,
     val versionName: String,
+    /** Показывать «Работа с компьютером» (Desktop). */
+    val computerSupported: Boolean = false,
     val voice: VoiceSettings = VoiceSettings(),
     /** Скачанные модели видео (выбор показывается, если их несколько). */
     val videoModels: List<VoiceModelOption> = emptyList(),
@@ -73,6 +75,7 @@ sealed interface SettingsIntent {
     data class SetDynamicColor(val enabled: Boolean) : SettingsIntent
     data class SetSafeMode(val enabled: Boolean) : SettingsIntent
     data class SetInternetEnabled(val enabled: Boolean) : SettingsIntent
+    data class SetComputerEnabled(val enabled: Boolean) : SettingsIntent
     data class SetAutoApplyEdits(val enabled: Boolean) : SettingsIntent
     data class SelectSpeechModel(val modelId: String) : SettingsIntent
     data class SelectVoiceModel(val modelId: String) : SettingsIntent
@@ -118,9 +121,10 @@ class DefaultSettingsComponent(
 
     private val scope = componentScope(mainContext)
 
-    private fun toState(settings: AppSettings, supportsDynamicColor: Boolean) = SettingsState(
+    private fun toState(settings: AppSettings, capabilities: PlatformCapabilities) = SettingsState(
         settings = settings,
-        supportsDynamicColor = supportsDynamicColor,
+        supportsDynamicColor = capabilities.supportsDynamicColor,
+        computerSupported = capabilities.supportsComputer,
         versionName = BuildInfo.VERSION_NAME,
         updatesSupported = updates.supported,
     )
@@ -133,7 +137,7 @@ class DefaultSettingsComponent(
             modelFolder.state,
             memories.memories,
         ) { settings, models, update, folder, remembered ->
-            toState(settings, capabilities.supportsDynamicColor).copy(
+            toState(settings, capabilities).copy(
                 update = update,
                 modelFolder = folder,
                 memories = remembered,
@@ -153,7 +157,7 @@ class DefaultSettingsComponent(
         }.stateIn(
             scope = scope,
             started = SharingStarted.Eagerly,
-            initialValue = toState(settingsRepository.settings.value, capabilities.supportsDynamicColor),
+            initialValue = toState(settingsRepository.settings.value, capabilities),
         )
 
     private fun voiceSettings(models: List<ModelEntry>, settings: AppSettings): VoiceSettings {
@@ -182,6 +186,7 @@ class DefaultSettingsComponent(
             is SettingsIntent.SetDynamicColor -> settingsRepository.setDynamicColor(intent.enabled)
             is SettingsIntent.SetSafeMode -> settingsRepository.setSafeMode(intent.enabled)
             is SettingsIntent.SetInternetEnabled -> settingsRepository.setInternetEnabled(intent.enabled)
+            is SettingsIntent.SetComputerEnabled -> settingsRepository.setComputerEnabled(intent.enabled)
             is SettingsIntent.SetAutoApplyEdits -> settingsRepository.setAutoApplyEdits(intent.enabled)
             is SettingsIntent.SelectSpeechModel -> settingsRepository.setSpeechModel(intent.modelId)
             is SettingsIntent.SelectVoiceModel -> settingsRepository.setVoiceModel(intent.modelId)

@@ -3,6 +3,7 @@ package ai.prism.presentation.chat
 import ai.prism.core.componentScope
 import ai.prism.domain.agent.AgentStep
 import ai.prism.domain.agent.PendingAction
+import ai.prism.domain.agent.RunningTool
 import ai.prism.domain.agent.WorkspaceProvider
 import ai.prism.domain.documents.DocumentError
 import ai.prism.domain.documents.DocumentFormat
@@ -71,6 +72,8 @@ data class MessageItem(
     val steps: List<AgentStep> = emptyList(),
     /** Действие ассистента, которое ждёт разрешения (только у ответа, который генерируется). */
     val pending: PendingAction? = null,
+    /** Команда, которая выполняется сейчас, с последними строками вывода. */
+    val running: RunningTool? = null,
 )
 
 /** Файл диалога на экране: [progress] — доля готовности, пока файл готовится к поиску. */
@@ -199,6 +202,8 @@ data class ChatState(
     val workspaceName: String? = null,
     /** Ассистенту разрешён интернет (настройка). */
     val internetEnabled: Boolean = false,
+    /** Работа с компьютером: `null` — платформа не умеет (переключатель не показывается). */
+    val computerEnabled: Boolean? = null,
     /** Уровень размышлений и умеет ли активная модель рассуждать (переключатель показывается только тогда). */
     val thinkingLevel: ThinkingLevel = ThinkingLevel.OFF,
     val thinkingSupported: Boolean = false,
@@ -246,6 +251,7 @@ sealed interface ChatIntent {
     data class ChooseWorkspace(val location: String) : ChatIntent
     data object RemoveWorkspace : ChatIntent
     data object ToggleInternet : ChatIntent
+    data object ToggleComputer : ChatIntent
     data class SetThinkingLevel(val level: ThinkingLevel) : ChatIntent
 
     /** Ответ на запрос разрешения действия ассистента. */
@@ -321,6 +327,8 @@ class DefaultChatComponent(
     private val voice: VoiceService,
     private val audioOutput: AudioOutput,
     private val drafts: DraftRepository = DraftRepository.None,
+    /** Платформа умеет работать с компьютером (Desktop): показывать переключатель «Компьютер». */
+    private val computerSupported: Boolean = false,
     mainContext: CoroutineContext,
     private val onOpenModels: () -> Unit,
     private val onBack: () -> Unit,
@@ -419,6 +427,7 @@ class DefaultChatComponent(
                     sources = message.sources,
                     steps = streaming?.steps ?: message.steps,
                     pending = streaming?.pending,
+                    running = streaming?.running,
                 )
             },
             isGenerating = active?.chatId == chatId,
@@ -493,14 +502,19 @@ class DefaultChatComponent(
         }
     }
 
-    private data class AgentPart(val workspaceName: String?, val internetEnabled: Boolean, val thinkingLevel: ThinkingLevel)
+    private data class AgentPart(
+        val workspaceName: String?,
+        val internetEnabled: Boolean,
+        val thinkingLevel: ThinkingLevel,
+        val computerEnabled: Boolean,
+    )
 
     private val agentPart = combine(
         chatRepository.workspace(chatId).map { location ->
             location?.let { workspaceProvider.open(it)?.name ?: it.substringAfterLast('/').substringAfterLast("%2F") }
         },
-        settingsRepository.settings.map { it.internetEnabled to it.thinkingLevel },
-    ) { name, (internet, thinking) -> AgentPart(name, internet, thinking) }
+        settingsRepository.settings.map { Triple(it.internetEnabled, it.thinkingLevel, it.computerEnabled) },
+    ) { name, (internet, thinking, computer) -> AgentPart(name, internet, thinking, computer) }
 
     private val voicePart = combine(voice.state, voice.availability) { current, available ->
         val conversation = current.conversationChatId == chatId
@@ -571,6 +585,7 @@ class DefaultChatComponent(
             embeddingModelBytes = model.embeddingModelBytes,
             workspaceName = extra.agent.workspaceName,
             internetEnabled = extra.agent.internetEnabled,
+            computerEnabled = extra.agent.computerEnabled.takeIf { computerSupported },
             thinkingLevel = extra.agent.thinkingLevel,
             thinkingSupported = model.thinkingSupported,
             modelLoadingProgress = model.loadingProgress?.takeIf { chat.isGenerating },
@@ -594,6 +609,7 @@ class DefaultChatComponent(
             is ChatIntent.ChooseWorkspace -> scope.launch { chatRepository.setWorkspace(chatId, intent.location) }
             ChatIntent.RemoveWorkspace -> scope.launch { chatRepository.setWorkspace(chatId, null) }
             ChatIntent.ToggleInternet -> settingsRepository.setInternetEnabled(!settingsRepository.settings.value.internetEnabled)
+            ChatIntent.ToggleComputer -> settingsRepository.setComputerEnabled(!settingsRepository.settings.value.computerEnabled)
             is ChatIntent.SetThinkingLevel -> settingsRepository.setThinkingLevel(intent.level)
             is ChatIntent.ResolvePending -> generation.resolvePending(intent.actionId, intent.approved)
             is ChatIntent.AttachImages -> attach(intent.files)

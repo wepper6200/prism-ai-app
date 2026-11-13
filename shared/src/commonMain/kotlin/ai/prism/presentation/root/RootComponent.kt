@@ -153,6 +153,7 @@ class DefaultRootComponent(
                     voice = deps.voiceService,
                     audioOutput = deps.audioOutput,
                     drafts = deps.drafts,
+                    computerSupported = deps.capabilities.supportsComputer,
                     mainContext = mainContext,
                     onOpenModels = { openScreen(Config.Models) },
                     onBack = ::onBack,

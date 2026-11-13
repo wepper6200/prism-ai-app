@@ -33,6 +33,8 @@ class DefaultSettingsRepository(
 
     override fun setInternetEnabled(enabled: Boolean) = update { it.copy(internetEnabled = enabled) }
 
+    override fun setComputerEnabled(enabled: Boolean) = update { it.copy(computerEnabled = enabled) }
+
     override fun setAutoApplyEdits(enabled: Boolean) = update { it.copy(autoApplyEdits = enabled) }
 
     override fun setSpeechModel(modelId: String) = update { it.copy(speechModelId = modelId) }
@@ -73,6 +75,7 @@ class DefaultSettingsRepository(
             dynamicColor = store.getString(KEY_DYNAMIC_COLOR)?.toBooleanStrictOrNull() ?: defaults.dynamicColor,
             safeMode = store.getString(KEY_SAFE_MODE)?.toBooleanStrictOrNull() ?: defaults.safeMode,
             internetEnabled = store.getString(KEY_INTERNET)?.toBooleanStrictOrNull() ?: defaults.internetEnabled,
+            computerEnabled = store.getString(KEY_COMPUTER)?.toBooleanStrictOrNull() ?: defaults.computerEnabled,
             autoApplyEdits = store.getString(KEY_AUTO_APPLY)?.toBooleanStrictOrNull() ?: defaults.autoApplyEdits,
             speechModelId = store.getString(KEY_SPEECH_MODEL) ?: defaults.speechModelId,
             voiceModelId = store.getString(KEY_VOICE_MODEL) ?: defaults.voiceModelId,
@@ -97,6 +100,7 @@ class DefaultSettingsRepository(
         store.putString(KEY_DYNAMIC_COLOR, settings.dynamicColor.toString())
         store.putString(KEY_SAFE_MODE, settings.safeMode.toString())
         store.putString(KEY_INTERNET, settings.internetEnabled.toString())
+        store.putString(KEY_COMPUTER, settings.computerEnabled.toString())
         store.putString(KEY_AUTO_APPLY, settings.autoApplyEdits.toString())
         store.putString(KEY_SPEECH_MODEL, settings.speechModelId)
         store.putString(KEY_VOICE_MODEL, settings.voiceModelId)
@@ -121,6 +125,7 @@ class DefaultSettingsRepository(
         const val KEY_DYNAMIC_COLOR = "dynamic_color"
         const val KEY_SAFE_MODE = "safe_mode"
         const val KEY_INTERNET = "internet_enabled"
+        const val KEY_COMPUTER = "computer_enabled"
         const val KEY_AUTO_APPLY = "auto_apply_edits"
         const val KEY_SPEECH_MODEL = "speech_model"
         const val KEY_VOICE_MODEL = "voice_model"

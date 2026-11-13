@@ -37,7 +37,7 @@ import org.koin.dsl.module
  * `KeyValueStore`, `SqlDriver`, `PlatformCapabilities`, `DeviceInfo`,
  * `ModelStorage`, `ModelDownloader`, `ImageStore`, `ImageGenerator`, `InferenceEngine`,
  * `DocumentTextExtractor`, `TextEmbedder`, `WebClient`, `WorkspaceProvider`, `CommandRunner`,
- * `SpeechEngine`, `AudioInput` и `AudioOutput`.
+ * `SpeechEngine`, `AudioInput` и `AudioOutput`; по желанию — `Computer` (Desktop).
  */
 val sharedModule: Module = module {
     // Область приложения: загрузки моделей и генерация ответов живут дольше экранов.
@@ -84,6 +84,8 @@ val sharedModule: Module = module {
             web = get(),
             workspaces = get(),
             commands = get(),
+            // Есть только на Desktop.
+            computer = getOrNull(),
             totalRamBytes = get<DeviceInfo>().totalRamBytes,
             drafts = get(),
             memories = get(),

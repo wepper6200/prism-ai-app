@@ -3,7 +3,9 @@ package ai.prism.di
 import ai.prism.data.agent.FileWorkspaceProvider
 import ai.prism.data.agent.HttpWebClient
 import ai.prism.data.agent.ProcessCommandRunner
+import ai.prism.data.agent.DesktopComputer
 import ai.prism.domain.agent.CommandRunner
+import ai.prism.domain.agent.Computer
 import ai.prism.domain.agent.WebClient
 import ai.prism.domain.agent.WorkspaceProvider
 import ai.prism.data.documents.FileTextExtractor
@@ -58,7 +60,7 @@ fun desktopPlatformModule(): Module = module {
             schema = PrismDatabase.Schema,
         )
     }
-    single { PlatformCapabilities(supportsDynamicColor = false) }
+    single { PlatformCapabilities(supportsDynamicColor = false, supportsComputer = true) }
     single<DeviceInfo> { DesktopDeviceInfo() }
     // Папку моделей можно выбрать в настройках (например, на другом диске); по умолчанию — папка данных.
     single { FileModelStorage(ChoosableModelFolder.initialDirectory(get(), defaultModelsDir()).first) }
@@ -78,6 +80,7 @@ fun desktopPlatformModule(): Module = module {
     single<WebClient> { HttpWebClient() }
     single<WorkspaceProvider> { FileWorkspaceProvider() }
     single<CommandRunner> { ProcessCommandRunner() }
+    single<Computer> { DesktopComputer() }
     single<TextEmbedder> { LlamaTextEmbedder(DesktopNativeLibraryLoader(), get()) }
     single<SpeechEngine> { DesktopSherpaSpeechEngine(threads = get<DeviceInfo>().inferenceThreads.coerceIn(1, MAX_SPEECH_THREADS)) }
     single<AudioInput> { JavaSoundAudioInput() }
