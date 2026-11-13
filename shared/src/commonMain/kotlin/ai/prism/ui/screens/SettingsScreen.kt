@@ -72,7 +72,6 @@ import ai.prism.domain.model.ThemeStyle
 import ai.prism.presentation.settings.SettingsComponent
 import ai.prism.presentation.settings.SettingsIntent
 import ai.prism.resources.Res
-import org.jetbrains.compose.resources.ExperimentalResourceApi
 import ai.prism.resources.app_name
 import ai.prism.resources.dark_mode_dark
 import ai.prism.resources.dark_mode_light
@@ -96,7 +95,6 @@ import ai.prism.resources.settings_context
 import ai.prism.resources.settings_context_desc
 import ai.prism.resources.settings_folder_depth
 import ai.prism.resources.settings_unlimited
-import ai.prism.resources.settings_notices
 import ai.prism.resources.settings_thinking
 import ai.prism.resources.settings_thinking_desc
 import ai.prism.resources.thinking_high
@@ -155,7 +153,6 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.remember
@@ -414,7 +411,6 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                NoticesBlock()
             }
             Spacer(Modifier.height(12.dp))
         }
@@ -468,25 +464,6 @@ private fun AgentLimits(settings: AppSettings, onIntent: (SettingsIntent) -> Uni
         onSelect = { onIntent(SettingsIntent.SetFolderDepth(it.toInt())) },
     )
 }
-
-/** Лицензии открытых компонентов: свёрнуто, текст из ресурсов приложения (без интернета). */
-@OptIn(ExperimentalResourceApi::class)
-@Composable
-private fun NoticesBlock() {
-    var expanded by remember { mutableStateOf(false) }
-    var text by remember { mutableStateOf("") }
-    LaunchedEffect(expanded) {
-        if (expanded && text.isEmpty()) text = Res.readBytes(NOTICES_FILE).decodeToString()
-    }
-    TextButton(onClick = { expanded = !expanded }, modifier = Modifier.testTag("notices")) {
-        Text(stringResource(Res.string.settings_notices), style = MaterialTheme.typography.bodySmall)
-    }
-    if (expanded && text.isNotEmpty()) {
-        Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-}
-
-private const val NOTICES_FILE = "files/notices.txt"
 
 /** Хранить модели в общей папке, которая остаётся после удаления приложения (Android). */
 @Composable

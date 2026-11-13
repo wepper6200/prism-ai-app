@@ -49,4 +49,4 @@ Prism AI — офлайн ИИ-ассистент для Windows и Android. Э�
 
 Приложение — MIT. Используются llama.cpp и stable-diffusion.cpp (MIT), Apache PDFBox и PdfBox-Android (Apache 2.0),
 sherpa-onnx (Apache 2.0) со встроенным espeak-ng (GPL-3.0) и Apache Commons Compress (Apache 2.0).
-Лицензии открытых компонентов и моделей — в «Настройки → О приложении → Лицензии открытых компонентов».
+Лицензии открытых компонентов и моделей — в [NOTICE.md](https://github.com/wepper6200/prism-ai-app/blob/claude/amazing-goodall-ez9ra6/NOTICE.md).
