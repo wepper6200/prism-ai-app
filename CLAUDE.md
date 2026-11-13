@@ -144,6 +144,30 @@ Prism AI — полностью офлайн ИИ-ассистент для **Wi
   сведений о себе (`MemoryCues`: «меня зовут», «запомни», «я работаю»…), модель выписывает факты (`memory_extraction`);
   в системный промпт всех диалогов — `memory_note`. «Настройки → Память»: выключить, удалить факт, забыть всё
   (`AppSettings.memoryEnabled`, по умолчанию включено). Переключатель размышлений — чип в строке над полем ввода.
+- **Работа с компьютером (0.9.6, только Desktop):** настройка `AppSettings.computerEnabled` (по умолчанию выключена; чип
+  «Компьютер» в чате, `PlatformCapabilities.supportsComputer`). `Computer` (`DesktopComputer`): файлы по полному пути —
+  `locate` открывает `FileWorkspace` в ближайшей существующей папке; полный путь внутри папки проекта считается путём
+  проекта. Чтение вне проекта спрашивает один раз на папку до конца ответа, запись — всегда (даже с автоприменением);
+  `system_info` (ОС, процессор, память, видеокарта, экраны, диски, папки) — без вопроса; `open_program` — `Start-Process`
+  (программы из PATH и App Paths, файлы, папки, адреса), с вопросом. `run_command`: `shell` (cmd или powershell — скрипт
+  в `-EncodedCommand`, вывод в UTF-8), `folder`, `timeout` (до 3600 с); без папки проекта — в домашней папке. Вывод идёт
+  строками в `ActiveGeneration.running` (`RunningToolCard` под ответом), «Стоп» отменяет `toolJob` — процесс завершается
+  вместе с дочерними (`ProcessHandle.descendants`).
+- **Экран (0.9.6):** `ScreenControl` (`RobotScreenControl`, java.awt.Robot, основной монитор): `screenshot`, `click`,
+  `type_text` (через буфер обмена, прежний текст буфера возвращается), `press_keys`, `scroll` — только с «Компьютер»
+  и моделью с модулем зрения. Каждое действие подтверждается; затем окна Prism сворачиваются, действие и снимок идут
+  за одно сворачивание, окна возвращаются. Снимок сохраняется в `ImageStore` и уходит модели изображением
+  (`ToolOutcome.images` → `PromptMessage.images`); координаты — в пикселях последнего снимка, переводятся в точки экрана.
+- **Вставка фото (0.9.6):** Ctrl+V / Shift+Insert в поле ввода прикладывает картинку из буфера (иначе вставляется текст),
+  в меню фото — «Вставить из буфера обмена» (`ImagePicker.hasClipboardImage`/`pasteImages`: Desktop — AWT, картинка
+  или файлы; Android — `ClipboardManager`, content:// с image/*).
+- **MCP (0.9.6):** «Настройки → MCP-серверы»: команда, адрес или JSON `mcpServers` (`McpConfigParser`), список —
+  `KeyValueMcpServerRepository` (ключ `mcp_servers`). `McpManager` подключается к включённым серверам, когда они нужны
+  ответу (или сразу после добавления), держит подключение, состояние — `McpServerState`. Транспорты: локальные —
+  `StdioMcpTransport` (Desktop, на Windows через `cmd /c`), удалённые — `HttpMcpTransport` (Streamable HTTP, JSON или SSE,
+  `Mcp-Session-Id`), только с «Интернетом»; Android — только удалённые. `McpSession`: initialize (протокол 2025-06-18),
+  tools/list, tools/call. Модель видит инструменты как `сервер__инструмент (параметры) — первая строка описания`;
+  аргументы-теги переводятся по `inputSchema`. Каждый вызов спрашивает разрешения, кроме `readOnlyHint`; шаг — `AgentTool.MCP`.
 - **Черновики:** неотправленный текст и фото диалога хранятся в `DraftRepository` (`KeyValueDraftRepository`:
   JSON в `KeyValueStore`, ключ `chat_drafts`) — переживают уход из диалога и перезапуск; фото черновиков не удаляются
   как брошенные, черновики удалённых диалогов чистятся при запуске. Файлы (PDF, DOCX…) прикладываются к диалогу сразу.
