@@ -396,6 +396,15 @@ fun ChatScreen(
                     onPickImages = { whenVisionReady(picker::pickImages) },
                     onTakePhoto = { whenVisionReady(picker::takePhoto) },
                     onRemove = { component.onIntent(ChatIntent.RemoveAttachment(it)) },
+                    hasClipboardImage = picker::hasClipboardImage,
+                    onPaste = {
+                        if (picker.hasClipboardImage()) {
+                            whenVisionReady(picker::pasteImages)
+                            true
+                        } else {
+                            false
+                        }
+                    },
                 ),
                 video = if (state.video == DrawSupport.UNAVAILABLE) {
                     null

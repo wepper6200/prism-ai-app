@@ -11,6 +11,12 @@ interface ImagePicker {
     fun pickImages()
 
     fun takePhoto()
+
+    /** В буфере обмена есть изображение (скопированная картинка, снимок экрана или файл изображения). */
+    fun hasClipboardImage(): Boolean
+
+    /** Прикладывает изображения из буфера обмена — как выбранные ([onPicked] / [onFailed]). */
+    fun pasteImages()
 }
 
 /**

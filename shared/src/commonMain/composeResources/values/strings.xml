@@ -99,6 +99,7 @@
     <string name="chat_busy_other">Prism AI сейчас отвечает в другом чате</string>
     <string name="input_pick_gallery">Выбрать фото</string>
     <string name="input_take_photo">Сделать снимок</string>
+    <string name="input_paste_image">Вставить из буфера обмена</string>
     <string name="input_remove_image">Убрать изображение</string>
     <string name="input_attaching">Подготовка изображения…</string>
     <string name="attach_error_unreadable">Не удалось открыть изображение: формат не поддерживается или файл повреждён.</string>

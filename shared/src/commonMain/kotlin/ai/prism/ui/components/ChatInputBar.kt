@@ -20,6 +20,7 @@ import ai.prism.resources.input_placeholder
 import ai.prism.resources.input_remove_image
 import ai.prism.resources.input_send
 import ai.prism.resources.input_stop
+import ai.prism.resources.input_paste_image
 import ai.prism.resources.input_take_photo
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -48,6 +49,7 @@ import androidx.compose.material.icons.outlined.Brush
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.Movie
+import androidx.compose.material.icons.outlined.ContentPaste
 import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material3.CircularProgressIndicator
@@ -72,6 +74,8 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -92,6 +96,10 @@ class InputAttachments(
     val onPickImages: () -> Unit,
     val onTakePhoto: () -> Unit,
     val onRemove: (String) -> Unit,
+    /** Есть ли картинка в буфере обмена (проверяется при открытии меню). */
+    val hasClipboardImage: () -> Boolean = { false },
+    /** Вставить картинку из буфера обмена; `false` — картинки там нет (Ctrl+V вставит текст как обычно). */
+    val onPaste: () -> Boolean = { false },
 )
 
 /** Микрофон: диктовка в поле ввода. [level] — громкость (0–1), пока идёт запись. */
@@ -167,6 +175,12 @@ fun ChatInputBar(
                         .heightIn(min = 48.dp)
                         .padding(horizontal = 8.dp, vertical = 13.dp)
                         .onPreviewKeyEvent { event ->
+                            // Ctrl+V / Shift+Insert: картинка из буфера прикладывается к сообщению, текст вставляется как обычно.
+                            val isPaste = (event.key == Key.V && (event.isCtrlPressed || event.isMetaPressed)) ||
+                                (event.key == Key.Insert && event.isShiftPressed)
+                            if (isPaste && event.type == KeyEventType.KeyDown && attachments.canAttachMore && !isGenerating) {
+                                if (attachments.onPaste()) return@onPreviewKeyEvent true
+                            }
                             val isEnter = event.key == Key.Enter || event.key == Key.NumPadEnter
                             if (isEnter && event.type == KeyEventType.KeyDown && !event.isShiftPressed) {
                                 if (canSend) onSend()
@@ -283,9 +297,13 @@ private fun VideoButton(video: InputDrawing, enabled: Boolean) {
 @Composable
 private fun ImageButton(attachments: InputAttachments, enabled: Boolean) {
     var menuOpen by remember { mutableStateOf(false) }
+    var canPaste by remember { mutableStateOf(false) }
     Box {
         IconButton(
-            onClick = { if (attachments.canTakePhoto) menuOpen = true else attachments.onPickImages() },
+            onClick = {
+                canPaste = attachments.hasClipboardImage()
+                if (attachments.canTakePhoto || canPaste) menuOpen = true else attachments.onPickImages()
+            },
             enabled = enabled,
             modifier = Modifier.testTag("attach_image"),
         ) {
@@ -300,14 +318,27 @@ private fun ImageButton(attachments: InputAttachments, enabled: Boolean) {
                     attachments.onPickImages()
                 },
             )
-            DropdownMenuItem(
-                text = { Text(stringResource(Res.string.input_take_photo)) },
-                leadingIcon = { Icon(Icons.Outlined.PhotoCamera, contentDescription = null) },
-                onClick = {
-                    menuOpen = false
-                    attachments.onTakePhoto()
-                },
-            )
+            if (attachments.canTakePhoto) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(Res.string.input_take_photo)) },
+                    leadingIcon = { Icon(Icons.Outlined.PhotoCamera, contentDescription = null) },
+                    onClick = {
+                        menuOpen = false
+                        attachments.onTakePhoto()
+                    },
+                )
+            }
+            if (canPaste) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(Res.string.input_paste_image)) },
+                    leadingIcon = { Icon(Icons.Outlined.ContentPaste, contentDescription = null) },
+                    onClick = {
+                        menuOpen = false
+                        attachments.onPaste()
+                    },
+                    modifier = Modifier.testTag("paste_image"),
+                )
+            }
         }
     }
 }

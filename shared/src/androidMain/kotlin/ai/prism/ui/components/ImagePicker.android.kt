@@ -2,6 +2,7 @@ package ai.prism.ui.components
 
 import ai.prism.platform.CameraOutputProvider
 import android.content.ActivityNotFoundException
+import android.content.ClipboardManager
 import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -83,6 +84,25 @@ actual fun rememberImagePicker(onPicked: (List<ByteArray>) -> Unit, onFailed: ()
                     pendingPhoto = null
                     failed()
                 }
+            }
+
+            private val clipboard: ClipboardManager? = context.getSystemService(ClipboardManager::class.java)
+
+            override fun hasClipboardImage(): Boolean = try {
+                val description = clipboard?.primaryClipDescription
+                description != null && (0 until description.mimeTypeCount).any { description.getMimeType(it).startsWith("image/") }
+            } catch (e: SecurityException) {
+                false
+            }
+
+            override fun pasteImages() {
+                val clip = try {
+                    clipboard?.primaryClip
+                } catch (e: SecurityException) {
+                    null
+                } ?: return
+                // Скопированное изображение лежит в буфере как адрес content://; читаем его, как фото из галереи.
+                read((0 until clip.itemCount).mapNotNull { clip.getItemAt(it).uri }.take(MAX_PICK), deleteAfter = false)
             }
         }
     }
