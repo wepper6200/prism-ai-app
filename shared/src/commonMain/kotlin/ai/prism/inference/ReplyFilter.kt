@@ -20,6 +20,8 @@ interface ReplyFilter {
         fun forFormat(format: ChatFormat, thinking: Boolean = false): ReplyFilter = when (format) {
             ChatFormat.GEMMA4 -> Gemma4ReplyFilter()
             ChatFormat.QWEN -> ThinkReplyFilter(startThinking = thinking)
+            // Coder не рассуждает, но случайный <think>…</think> всё равно не показываем.
+            ChatFormat.CHATML -> ThinkReplyFilter(startThinking = false)
             ChatFormat.GEMMA3, ChatFormat.RAW -> PassThrough
         }
     }

@@ -16,6 +16,10 @@ enum class ChatFormat {
     @SerialName("qwen")
     QWEN,
 
+    /** ChatML без размышлений (Qwen3-Coder): блока `<think>` нет, уровень размышлений не предлагается. */
+    @SerialName("chatml")
+    CHATML,
+
     /** Без разметки диалога: системный промпт и реплики подряд (тестовые модели). */
     @SerialName("raw")
     RAW,

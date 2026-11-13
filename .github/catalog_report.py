@@ -109,17 +109,14 @@ def text(url, limit=1500):
         print("ERROR", e)
 
 
-# Видео: LTX-2.5 — текстовый энкодер Gemma 4 12B с проекцией в GGUF (файлы трансформера и VAE — unsloth/LTX-2.5-GGUF).
-tree("elix3r/gemma4-12b-with-proj-ltx-2.5-GGUF")
-text("https://huggingface.co/elix3r/gemma4-12b-with-proj-ltx-2.5-GGUF/raw/main/README.md", limit=3000)
-text("https://huggingface.co/unsloth/LTX-2.5-GGUF/raw/main/README.md", limit=6000)
-
-# Qwen3.8-27B: GGUF (основной файл и проектор зрения) и шаблон диалога исходной модели.
-search("Qwen3.8-27B GGUF")
-for name in ("ggml-org/Qwen3.8-27B-GGUF", "Qwen/Qwen3.8-27B-GGUF", "unsloth/Qwen3.8-27B-GGUF",
-             "bartowski/Qwen3.8-27B-GGUF"):
-    repo(name, suffixes=(".gguf",), readme=2500)
-repo("Qwen/Qwen3.8-27B", suffixes=(".json", ".jinja"), readme=4000)
-text("https://huggingface.co/Qwen/Qwen3.8-27B/raw/main/chat_template.jinja", limit=8000)
-text("https://huggingface.co/Qwen/Qwen3.8-27B/raw/main/tokenizer_config.json", limit=3000)
-text("https://huggingface.co/Qwen/Qwen3.8-27B/raw/main/LICENSE", limit=600)
+# Prism 1.5 Onyx: Qwen3-Coder 30B A3B (MoE, 3B активных) — GGUF, шаблон диалога и лицензия исходной модели.
+search("Qwen3-Coder-30B-A3B GGUF")
+search("Qwen3 Coder GGUF")
+for name in ("ggml-org/Qwen3-Coder-30B-A3B-Instruct-Q8_0-GGUF", "ggml-org/Qwen3-Coder-30B-A3B-Instruct-GGUF",
+             "Qwen/Qwen3-Coder-30B-A3B-Instruct-GGUF", "unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF",
+             "bartowski/Qwen_Qwen3-Coder-30B-A3B-Instruct-GGUF", "lmstudio-community/Qwen3-Coder-30B-A3B-Instruct-GGUF"):
+    repo(name, suffixes=(".gguf",), readme=1500)
+repo("Qwen/Qwen3-Coder-30B-A3B-Instruct", suffixes=(".json", ".jinja"), readme=3000)
+text("https://huggingface.co/Qwen/Qwen3-Coder-30B-A3B-Instruct/raw/main/chat_template.jinja", limit=6000)
+text("https://huggingface.co/Qwen/Qwen3-Coder-30B-A3B-Instruct/raw/main/config.json", limit=2000)
+text("https://huggingface.co/Qwen/Qwen3-Coder-30B-A3B-Instruct/raw/main/LICENSE", limit=400)

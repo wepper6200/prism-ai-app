@@ -42,6 +42,17 @@ class ChatPromptFormatterTest {
     }
 
     @Test
+    fun chatMlForCoderHasNoThinkBlockEvenWhenThinkingIsAsked() {
+        val prompt = ChatPromptFormatter.format(ChatFormat.CHATML, "Ты — Prism AI.", dialog.takeLast(1), thinking = true)
+        assertEquals(
+            "<|im_start|>system\nТы — Prism AI.<|im_end|>\n<|im_start|>user\nКто ты?<|im_end|>\n<|im_start|>assistant\n",
+            prompt,
+        )
+        assertEquals(null, ChatPromptFormatter.thinkingClose(ChatFormat.CHATML))
+        assertEquals(false, ai.prism.domain.model.ThinkingLevel.supports(ChatFormat.CHATML))
+    }
+
+    @Test
     fun thinkingOpensTheReasoningInsteadOfClosingIt() {
         val gemma = ChatPromptFormatter.format(ChatFormat.GEMMA4, "Ты — Prism AI.", dialog.takeLast(1), thinking = true)
         assertEquals("<|turn>system\n<|think|>\nТы — Prism AI.<turn|>\n<|turn>user\nКто ты?<turn|>\n<|turn>model\n", gemma)

@@ -30,6 +30,7 @@ object ChatPromptFormatter {
             ChatFormat.GEMMA4 -> gemma4(systemPrompt, messages, thinking)
             ChatFormat.GEMMA3 -> gemma3(systemPrompt, messages)
             ChatFormat.QWEN -> qwen(systemPrompt, messages, thinking)
+            ChatFormat.CHATML -> chatMl(systemPrompt, messages)
             ChatFormat.RAW -> raw(systemPrompt, messages)
         }
 
@@ -37,7 +38,7 @@ object ChatPromptFormatter {
     fun thinkingClose(format: ChatFormat): String? = when (format) {
         ChatFormat.GEMMA4 -> "<channel|>"
         ChatFormat.QWEN -> "\n</think>\n\n"
-        ChatFormat.GEMMA3, ChatFormat.RAW -> null
+        ChatFormat.GEMMA3, ChatFormat.CHATML, ChatFormat.RAW -> null
     }
 
     /**
@@ -90,7 +91,15 @@ object ChatPromptFormatter {
 
     // Qwen 3.x (ChatML): системная роль поддерживается; пустой блок <think> в начале ответа — режим без размышлений,
     // открытый <think> — модель рассуждает и сама закрывает блок.
-    private fun qwen(systemPrompt: String, messages: List<PromptMessage>, thinking: Boolean): String = buildString {
+    private fun qwen(systemPrompt: String, messages: List<PromptMessage>, thinking: Boolean): String =
+        chatMlTurns(systemPrompt, messages) +
+            if (thinking) "<|im_start|>assistant\n<think>\n" else "<|im_start|>assistant\n<think>\n\n</think>\n\n"
+
+    // Qwen3-Coder: тот же ChatML, но модель не рассуждает — ответ начинается сразу.
+    private fun chatMl(systemPrompt: String, messages: List<PromptMessage>): String =
+        chatMlTurns(systemPrompt, messages) + "<|im_start|>assistant\n"
+
+    private fun chatMlTurns(systemPrompt: String, messages: List<PromptMessage>): String = buildString {
         val system = sanitize(systemPrompt)
         if (system.isNotEmpty()) {
             append("<|im_start|>system\n").append(system).append("<|im_end|>\n")
@@ -99,7 +108,6 @@ object ChatPromptFormatter {
             append("<|im_start|>").append(message.role.chatMlRole()).append('\n')
             append(mediaMarkers(message)).append(sanitize(message.content)).append("<|im_end|>\n")
         }
-        append(if (thinking) "<|im_start|>assistant\n<think>\n" else "<|im_start|>assistant\n<think>\n\n</think>\n\n")
     }
 
     private fun raw(systemPrompt: String, messages: List<PromptMessage>): String = buildString {
