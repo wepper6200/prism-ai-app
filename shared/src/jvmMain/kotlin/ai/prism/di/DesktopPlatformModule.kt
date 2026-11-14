@@ -101,6 +101,7 @@ fun desktopPlatformModule(): Module = module {
     single<ModelFolder> {
         val engine = get<InferenceEngine>()
         val imageGenerator = get<ImageGenerator>()
+        val musicGenerator = get<ai.prism.domain.music.MusicGenerator>()
         val speech = get<SpeechEngine>()
         val embedder = get<TextEmbedder>()
         ChoosableModelFolder(
@@ -114,6 +115,7 @@ fun desktopPlatformModule(): Module = module {
             beforeMove = {
                 engine.unload()
                 imageGenerator.release()
+                musicGenerator.release()
                 speech.release()
                 embedder.release()
             },
