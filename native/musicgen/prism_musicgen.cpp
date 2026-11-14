@@ -111,15 +111,13 @@ int main() {
         enriched.caption = request.caption;
         if (!request.lyrics.empty()) enriched.lyrics = request.lyrics;
         enriched.vocal_language = request.vocal_language;
-        // The planner can emit EOS too early. Never let its code count shorten a track.
+        // Keep short plans: the context builder pads them to the requested duration.
         const int required_codes = static_cast<int>(std::lround(request.duration * 5.0f));
         const int code_count = enriched.audio_codes.empty() ? 0 :
             1 + static_cast<int>(std::count(enriched.audio_codes.begin(), enriched.audio_codes.end(), ','));
         std::cerr << "[Music] Acoustic codes: " << code_count << "/" << required_codes << std::endl;
-        if (code_count < required_codes) {
-            std::cerr << "[Music] Incomplete plan; using lyrics-conditioned synthesis" << std::endl;
-            enriched.audio_codes.clear();
-        } else if (code_count > required_codes) {
+        if (code_count == 0) throw std::runtime_error("Composition produced no acoustic plan");
+        if (code_count > required_codes) {
             size_t cut = 0;
             for (int i = 0; i < required_codes; ++i) cut = enriched.audio_codes.find(',', cut) + 1;
             enriched.audio_codes.resize(cut - 1);

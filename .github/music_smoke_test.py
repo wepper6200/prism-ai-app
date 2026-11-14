@@ -58,6 +58,7 @@ def main():
             result = subprocess.run([str(binary)], input=json.dumps(command, ensure_ascii=False) + "\n",
                                     encoding="utf-8", stdout=subprocess.PIPE, stderr=errors, timeout=1800)
         print(result.stdout)
+        assert "Detokenizer:" in (root / (output.stem + ".log")).read_text(encoding="utf-8"), "Acoustic plan was not used"
         if result.returncode != 0 or not any(json.loads(line).get("event") == "done" for line in result.stdout.splitlines() if line.startswith("{")):
             raise RuntimeError("Music worker failed, see worker log")
         with wave.open(str(output), "rb") as audio:
