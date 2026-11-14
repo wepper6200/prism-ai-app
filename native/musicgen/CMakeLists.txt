@@ -22,12 +22,27 @@ find_package(Threads REQUIRED)
 add_subdirectory(${ACE_ROOT}/ggml ${CMAKE_BINARY_DIR}/ggml)
 add_library(prism_ace_json STATIC ${ACE_ROOT}/vendor/yyjson/yyjson.c)
 target_include_directories(prism_ace_json SYSTEM PUBLIC ${ACE_ROOT}/vendor/yyjson)
+set(SYNTH_OPS ${ACE_ROOT}/src/pipeline-synth-ops.cpp)
+if(ANDROID)
+    # NDK r29 beta reports libc++ 20 while its floating-point from_chars is absent.
+    # Select upstream's locale-independent fallback in a generated build copy.
+    file(READ ${SYNTH_OPS} SYNTH_OPS_SOURCE)
+    set(FLOAT_GUARD "#if defined(_LIBCPP_VERSION) && _LIBCPP_VERSION < 200000")
+    string(FIND "${SYNTH_OPS_SOURCE}" "${FLOAT_GUARD}" FLOAT_GUARD_POSITION)
+    if(FLOAT_GUARD_POSITION EQUAL -1)
+        message(FATAL_ERROR "Recheck Android float parsing compatibility after updating acestep.cpp")
+    endif()
+    string(REPLACE "${FLOAT_GUARD}" "#if defined(__ANDROID__) || (defined(_LIBCPP_VERSION) && _LIBCPP_VERSION < 200000)"
+        SYNTH_OPS_SOURCE "${SYNTH_OPS_SOURCE}")
+    set(SYNTH_OPS ${CMAKE_CURRENT_BINARY_DIR}/pipeline-synth-ops.cpp)
+    file(WRITE ${SYNTH_OPS} "${SYNTH_OPS_SOURCE}")
+endif()
 add_library(prism_ace STATIC
     ${ACE_ROOT}/src/request.cpp
     ${ACE_ROOT}/src/model-store.cpp
     ${ACE_ROOT}/src/pipeline-lm.cpp
     ${ACE_ROOT}/src/pipeline-synth.cpp
-    ${ACE_ROOT}/src/pipeline-synth-ops.cpp
+    ${SYNTH_OPS}
 )
 target_include_directories(prism_ace SYSTEM PUBLIC ${ACE_ROOT}/src ${ACE_ROOT})
 target_link_libraries(prism_ace PUBLIC prism_ace_json ggml Threads::Threads)

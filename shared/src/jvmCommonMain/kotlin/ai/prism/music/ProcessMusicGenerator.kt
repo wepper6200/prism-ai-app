@@ -30,6 +30,10 @@ class ProcessMusicGenerator(
     private val cancellation = AtomicLong()
     @Volatile private var process: Process? = null
 
+    init {
+        Runtime.getRuntime().addShutdownHook(Thread({ process?.destroyForcibly() }, "prism-music-shutdown"))
+    }
+
     override val isSupported: Boolean get() = executable()?.isFile == true
 
     override suspend fun generate(
