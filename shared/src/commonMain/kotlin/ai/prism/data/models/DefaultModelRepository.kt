@@ -188,7 +188,8 @@ class DefaultModelRepository(
         catalogModel(modelId)?.vision?.takeIf(storage::isDownloaded)?.let(storage::filePath)
 
     override fun imageModelFiles(modelId: String): Map<String, String>? {
-        val model = catalogModel(modelId)?.takeIf { it.kind == ModelKind.IMAGE || it.kind == ModelKind.VIDEO } ?: return null
+        val model = catalogModel(modelId)
+            ?.takeIf { it.kind == ModelKind.IMAGE || it.kind == ModelKind.VIDEO || it.kind == ModelKind.MUSIC } ?: return null
         return resolveImageModelFiles(model) { file -> file.takeIf(storage::isDownloaded)?.let(storage::filePath) }
     }
 

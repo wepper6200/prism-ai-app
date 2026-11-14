@@ -6,3 +6,7 @@
 	path = native/stable-diffusion.cpp
 	url = https://github.com/leejet/stable-diffusion.cpp
 	shallow = true
+[submodule "native/acestep.cpp"]
+	path = native/acestep.cpp
+	url = https://github.com/ServeurpersoCom/acestep.cpp
+	shallow = true

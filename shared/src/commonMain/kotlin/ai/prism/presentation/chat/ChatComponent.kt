@@ -180,6 +180,10 @@ data class ChatState(
     val canTranslateDrawing: Boolean = true,
     /** Режим «Видео»: сообщение — описание ролика для модели видео. */
     val videoMode: Boolean = false,
+    val musicMode: Boolean = false,
+    val music: DrawSupport = DrawSupport.UNAVAILABLE,
+    val musicModelName: String? = null,
+    val musicModelBytes: Long = 0,
     val video: DrawSupport = DrawSupport.UNAVAILABLE,
     /** Модель видео этой платформы (для подсказки о загрузке). */
     val videoModelName: String? = null,
@@ -217,6 +221,7 @@ data class ChatState(
     val canSend: Boolean
         get() = when {
             isGenerating || busyInOtherChat -> false
+            musicMode -> draft.isNotBlank() && music == DrawSupport.READY && attachments.isEmpty() && !isAttaching && !drawNeedsTranslator
             drawMode -> draft.isNotBlank() && draw == DrawSupport.READY && !isAttaching && attachments.size <= 1 &&
                 !drawNeedsTranslator
             videoMode -> draft.isNotBlank() && video == DrawSupport.READY && !isAttaching &&
@@ -225,7 +230,7 @@ data class ChatState(
         }
 
     val canAttachMore: Boolean
-        get() = attachments.size < (if (drawMode || videoMode) 1 else MAX_ATTACHMENTS) && !isAttaching &&
+        get() = !musicMode && attachments.size < (if (drawMode || videoMode) 1 else MAX_ATTACHMENTS) && !isAttaching &&
             (!videoMode || videoFromPhoto)
 
     /** В режиме рисования перерисовывается одно фото, а приложено несколько. */
@@ -234,7 +239,7 @@ data class ChatState(
 
     /** Описание картинки по-русски, а переводить его на английский нечем: генератор нарисовал бы не то. */
     val drawNeedsTranslator: Boolean
-        get() = (drawMode || videoMode) && !canTranslateDrawing && ImagePromptPolicy.hasCyrillic(draft)
+        get() = (drawMode || videoMode || musicMode) && !canTranslateDrawing && ImagePromptPolicy.hasCyrillic(draft)
 
     companion object {
         const val MAX_ATTACHMENTS = 4
@@ -274,6 +279,7 @@ sealed interface ChatIntent {
 
     /** Включает или выключает режим «Видео». */
     data object ToggleVideoMode : ChatIntent
+    data object ToggleMusicMode : ChatIntent
 
     /** Длительность следующих видео, секунды. */
     data class SelectVideoSeconds(val seconds: Int) : ChatIntent
@@ -349,6 +355,7 @@ class DefaultChatComponent(
 
     private val drawMode = MutableStateFlow(stateKeeper.consume(KEY_DRAW_MODE, Boolean.serializer()) ?: false)
     private val videoMode = MutableStateFlow(stateKeeper.consume(KEY_VIDEO_MODE, Boolean.serializer()) ?: false)
+    private val musicMode = MutableStateFlow(stateKeeper.consume(KEY_MUSIC_MODE, Boolean.serializer()) ?: false)
 
     private val draftImages = MutableStateFlow(
         DraftImages(items = stateKeeper.consume(KEY_ATTACHMENTS, ATTACHMENTS_SERIALIZER) ?: saved.images),
@@ -374,6 +381,7 @@ class DefaultChatComponent(
         stateKeeper.register(KEY_ATTACHMENTS, ATTACHMENTS_SERIALIZER) { draftImages.value.items }
         stateKeeper.register(KEY_DRAW_MODE, Boolean.serializer()) { drawMode.value }
         stateKeeper.register(KEY_VIDEO_MODE, Boolean.serializer()) { videoMode.value }
+        stateKeeper.register(KEY_MUSIC_MODE, Boolean.serializer()) { musicMode.value }
     }
 
     private data class ConversationPart(
@@ -403,6 +411,9 @@ class DefaultChatComponent(
         val videoDurations: List<Int>,
         val videoSeconds: Int,
         val thinkingSupported: Boolean,
+        val music: DrawSupport,
+        val musicModelName: String?,
+        val musicModelBytes: Long,
     )
 
     private val conversation = combine(
@@ -445,6 +456,8 @@ class DefaultChatComponent(
         val imageEntry = entries.firstOrNull { it.model.kind == ModelKind.IMAGE }
         val embeddingEntry = entries.firstOrNull { it.model.kind == ModelKind.EMBEDDING }
         // Скачанная (выбранная в настройках) модель видео, иначе первая из каталога — для подсказки о загрузке.
+        val musicEntry = entries.firstOrNull { it.model.id == generation.musicModel()?.id }
+            ?: entries.firstOrNull { it.model.kind == ModelKind.MUSIC }
         val selectedVideo = generation.videoModel()
         val videoEntry = entries.firstOrNull { it.model.id == selectedVideo?.id } ?: entries.firstOrNull { it.model.kind == ModelKind.VIDEO }
         ModelPart(
@@ -483,6 +496,13 @@ class DefaultChatComponent(
             videoFromPhoto = videoEntry?.model?.video?.imageToVideo == true,
             videoDurations = videoEntry?.model?.video?.availableDurations.orEmpty(),
             videoSeconds = videoEntry?.model?.let(generation::videoSeconds) ?: 0,
+            music = when {
+                musicEntry == null || !generation.canGenerateMusic -> DrawSupport.UNAVAILABLE
+                musicEntry.status == ModelStatus.Downloaded -> DrawSupport.READY
+                else -> DrawSupport.NOT_DOWNLOADED
+            },
+            musicModelName = musicEntry?.model?.name,
+            musicModelBytes = musicEntry?.model?.totalSizeBytes ?: 0L,
         )
     }
 
@@ -538,6 +558,7 @@ class DefaultChatComponent(
 
     private data class ExtraPart(
         val drawMode: Boolean,
+        val musicMode: Boolean,
         val videoMode: Boolean,
         val documents: List<DocumentItem>,
         val agent: AgentPart,
@@ -549,8 +570,8 @@ class DefaultChatComponent(
         modelPart,
         draft,
         draftImages,
-        combine(drawMode, videoMode, documentsPart, agentPart, voicePart) { drawing, video, documents, agent, voiceState ->
-            ExtraPart(drawing, video, documents, agent, voiceState)
+        combine(combine(drawMode, musicMode) { drawing, music -> drawing to music }, videoMode, documentsPart, agentPart, voicePart) { modes, video, documents, agent, voiceState ->
+            ExtraPart(modes.first, modes.second, video, documents, agent, voiceState)
         },
     ) { chat, model, text, images, extra ->
         val drawing = extra.drawMode
@@ -569,6 +590,10 @@ class DefaultChatComponent(
             visionModuleBytes = model.visionBytes,
             drawMode = drawing && model.draw != DrawSupport.UNAVAILABLE,
             videoMode = extra.videoMode && model.video != DrawSupport.UNAVAILABLE,
+            musicMode = extra.musicMode && model.music != DrawSupport.UNAVAILABLE,
+            music = model.music,
+            musicModelName = model.musicModelName,
+            musicModelBytes = model.musicModelBytes,
             video = model.video,
             videoModelName = model.videoModelName,
             videoModelBytes = model.videoModelBytes,
@@ -619,10 +644,19 @@ class DefaultChatComponent(
             ChatIntent.ToggleDrawMode -> {
                 drawMode.update { !it }
                 if (drawMode.value) videoMode.value = false
+                if (drawMode.value) musicMode.value = false
             }
             ChatIntent.ToggleVideoMode -> {
                 videoMode.update { !it }
                 if (videoMode.value) drawMode.value = false
+                if (videoMode.value) musicMode.value = false
+            }
+            ChatIntent.ToggleMusicMode -> {
+                musicMode.update { !it }
+                if (musicMode.value) {
+                    drawMode.value = false
+                    videoMode.value = false
+                }
             }
             is ChatIntent.SelectVideoSeconds -> settingsRepository.setVideoSeconds(intent.seconds)
             ChatIntent.Send -> send()
@@ -655,6 +689,10 @@ class DefaultChatComponent(
     private fun send() {
         val current = state.value
         if (!current.canSend) return
+        if (current.musicMode) {
+            if (generation.composeMusic(chatId, draft.value)) draft.value = ""
+            return
+        }
         if (current.drawMode) {
             if (generation.draw(chatId, draft.value, current.attachments.firstOrNull())) {
                 draft.value = ""
@@ -732,6 +770,7 @@ class DefaultChatComponent(
         const val KEY_ATTACHMENTS = "chat_attachments"
         const val KEY_DRAW_MODE = "chat_draw_mode"
         const val KEY_VIDEO_MODE = "chat_video_mode"
+        const val KEY_MUSIC_MODE = "chat_music_mode"
         val ATTACHMENTS_SERIALIZER = ListSerializer(ImageAttachment.serializer())
     }
 }

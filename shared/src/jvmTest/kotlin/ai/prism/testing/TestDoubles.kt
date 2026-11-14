@@ -264,6 +264,12 @@ class MemoryImageStore(var size: Pair<Int, Int> = 640 to 480) : ImageStore {
 
     override fun path(fileName: String): String = "/images/$fileName"
 
+    override suspend fun saveAudio(bytes: ByteArray): ImageAttachment {
+        val id = "audio-${++counter}"
+        files["$id.wav"] = bytes
+        return ImageAttachment(id, "$id.wav", 0, 0)
+    }
+
     override suspend fun read(fileName: String): ByteArray? = files[fileName]
 
     override suspend fun delete(fileNames: Collection<String>) {
@@ -366,7 +372,7 @@ class FakeModelRepository(
 
     override fun imageModelFiles(modelId: String): Map<String, String>? =
         models.value.firstOrNull {
-            it.model.id == modelId && it.model.kind in setOf(ModelKind.IMAGE, ModelKind.VIDEO) && it.status == ModelStatus.Downloaded
+            it.model.id == modelId && it.model.kind in setOf(ModelKind.IMAGE, ModelKind.VIDEO, ModelKind.MUSIC) && it.status == ModelStatus.Downloaded
         }
             ?.model?.let { model -> resolveImageModelFiles(model) { "/models/${it.fileName}" } }
 
@@ -512,7 +518,7 @@ class FakeMcpServer(
 
 /** Компьютер для тестов: настоящие файлы и сведения о системе, но программы не запускаются, а запоминаются. */
 class FakeComputer(home: File) : Computer {
-    private val real = DesktopComputer(Dispatchers.Unconfined, homePath = home.path, windows = false)
+    private val real = DesktopComputer(Dispatchers.Unconfined, homePath = home.path, windows = File.separatorChar == '\\')
     val opened = mutableListOf<String>()
     override val homePath: String = home.path
 
@@ -604,6 +610,7 @@ class TestApp(
     val updater: AppUpdater = AppUpdater.None,
     /** Объём оперативной памяти «устройства» (0 — неизвестен). */
     totalRamBytes: Long = 0L,
+    val musicGenerator: ai.prism.domain.music.MusicGenerator = ai.prism.domain.music.MusicGenerator.None,
 ) {
     val settings = DefaultSettingsRepository(MapKeyValueStore())
     val draftStore = MapKeyValueStore()
@@ -657,6 +664,7 @@ class TestApp(
         },
         images = images,
         imageGenerator = imageGenerator,
+        musicGenerator = musicGenerator,
         settings = settings,
         scope = scope,
         documents = documents,

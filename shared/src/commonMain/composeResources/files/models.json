@@ -1,5 +1,5 @@
 {
-  "version": 11,
+  "version": 12,
   "models": [
     {
       "id": "gemma-4-e2b-it-q4_0",
@@ -892,6 +892,53 @@
       },
       "oldFileNames": [
         "Wan2.1-T2V-1.3B-Q4_K_M.gguf"
+      ]
+    },
+    {
+      "id": "prism-music-1",
+      "name": "Prism Music 1",
+      "family": "ACE-Step 1.5",
+      "parameters": "1.5B",
+      "quantization": "Q8_0",
+      "description": {
+        "ru": "Создаёт музыку по описанию: жанр, настроение, инструменты и вокал. Трек длится 30 секунд и сохраняется в WAV. На телефоне генерация может занять много времени."
+      },
+      "url": "https://huggingface.co/Serveurperso/ACE-Step-1.5-GGUF/resolve/main/acestep-v15-turbo-Q8_0.gguf",
+      "fileName": "prism-music-1-q8_0.gguf",
+      "sizeBytes": 2549528000,
+      "sha256": "288f708a61cfc241013a98a62f98ba331f83fe34d0d3559acdd9b0f6a2f7cd6b",
+      "minRamMb": 8192,
+      "kind": "music",
+      "mainRole": "model",
+      "recommendedFor": [
+        "desktop"
+      ],
+      "platforms": [
+        "desktop",
+        "android"
+      ],
+      "components": [
+        {
+          "role": "lm",
+          "url": "https://huggingface.co/Serveurperso/ACE-Step-1.5-GGUF/resolve/main/acestep-5Hz-lm-0.6B-Q8_0.gguf",
+          "fileName": "prism-music-1-composer-q8_0.gguf",
+          "sizeBytes": 709846656,
+          "sha256": "bdaf9e292d4470f31c19cafeaca1b74936a114667e3a85e5d33b65247e9908ec"
+        },
+        {
+          "role": "text_encoder",
+          "url": "https://huggingface.co/Serveurperso/ACE-Step-1.5-GGUF/resolve/main/Qwen3-Embedding-0.6B-Q8_0.gguf",
+          "fileName": "prism-music-1-text-q8_0.gguf",
+          "sizeBytes": 784144960,
+          "sha256": "972f23255e46adfe744a0eb9a0039f3c63988f65753b0968d776e8b27168c321"
+        },
+        {
+          "role": "vae",
+          "url": "https://huggingface.co/Serveurperso/ACE-Step-1.5-GGUF/resolve/main/vae-BF16.gguf",
+          "fileName": "prism-music-1-audio-bf16.gguf",
+          "sizeBytes": 337420928,
+          "sha256": "0599862ac5d15cd308e1d2e368373aea6c02e25ebd1737ad4a4562a0901b0ef8"
+        }
       ]
     }
   ]

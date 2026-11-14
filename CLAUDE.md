@@ -106,6 +106,14 @@ Prism AI — полностью офлайн ИИ-ассистент для **Wi
   описание не рисуется: `TRANSLATOR_REQUIRED` / `TRANSLATION_FAILED`), затем она выгружается; перед ответом чата выгружается
   модель рисования — в памяти всегда одна.
 
+- **Музыка (0.9.7):** `acestep.cpp` — подмодуль `native/acestep.cpp`, отдельный процесс `prism_musicgen`
+  (`native/musicgen`). Один JSON-запрос через stdin → события этапов и завершения через stdout.
+  Композитор, текстовый энкодер, DiT и VAE работают последовательно (`EVICT_STRICT`); после трека процесс завершается.
+  Каталог `kind: music`, Prism Music 1, четыре файла с размером и SHA-256. Режим «Музыка» создаёт 30 секунд WAV
+  PCM16 48 кГц, хранит вложение `.wav` в `message_image`, проигрывает и экспортирует его из чата.
+  Русское описание переводится существующей моделью чата, которая затем выгружается. Кнопка «Стоп» завершает процесс.
+  Android — `libprism_musicgen.so` (ARMv8.2, CPU), Desktop — CPU/Vulkan.
+
 - **Файлы (Этап 4):** PDF, DOCX, TXT, MD прикладываются к диалогу (не к сообщению): `DocumentService`
   извлекает текст (`FileTextExtractor`: PDFBox на Desktop, PdfBox-Android на Android, `word/document.xml` из DOCX,
   UTF-8/UTF-16/Windows-1251), делит на фрагменты ~900 символов внутри одной страницы с перекрытием (`TextChunker`)

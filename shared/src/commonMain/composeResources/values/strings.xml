@@ -385,4 +385,18 @@
     <string name="model_folder_choose">Выбрать папку…</string>
     <string name="model_folder_reset">Вернуть стандартную</string>
     <string name="model_folder_error_unavailable">Выбранная папка моделей недоступна (диск отключён?) — сейчас используется стандартная. Подключите диск и перезапустите Prism AI или выберите папку снова.</string>
+    <string name="input_music">Музыка</string>
+    <string name="input_music_placeholder">Опишите музыку, настроение и инструменты…</string>
+    <string name="music_mode_hint">Prism Music 1 · 30 секунд · WAV</string>
+    <string name="music_remove_photos">Уберите фото из сообщения, чтобы создать музыку.</string>
+    <string name="music_download">Скачайте %1$s (%2$s) на экране моделей. Музыка создаётся на устройстве.</string>
+    <string name="music_track">Созданная музыка</string>
+    <string name="music_play">Слушать музыку</string>
+    <string name="music_save">Сохранить WAV</string>
+    <string name="music_loading">Загружаем музыкальную модель…</string>
+    <string name="music_composing">Создаём композицию…</string>
+    <string name="music_synthesizing">Создаём музыку…</string>
+    <string name="music_decoding">Сохраняем звук…</string>
+    <string name="error_no_music_model">Скачайте Prism Music 1 на экране моделей.</string>
+    <string name="error_music_generation">Не удалось создать музыку. Попробуйте ещё раз или сократите описание.</string>
 </resources>

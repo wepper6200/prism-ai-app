@@ -80,6 +80,12 @@ fun desktopPlatformModule(): Module = module {
         )
     }
     single<InferenceEngine> { LlamaInferenceEngine(DesktopNativeLibraryLoader(), get(), get()) }
+    single<ai.prism.domain.music.MusicGenerator> {
+        ai.prism.music.ProcessMusicGenerator(
+            executable = { DesktopNativeLibraryLoader.findMusicGenerator() },
+            workDir = File(AppDirectories.dataDir(), "musicgen"),
+        )
+    }
     single<DocumentTextExtractor> { FileTextExtractor(PdfBoxTextReader()) }
     single<WebClient> { HttpWebClient() }
     single<WorkspaceProvider> { FileWorkspaceProvider() }

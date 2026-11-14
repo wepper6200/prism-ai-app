@@ -72,5 +72,12 @@ class DesktopNativeLibraryLoader : NativeLibraryLoader {
                 .map { File(it, name) }
                 .firstOrNull { it.isFile }
         }
+
+        fun findMusicGenerator(): File? {
+            val windows = System.getProperty("os.name").orEmpty().lowercase().contains("win")
+            val name = if (windows) "prism_musicgen.exe" else "prism_musicgen"
+            return sequenceOf("prism.musicgen.dir", "prism.native.dir", "compose.application.resources.dir")
+                .mapNotNull { System.getProperty(it) }.map { File(it, name) }.firstOrNull { it.isFile }
+        }
     }
 }

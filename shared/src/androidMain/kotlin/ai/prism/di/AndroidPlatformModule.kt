@@ -89,6 +89,12 @@ fun androidPlatformModule(context: Context): Module = module {
     single<ModelDownloader> { HttpModelDownloader(get()) }
     single<ImageCodec> { AndroidImageCodec() }
     single<ImageStore> { FileImageStore(File(appContext.filesDir, IMAGES_DIR), get()) }
+    single<ai.prism.domain.music.MusicGenerator> {
+        ai.prism.music.ProcessMusicGenerator(
+            executable = { File(appContext.applicationInfo.nativeLibraryDir, "libprism_musicgen.so") },
+            workDir = File(appContext.cacheDir, "musicgen"),
+        )
+    }
     single<ImageGenerator> {
         // Программа генерации упакована как lib*.so: только такие файлы Android разрешает запускать.
         ProcessImageGenerator(

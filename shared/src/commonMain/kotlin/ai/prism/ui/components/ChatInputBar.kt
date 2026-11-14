@@ -1,5 +1,9 @@
 package ai.prism.ui.components
 
+import androidx.compose.material.icons.outlined.MusicNote
+import ai.prism.resources.input_music
+import ai.prism.resources.input_music_placeholder
+
 import ai.prism.domain.model.ImageAttachment
 import ai.prism.resources.Res
 import ai.prism.resources.image_description
@@ -141,11 +145,14 @@ fun ChatInputBar(
     video: InputDrawing? = null,
     /** Микрофон; `null` — голоса на этой платформе нет, кнопки нет. */
     voice: InputVoice? = null,
+    music: InputDrawing? = null,
 ) {
     val drawActive = drawing?.active == true
     val videoActive = video?.active == true
+    val musicActive = music?.active == true
     PrismPanel(modifier.fillMaxWidth(), shape = RoundedCornerShape(28.dp)) {
         Column {
+            if (music != null) MusicButton(music, enabled = !isGenerating)
             AnimatedVisibility(visible = attachments.items.isNotEmpty() || attachments.isAttaching) {
                 AttachmentStrip(attachments)
             }
@@ -155,7 +162,7 @@ fun ChatInputBar(
             ) {
                 IconButton(
                     onClick = { onPickDocuments?.invoke() },
-                    enabled = onPickDocuments != null && !isGenerating && !drawActive && !videoActive,
+                    enabled = onPickDocuments != null && !isGenerating && !drawActive && !videoActive && !musicActive,
                     modifier = Modifier.testTag("attach_document"),
                 ) {
                     Icon(Icons.Outlined.AttachFile, contentDescription = stringResource(Res.string.input_attach_document))
@@ -200,6 +207,7 @@ fun ChatInputBar(
                                             drawActive -> Res.string.input_draw_placeholder
                                             videoActive && attachments.items.isNotEmpty() -> Res.string.input_animate_placeholder
                                             videoActive -> Res.string.input_video_placeholder
+                                            musicActive -> Res.string.input_music_placeholder
                                             else -> Res.string.input_placeholder
                                         },
                                     ),
@@ -291,6 +299,18 @@ private fun VideoButton(video: InputDrawing, enabled: Boolean) {
             Icon(Icons.Outlined.Movie, contentDescription = description)
         }
     }
+}
+
+@Composable
+private fun MusicButton(music: InputDrawing, enabled: Boolean) {
+    androidx.compose.material3.FilterChip(
+        selected = music.active,
+        onClick = music.onToggle,
+        enabled = enabled,
+        label = { Text(stringResource(Res.string.input_music)) },
+        leadingIcon = { Icon(Icons.Outlined.MusicNote, contentDescription = null) },
+        modifier = Modifier.padding(start = 12.dp).testTag("music_toggle"),
+    )
 }
 
 /** Кнопка изображения: сразу открывает выбор фото, а где есть камера — меню «Выбрать фото / Сделать снимок». */

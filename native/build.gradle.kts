@@ -73,6 +73,23 @@ val buildImageGen = tasks.register<Exec>("buildImageGen") {
 }
 
 // Библиотеки для запуска и тестов: build/libs.
+val musicgenBuildDir = layout.buildDirectory.dir("cmake-musicgen")
+val configureMusicGen = tasks.register<Exec>("configureMusicGen") {
+    group = "native"
+    commandLine(
+        "cmake", "-S", file("musicgen").absolutePath, "-B", musicgenBuildDir.get().asFile.absolutePath,
+        "-DCMAKE_BUILD_TYPE=Release", "-DPRISM_MUSICGEN_VULKAN=${if (vulkan.get()) "ON" else "OFF"}",
+    )
+}
+val buildMusicGen = tasks.register<Exec>("buildMusicGen") {
+    group = "native"
+    dependsOn(configureMusicGen)
+    commandLine(
+        "cmake", "--build", musicgenBuildDir.get().asFile.absolutePath, "--config", "Release",
+        "--target", "prism_musicgen", "--parallel", Runtime.getRuntime().availableProcessors().toString(),
+    )
+}
+
 val assembleNative = tasks.register<Sync>("assembleNative") {
     group = "native"
     description = "Собирает нативные библиотеки текущей ОС в build/libs."
@@ -81,6 +98,8 @@ val assembleNative = tasks.register<Sync>("assembleNative") {
         include("*.dll", "*.so", "*.dylib")
     }
     if (imagegen.get()) {
+        dependsOn(buildMusicGen)
+        from(musicgenBuildDir.map { it.dir("bin") }) { include("prism_musicgen", "prism_musicgen.exe") }
         dependsOn(buildImageGen)
         from(imagegenBuildDir.map { it.dir("bin") }) {
             include("prism_imagegen", "prism_imagegen.exe")

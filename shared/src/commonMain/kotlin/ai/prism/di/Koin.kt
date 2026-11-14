@@ -105,6 +105,7 @@ val sharedModule: Module = module {
             totalRamBytes = get<DeviceInfo>().totalRamBytes,
             drafts = get(),
             memories = get(),
+            musicGenerator = get(),
         )
     }
     single {

@@ -1,5 +1,7 @@
 package ai.prism.ui.screens
 
+import ai.prism.resources.input_music
+
 import ai.prism.domain.inference.EngineState
 import ai.prism.domain.model.ModelEntry
 import ai.prism.domain.model.ModelKind
@@ -256,6 +258,7 @@ private fun ModelCard(
                 if (model.kind == ModelKind.IMAGE) Tag(stringResource(Res.string.models_draws))
                 if (model.kind == ModelKind.EMBEDDING) Tag(stringResource(Res.string.models_searches_files))
                 if (model.kind == ModelKind.VIDEO) Tag(stringResource(Res.string.models_makes_video))
+                if (model.kind == ModelKind.MUSIC) Tag(stringResource(Res.string.input_music))
                 if (model.video?.audio == true) Tag(stringResource(Res.string.models_with_audio))
                 if (model.kind == ModelKind.SPEECH_RECOGNITION) Tag(stringResource(Res.string.models_recognizes_speech))
                 if (model.kind == ModelKind.SPEECH_SYNTHESIS) Tag(stringResource(Res.string.models_speaks))
@@ -280,6 +283,8 @@ private fun ModelCard(
                         video.height,
                         video.frames,
                     )
+                } else if (model.kind == ModelKind.MUSIC) {
+                    stringResource(Res.string.models_details_speech, model.quantization, formatBytes(model.totalSizeBytes))
                 } else if (model.kind == ModelKind.EMBEDDING) {
                     stringResource(Res.string.models_details_embedding, model.quantization, formatBytes(model.totalSizeBytes))
                 } else if (model.kind == ModelKind.SPEECH_RECOGNITION || model.kind == ModelKind.SPEECH_SYNTHESIS) {

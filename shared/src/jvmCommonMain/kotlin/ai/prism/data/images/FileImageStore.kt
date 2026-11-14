@@ -58,6 +58,23 @@ class FileImageStore(
 
     override fun path(fileName: String): String = File(directory, fileName).absolutePath
 
+    override suspend fun saveAudio(bytes: ByteArray): ImageAttachment = withContext(ioContext) {
+        if (ai.prism.core.MjpegAvi.parseWav(bytes) == null) throw ImageException("Некорректный WAV")
+        val id = newId()
+        val file = File(directory, "$id.wav")
+        val temp = File(directory, "$id.wav.tmp")
+        try {
+            directory.mkdirs()
+            temp.writeBytes(bytes)
+            if (!temp.renameTo(file)) throw IOException("rename failed")
+        } catch (e: IOException) {
+            throw ImageException("Не удалось сохранить музыку", e)
+        } finally {
+            temp.delete()
+        }
+        ImageAttachment(id, file.name, 0, 0)
+    }
+
     override suspend fun read(fileName: String): ByteArray? = withContext(ioContext) {
         val file = File(directory, fileName)
         try {

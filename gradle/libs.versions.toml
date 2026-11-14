@@ -1,7 +1,7 @@
 [versions]
 # Версия приложения Prism AI (единый источник для Android, Desktop и экрана «О приложении»).
-prism-versionName = "0.9.6"
-prism-versionCode = "16"
+prism-versionName = "0.9.7"
+prism-versionCode = "17"
 # Версия Prism Store (выходит в тех же релизах GitHub, что и Prism AI).
 store-versionName = "1.0.1"
 store-versionCode = "2"

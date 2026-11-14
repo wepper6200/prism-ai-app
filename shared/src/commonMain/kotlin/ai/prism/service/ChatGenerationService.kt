@@ -20,6 +20,8 @@ import ai.prism.domain.imagegen.ImageGenerationProgress
 import ai.prism.domain.imagegen.ImageGenerator
 import ai.prism.domain.imagegen.ImageRequest
 import ai.prism.domain.imagegen.VideoRequest
+import ai.prism.domain.music.MusicGenerator
+import ai.prism.domain.music.MusicRequest
 import ai.prism.domain.inference.GenerationRequest
 import ai.prism.domain.inference.InferenceEngine
 import ai.prism.domain.inference.InferenceError
@@ -159,6 +161,7 @@ data class DrawingProgress(
     /** Длинное видео снимается кусками: какой сейчас и сколько всего (0 — один кусок). */
     val part: Int = 0,
     val parts: Int = 0,
+    val music: Boolean = false,
 )
 
 /**
@@ -212,6 +215,7 @@ class ChatGenerationService(
     private val drafts: DraftRepository = DraftRepository.None,
     /** Память о пользователе между диалогами. */
     private val memories: MemoryRepository = MemoryRepository.None,
+    private val musicGenerator: MusicGenerator = MusicGenerator.None,
 ) {
     private val mutableActive = MutableStateFlow<ActiveGeneration?>(null)
     val active: StateFlow<ActiveGeneration?> = mutableActive.asStateFlow()
@@ -293,7 +297,22 @@ class ChatGenerationService(
         return true
     }
 
-    /** Повторяет последний неудачный или остановленный ответ (текстовый, рисунок или видео). */
+    fun composeMusic(chatId: String, text: String): Boolean {
+        val prompt = text.trim()
+        if (prompt.isEmpty() || !reserve(chatId)) return false
+        scope.launch {
+            try {
+                chats.addMessage(chatId, MessageRole.USER, prompt, MessageStatus.COMPLETE, modelId = null)
+                chats.setTitleIfEmpty(chatId, titleFrom(prompt))
+                musicReply(chatId, prompt)
+            } finally {
+                mutableActive.value = null
+            }
+        }
+        return true
+    }
+
+    /** Повторяет последний неудачный или остановленный ответ. */
     fun retry(chatId: String): Boolean {
         if (!reserve(chatId)) return false
         scope.launch {
@@ -303,6 +322,7 @@ class ChatGenerationService(
                 val lastKind = last?.takeIf { it.role == MessageRole.ASSISTANT }?.modelId?.let(models::catalogModel)?.kind
                 val wasDrawing = lastKind == ModelKind.IMAGE
                 val wasVideo = lastKind == ModelKind.VIDEO
+                val wasMusic = lastKind == ModelKind.MUSIC
                 if (last != null && last.role == MessageRole.ASSISTANT && last.status != MessageStatus.COMPLETE) {
                     chats.deleteMessage(last.id)
                 }
@@ -311,6 +331,8 @@ class ChatGenerationService(
                     drawReply(chatId, request.content, request.images.firstOrNull())
                 } else if (wasVideo && request != null && request.content.isNotBlank()) {
                     videoReply(chatId, request.content, request.images.firstOrNull())
+                } else if (wasMusic && request != null && request.content.isNotBlank()) {
+                    musicReply(chatId, request.content)
                 } else {
                     generateReply(chatId)
                 }
@@ -327,6 +349,7 @@ class ChatGenerationService(
         toolJob?.cancel()
         engine.cancel()
         imageGenerator.cancel()
+        musicGenerator.cancel()
     }
 
     /** Ответ пользователя на запрос разрешения [actionId] (изменение файлов, скачивание, команда). */
@@ -336,6 +359,71 @@ class ChatGenerationService(
 
     /** На этой платформе есть программа генерации изображений. */
     val canGenerateImages: Boolean get() = imageGenerator.isSupported
+
+    val canGenerateMusic: Boolean get() = musicGenerator.isSupported
+
+    fun musicModel(): CatalogModel? = models.models.value
+        .firstOrNull { it.model.kind == ModelKind.MUSIC && it.status == ModelStatus.Downloaded }?.model
+
+    private suspend fun musicReply(chatId: String, prompt: String) {
+        val model = musicModel() ?: models.models.value.firstOrNull { it.model.kind == ModelKind.MUSIC }?.model
+        val reply = chats.addMessage(chatId, MessageRole.ASSISTANT, "", MessageStatus.GENERATING, model?.id)
+        fun progress(stage: DrawingStage, step: Int = 0, steps: Int = 0) {
+            mutableActive.value = ActiveGeneration(chatId, reply.id, "", DrawingProgress(stage, step, steps, music = true))
+        }
+        val files = model?.let { models.imageModelFiles(it.id) }
+        if (files == null || !musicGenerator.isSupported) {
+            chats.updateMessage(reply.id, "", MessageStatus.FAILED, GenerationError.NO_MUSIC_MODEL)
+            return
+        }
+        try {
+            progress(DrawingStage.TRANSLATING)
+            val prepared = prepareImagePrompt(prompt, settings.settings.value.safeMode)
+            engine.unload()
+            imageGenerator.release()
+            if (stopRequested) {
+                chats.updateMessage(reply.id, "", MessageStatus.STOPPED, null)
+                return
+            }
+            if (prepared is PreparedPrompt.Rejected) {
+                chats.updateMessage(reply.id, "", MessageStatus.FAILED, prepared.error)
+                return
+            }
+            val bytes = musicGenerator.generate(files, MusicRequest((prepared as PreparedPrompt.Ready).prompt)) { event ->
+                when (event) {
+                    ImageGenerationProgress.Loading -> progress(DrawingStage.LOADING)
+                    is ImageGenerationProgress.Step -> progress(DrawingStage.DRAWING, event.step, event.steps)
+                }
+            }
+            if (stopRequested) {
+                chats.updateMessage(reply.id, "", MessageStatus.STOPPED, null)
+                return
+            }
+            val attachment = images.saveAudio(bytes)
+            try {
+                chats.attachImages(chatId, reply.id, listOf(attachment))
+            } catch (e: Exception) {
+                withContext(NonCancellable) { images.delete(listOf(attachment.fileName)) }
+                throw e
+            }
+            chats.updateMessage(reply.id, "", MessageStatus.COMPLETE, null)
+        } catch (e: ImageGenerationException) {
+            val stopped = stopRequested || e.error == ImageGenerationError.CANCELLED
+            val error = when (e.error) {
+                ImageGenerationError.NOT_ENOUGH_MEMORY -> GenerationError.NOT_ENOUGH_MEMORY
+                ImageGenerationError.GPU_DRIVER_MISSING -> GenerationError.GPU_DRIVER_MISSING
+                else -> GenerationError.MUSIC_GENERATION_FAILED
+            }
+            chats.updateMessage(reply.id, "", if (stopped) MessageStatus.STOPPED else MessageStatus.FAILED, error.takeUnless { stopped })
+        } catch (e: CancellationException) {
+            withContext(NonCancellable) { chats.updateMessage(reply.id, "", MessageStatus.STOPPED, null) }
+            throw e
+        } catch (e: Exception) {
+            chats.updateMessage(reply.id, "", MessageStatus.FAILED, GenerationError.MUSIC_GENERATION_FAILED)
+        } finally {
+            withContext(NonCancellable) { musicGenerator.release() }
+        }
+    }
 
     /** Модель видео: выбранная в настройках, иначе первая скачанная для этой платформы. */
     fun videoModel(): CatalogModel? {

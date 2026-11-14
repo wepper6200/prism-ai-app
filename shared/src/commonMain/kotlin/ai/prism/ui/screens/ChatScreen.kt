@@ -1,5 +1,14 @@
 package ai.prism.ui.screens
 
+import ai.prism.resources.music_mode_hint
+import ai.prism.resources.music_remove_photos
+import ai.prism.resources.music_download
+import ai.prism.resources.input_music
+import ai.prism.resources.music_loading
+import ai.prism.resources.music_composing
+import ai.prism.resources.music_synthesizing
+import ai.prism.resources.music_decoding
+
 import ai.prism.domain.model.MessageRole
 import ai.prism.domain.model.MessageStatus
 import ai.prism.presentation.chat.ChatComponent
@@ -172,6 +181,7 @@ fun ChatScreen(
     var visionDialog by remember { mutableStateOf(false) }
     var drawDialog by remember { mutableStateOf(false) }
     var videoDialog by remember { mutableStateOf(false) }
+    var musicDialog by remember { mutableStateOf(false) }
     var viewing by remember { mutableStateOf<String?>(null) }
     var saveResult by remember { mutableStateOf<Boolean?>(null) }
     val scope = rememberCoroutineScope()
@@ -305,6 +315,13 @@ fun ChatScreen(
                 modifier = Modifier.align(Alignment.CenterHorizontally).widthIn(max = 880.dp),
             )
         }
+        if (state.musicMode) {
+            Text(
+                text = stringResource(if (state.attachments.isEmpty()) Res.string.music_mode_hint else Res.string.music_remove_photos),
+                modifier = Modifier.align(Alignment.CenterHorizontally).padding(8.dp),
+                style = MaterialTheme.typography.labelMedium,
+            )
+        }
         if (state.tooManyPhotosToDraw) {
             Text(
                 text = stringResource(Res.string.draw_one_photo),
@@ -425,6 +442,13 @@ fun ChatScreen(
                     DocumentSupport.NOT_DOWNLOADED -> ({ documentDialog = true })
                     DocumentSupport.UNAVAILABLE -> null
                 },
+                music = if (state.music == DrawSupport.UNAVAILABLE) null else InputDrawing(
+                    active = state.musicMode,
+                    onToggle = {
+                        if (state.music == DrawSupport.READY || state.musicMode) component.onIntent(ChatIntent.ToggleMusicMode)
+                        else musicDialog = true
+                    },
+                ),
                 voice = if (!state.voice.supported) {
                     null
                 } else {
@@ -432,7 +456,7 @@ fun ChatScreen(
                         listening = state.voice.dictating && state.voice.phase == VoicePhase.LISTENING,
                         recognizing = state.voice.dictating && state.voice.phase == VoicePhase.RECOGNIZING,
                         level = state.voice.level,
-                        enabled = !state.voice.conversation && !state.drawMode && !state.videoMode,
+                        enabled = !state.voice.conversation && !state.drawMode && !state.videoMode && !state.musicMode,
                         onToggle = {
                             if (state.voice.dictating) {
                                 component.onIntent(ChatIntent.ToggleDictation)
@@ -484,6 +508,17 @@ fun ChatScreen(
                 TextButton(onClick = { drawDialog = false }) { Text(stringResource(Res.string.action_cancel)) }
             },
             modifier = Modifier.testTag("draw_dialog"),
+        )
+    }
+    if (musicDialog) {
+        AlertDialog(
+            onDismissRequest = { musicDialog = false },
+            title = { Text(stringResource(Res.string.input_music)) },
+            text = { Text(stringResource(Res.string.music_download, state.musicModelName.orEmpty(), formatBytes(state.musicModelBytes))) },
+            confirmButton = { TextButton(onClick = { musicDialog = false; component.onIntent(ChatIntent.OpenModels) }) {
+                Text(stringResource(Res.string.chat_open_models))
+            } },
+            dismissButton = { TextButton(onClick = { musicDialog = false }) { Text(stringResource(Res.string.action_cancel)) } },
         )
     }
     if (videoDialog) {
@@ -790,6 +825,10 @@ private fun AssistantMessage(
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             message.images.forEach { image ->
+                if (image.isAudio) {
+                    ai.prism.ui.components.MusicPlayer(image.fileName, loadImage, playAudio)
+                    return@forEach
+                }
                 val ratio = (image.width.toFloat() / image.height.coerceAtLeast(1)).coerceIn(0.5f, 2f)
                 if (image.isVideo) {
                     VideoPlayer(
@@ -870,7 +909,17 @@ private fun ModelLoading(progress: Float) {
 @Composable
 private fun Drawing(progress: DrawingProgress) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.testTag("drawing_progress")) {
-        val stage = when (progress.stage) {
+        val stage = if (progress.music) {
+            stringResource(when (progress.stage) {
+                DrawingStage.TRANSLATING -> Res.string.draw_translating
+                DrawingStage.LOADING, DrawingStage.COMPRESSING -> Res.string.music_loading
+                DrawingStage.DRAWING -> when (progress.step) {
+                    1 -> Res.string.music_composing
+                    2 -> Res.string.music_synthesizing
+                    else -> Res.string.music_decoding
+                }
+            })
+        } else when (progress.stage) {
             DrawingStage.TRANSLATING -> stringResource(Res.string.draw_translating)
             DrawingStage.COMPRESSING -> stringResource(Res.string.video_compressing_encoder)
             DrawingStage.LOADING -> stringResource(if (progress.video) Res.string.video_loading else Res.string.draw_loading)

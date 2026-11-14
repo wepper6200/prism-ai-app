@@ -61,6 +61,9 @@ enum class GenerationError {
     /** Не удалось создать видео. */
     VIDEO_GENERATION_FAILED,
 
+    NO_MUSIC_MODEL,
+    MUSIC_GENERATION_FAILED,
+
     /** Описание картинки по-русски, а модели чата для перевода на английский нет. */
     TRANSLATOR_REQUIRED,
 
@@ -96,6 +99,8 @@ data class ImageAttachment(
 ) {
     /** Вложение — видео (MJPEG AVI), а не изображение. */
     val isVideo: Boolean get() = fileName.endsWith(VIDEO_EXTENSION)
+
+    val isAudio: Boolean get() = fileName.endsWith(".wav")
 
     companion object {
         const val VIDEO_EXTENSION = ".avi"

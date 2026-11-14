@@ -422,4 +422,43 @@ class PrismAppUiTest {
         onNodeWithTag("voice_open_models").performClick()
         onNodeWithTag("models_screen").assertIsDisplayed()
     }
+    @Test
+    fun compactChatCreatesMusic() = runDesktopComposeUiTest(width = 360, height = 800) {
+        DecomposeSettings.update { it.copy(mainThreadCheckEnabled = false) }
+        val generator = object : ai.prism.domain.music.MusicGenerator {
+            override val isSupported = true
+            override suspend fun generate(
+                files: Map<String, String>,
+                request: ai.prism.domain.music.MusicRequest,
+                onProgress: (ai.prism.domain.imagegen.ImageGenerationProgress) -> Unit,
+            ): ByteArray {
+                val bytes = java.nio.ByteBuffer.allocate(60).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                bytes.put("RIFF".toByteArray()).putInt(52).put("WAVEfmt ".toByteArray()).putInt(16)
+                bytes.putShort(1).putShort(2).putInt(48000).putInt(192000).putShort(4).putShort(16)
+                bytes.put("data".toByteArray()).putInt(16).put(ByteArray(16))
+                return bytes.array()
+            }
+            override fun cancel() = Unit
+            override suspend fun release() = Unit
+        }
+        val app = TestApp(
+            models = FakeModelRepository(listOf(
+                ModelEntry(testModel(), ModelStatus.Downloaded, true),
+                ModelEntry(testModel().copy(id = "music", name = "Prism Music 1", kind = ModelKind.MUSIC), ModelStatus.Downloaded, true),
+            )),
+            musicGenerator = generator,
+        )
+        val lifecycle = LifecycleRegistry()
+        val root = DefaultRootComponent(DefaultComponentContext(lifecycle = lifecycle), app.dependencies, Dispatchers.Unconfined)
+        lifecycle.resume()
+        setContent { PrismApp(root) }
+        onNodeWithTag("new_chat").performClick()
+        onNodeWithTag("music_toggle").performClick()
+        onNodeWithTag("message_input").performTextInput("Calm piano instrumental")
+        onNodeWithTag("send_button").performClick()
+        waitForIdle()
+        onNodeWithTag("generated_music").assertIsDisplayed()
+        screenshot("compact_20_music")
+    }
+
 }

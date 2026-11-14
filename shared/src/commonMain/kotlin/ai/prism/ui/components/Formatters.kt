@@ -1,5 +1,8 @@
 package ai.prism.ui.components
 
+import ai.prism.resources.error_no_music_model
+import ai.prism.resources.error_music_generation
+
 import ai.prism.domain.model.DownloadError
 import ai.prism.domain.model.GenerationError
 import ai.prism.resources.Res
@@ -74,6 +77,8 @@ fun GenerationError.message(): StringResource = when (this) {
     GenerationError.TRANSLATOR_REQUIRED -> Res.string.error_translator_required
     GenerationError.NO_EMBEDDING_MODEL -> Res.string.error_no_embedding_model
     GenerationError.NO_VIDEO_MODEL -> Res.string.error_no_video_model
+    GenerationError.NO_MUSIC_MODEL -> Res.string.error_no_music_model
+    GenerationError.MUSIC_GENERATION_FAILED -> Res.string.error_music_generation
     GenerationError.VIDEO_GENERATION_FAILED -> Res.string.error_video_generation_failed
     GenerationError.TRANSLATION_FAILED -> Res.string.error_translation_failed
     GenerationError.UNKNOWN -> Res.string.error_unknown

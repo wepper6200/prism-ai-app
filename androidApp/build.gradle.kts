@@ -147,7 +147,36 @@ val syncImageGen = tasks.register<Sync>("syncImageGenAndroid") {
     into(imagegenJniLibs.map { it.dir("arm64-v8a") })
 }
 
-android.sourceSets.getByName("main").jniLibs.srcDir(imagegenJniLibs.get().asFile)
+android.sourceSets.getByName("main").jniLibs.directories.add(imagegenJniLibs.get().asFile.absolutePath)
+
+val musicgenBuildDir = layout.buildDirectory.dir("cmake-musicgen")
+val configureMusicGen = tasks.register<Exec>("configureMusicGenAndroid") {
+    val cmakeBin = sdkDirectory.map { it.dir("cmake/$cmakeVersion/bin") }.get()
+    commandLine(
+        cmakeBin.file("cmake").asFile.absolutePath,
+        "-S", rootProject.file("native/musicgen").absolutePath,
+        "-B", musicgenBuildDir.get().asFile.absolutePath, "-G", "Ninja",
+        "-DCMAKE_MAKE_PROGRAM=${cmakeBin.file("ninja").asFile.absolutePath}",
+        "-DCMAKE_TOOLCHAIN_FILE=${ndkDirectory.get().file("build/cmake/android.toolchain.cmake").asFile.absolutePath}",
+        "-DANDROID_ABI=arm64-v8a", "-DANDROID_PLATFORM=android-$minSdkVersion", "-DCMAKE_BUILD_TYPE=Release",
+    )
+}
+val buildMusicGen = tasks.register<Exec>("buildMusicGenAndroid") {
+    dependsOn(configureMusicGen)
+    commandLine(
+        sdkDirectory.get().file("cmake/$cmakeVersion/bin/cmake").asFile.absolutePath,
+        "--build", musicgenBuildDir.get().asFile.absolutePath, "--target", "prism_musicgen",
+        "--parallel", Runtime.getRuntime().availableProcessors().toString(),
+    )
+}
+val musicgenJniLibs = layout.buildDirectory.dir("musicgen-jniLibs")
+val syncMusicGen = tasks.register<Sync>("syncMusicGenAndroid") {
+    dependsOn(buildMusicGen)
+    from(musicgenBuildDir) { include("libprism_musicgen.so") }
+    into(musicgenJniLibs.map { it.dir("arm64-v8a") })
+}
+android.sourceSets.getByName("main").jniLibs.directories.add(musicgenJniLibs.get().asFile.absolutePath)
+tasks.named("preBuild") { dependsOn(syncMusicGen) }
 tasks.named("preBuild") { dependsOn(syncImageGen) }
 
 kotlin {

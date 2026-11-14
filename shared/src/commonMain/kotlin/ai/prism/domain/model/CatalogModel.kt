@@ -60,6 +60,10 @@ enum class ModelKind {
     @SerialName("video")
     VIDEO,
 
+    /** Локальная генерация музыки. */
+    @SerialName("music")
+    MUSIC,
+
     /** Распознавание речи (sherpa-onnx): GigaAM, Whisper. */
     @SerialName("speech_recognition")
     SPEECH_RECOGNITION,

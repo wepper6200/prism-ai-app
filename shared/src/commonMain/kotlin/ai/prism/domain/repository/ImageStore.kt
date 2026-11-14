@@ -16,6 +16,9 @@ interface ImageStore {
     /** Сохраняет видео (MJPEG AVI) как вложение сообщения: файл `….avi` рядом с изображениями. */
     suspend fun saveVideo(bytes: ByteArray, width: Int, height: Int): ImageAttachment
 
+    /** Сохраняет созданную музыку WAV рядом с остальными вложениями. */
+    suspend fun saveAudio(bytes: ByteArray): ImageAttachment
+
     /** Абсолютный путь к файлу изображения. */
     fun path(fileName: String): String
 
