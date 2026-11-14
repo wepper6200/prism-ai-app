@@ -24,7 +24,13 @@ internal object MusicPromptPolicy {
             "de" to "на немецком|in german|(?:язык|language)\\s*:\\s*de\\b",
         )
         val description = lyricsHeader.find(source)?.let { source.take(it.range.first) } ?: source
-        explicit.firstOrNull { Regex(it.second, RegexOption.IGNORE_CASE).containsMatchIn(description) }?.let { return it.first }
+        val requested = explicit.flatMap { (language, pattern) ->
+            Regex(pattern, RegexOption.IGNORE_CASE).findAll(description).map { match ->
+                Triple(language, match.range.first, description.take(match.range.first))
+            }.toList()
+        }.filterNot { Regex("(?:^|\\s)(?:не|not)\\s*$", RegexOption.IGNORE_CASE).containsMatchIn(it.third) }
+            .maxByOrNull { it.second }
+        if (requested != null) return requested.first
         return if (ImagePromptPolicy.hasCyrillic(suppliedLyrics(source) ?: source)) "ru" else "en"
     }
 

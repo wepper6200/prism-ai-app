@@ -20,6 +20,8 @@ class MusicPromptPolicyTest {
         assertEquals(lyrics, result?.lyrics)
         assertEquals("ru", result?.vocalLanguage)
         assertEquals("en", MusicPromptPolicy.language("Песня на английском"))
+        assertEquals("ru", MusicPromptPolicy.language("Песня на русском, не на английском"))
+        assertEquals("en", MusicPromptPolicy.language("Песня на английском, не на русском"))
         assertEquals("en", MusicPromptPolicy.language("Песня\nLyrics:\nTake me home tonight"))
     }
 
