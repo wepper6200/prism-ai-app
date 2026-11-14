@@ -12,6 +12,10 @@ object FakeMusicWorker {
     fun main(args: Array<String>) {
         val request = Json.parseToJsonElement(readln()).jsonObject
         val prompt = request.getValue("caption").jsonPrimitive.content
+        if (prompt == "piano") {
+            check(request.getValue("lyrics").jsonPrimitive.content == "Тихий вечер за окном")
+            check(request.getValue("vocal_language").jsonPrimitive.content == "ru")
+        }
         println("{\"event\":\"progress\",\"stage\":\"composing\"}")
         System.out.flush()
         if (prompt == "wait") Thread.sleep(60_000)

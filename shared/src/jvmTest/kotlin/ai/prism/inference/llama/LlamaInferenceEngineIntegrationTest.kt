@@ -12,6 +12,8 @@ import ai.prism.domain.model.ChatFormat
 import ai.prism.domain.model.MessageRole
 import ai.prism.domain.model.ModelFile
 import ai.prism.platform.DesktopNativeLibraryLoader
+import ai.prism.service.MusicPromptPolicy
+import ai.prism.ui.ResourcePersonaProvider
 import ai.prism.testing.FakeDeviceInfo
 import ai.prism.testing.testModel
 import kotlinx.coroutines.flow.take
@@ -38,6 +40,24 @@ import kotlin.test.assertTrue
  * Без нативных библиотек или моделей тесты пропускаются.
  */
 class LlamaInferenceEngineIntegrationTest {
+
+    @Test
+    fun gemma4PreparesRussianSongWithoutTranslatingLyrics(): Unit = runBlocking {
+        val file = requireModel("PRISM_TEST_GEMMA4")
+        engine.load(modelFor(file, ChatFormat.GEMMA4).copy(contextLength = 4096), file.absolutePath)
+        val source = "Создай нежную песню на русском о дороге домой"
+        try {
+            val answer = engine.generate(GenerationRequest(
+                systemPrompt = ResourcePersonaProvider().persona().musicPromptInstruction,
+                messages = listOf(PromptMessage(MessageRole.USER, "vocal_language: ru\n\n$source")),
+                maxTokens = 1200,
+                sampling = SamplingParams(temperature = 0.3f),
+            )).toList().joinToString("")
+            println("Подготовка русской песни: $answer")
+            val request = MusicPromptPolicy.parse(source, answer)
+            assertTrue(request != null && request.vocalLanguage == "ru", "Модель не подготовила русский текст: $answer")
+        } finally { engine.unload() }
+    }
 
     private val engine = LlamaInferenceEngine(DesktopNativeLibraryLoader(), FakeDeviceInfo(), DesktopImageCodec())
 

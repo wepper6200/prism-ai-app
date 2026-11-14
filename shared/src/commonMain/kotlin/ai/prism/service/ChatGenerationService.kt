@@ -88,6 +88,9 @@ data class AssistantPersona(
     val currentDateNote: String = "",
     /** Инструкция для перевода описания картинки на английский (генераторы лучше понимают английский). */
     val imagePromptInstruction: String = "",
+    /** Отдельная подготовка описания музыки и текста песни. */
+    val musicPromptInstruction: String = "",
+    val musicSafetyInstruction: String = "",
     /** Безопасный режим: правило для модели чата (добавляется к системному промпту). */
     val safeModeRule: String = "",
     /** Безопасный режим: проверить описание картинки и перевести его (или ответить BLOCKED). */
@@ -378,18 +381,19 @@ class ChatGenerationService(
         }
         try {
             progress(DrawingStage.TRANSLATING)
-            val prepared = prepareImagePrompt(prompt, settings.settings.value.safeMode)
+            val prepared = prepareMusicPrompt(prompt, settings.settings.value.safeMode)
             engine.unload()
             imageGenerator.release()
             if (stopRequested) {
                 chats.updateMessage(reply.id, "", MessageStatus.STOPPED, null)
                 return
             }
-            if (prepared is PreparedPrompt.Rejected) {
+            if (prepared is PreparedMusic.Rejected) {
                 chats.updateMessage(reply.id, "", MessageStatus.FAILED, prepared.error)
                 return
             }
-            val bytes = musicGenerator.generate(files, MusicRequest((prepared as PreparedPrompt.Ready).prompt)) { event ->
+            val request = (prepared as PreparedMusic.Ready).request
+            val bytes = musicGenerator.generate(files, request) { event ->
                 when (event) {
                     ImageGenerationProgress.Loading -> progress(DrawingStage.LOADING)
                     is ImageGenerationProgress.Step -> progress(DrawingStage.DRAWING, event.step, event.steps)
@@ -406,7 +410,7 @@ class ChatGenerationService(
                 withContext(NonCancellable) { images.delete(listOf(attachment.fileName)) }
                 throw e
             }
-            chats.updateMessage(reply.id, "", MessageStatus.COMPLETE, null)
+            chats.updateMessage(reply.id, request.lyrics.takeUnless { it == "[Instrumental]" }.orEmpty(), MessageStatus.COMPLETE, null)
         } catch (e: ImageGenerationException) {
             val stopped = stopRequested || e.error == ImageGenerationError.CANCELLED
             val error = when (e.error) {
@@ -984,6 +988,43 @@ class ChatGenerationService(
             withContext(NonCancellable) { chats.updateMessage(reply.id, "", MessageStatus.STOPPED, null) }
             throw e
         }
+    }
+
+    private sealed interface PreparedMusic {
+        data class Ready(val request: MusicRequest) : PreparedMusic
+        data class Rejected(val error: GenerationError) : PreparedMusic
+    }
+
+    private suspend fun prepareMusicPrompt(prompt: String, safeMode: Boolean): PreparedMusic {
+        val model = translatorModel()
+        val path = model?.let { models.downloadedFilePath(it.id) }
+        if (model == null || path == null) return PreparedMusic.Rejected(GenerationError.TRANSLATOR_REQUIRED)
+        val persona = personaProvider.persona()
+        if (persona.musicPromptInstruction.isBlank()) return PreparedMusic.Rejected(GenerationError.MUSIC_GENERATION_FAILED)
+        val instruction = persona.musicPromptInstruction + "\n" +
+            (if (safeMode) persona.musicSafetyInstruction else "")
+        val answer = try {
+            imageGenerator.release()
+            musicGenerator.release()
+            engine.load(withChosenContext(model), path, null)
+            if (stopRequested) return PreparedMusic.Rejected(GenerationError.MUSIC_GENERATION_FAILED)
+            engine.generate(
+                GenerationRequest(
+                    systemPrompt = instruction,
+                    messages = listOf(PromptMessage(MessageRole.USER,
+                        "vocal_language: ${MusicPromptPolicy.language(prompt)}\n\n$prompt")),
+                    maxTokens = 1200,
+                    sampling = SamplingParams(temperature = 0.3f),
+                ),
+            ).toList().joinToString("").trim()
+        } catch (e: InferenceException) {
+            return PreparedMusic.Rejected(if (e.error == InferenceError.NOT_ENOUGH_MEMORY) {
+                GenerationError.NOT_ENOUGH_MEMORY
+            } else GenerationError.MUSIC_GENERATION_FAILED)
+        }
+        if (safeMode && ImagePromptPolicy.isBlockedVerdict(answer)) return PreparedMusic.Rejected(GenerationError.BLOCKED_BY_SAFE_MODE)
+        return MusicPromptPolicy.parse(prompt, answer)?.let { PreparedMusic.Ready(it) }
+            ?: PreparedMusic.Rejected(GenerationError.MUSIC_GENERATION_FAILED)
     }
 
     /**

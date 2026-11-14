@@ -46,22 +46,28 @@ def main():
     command = {"model": download(model, root)}
     for component in model["components"]:
         command[component["role"]] = download(component, root)
-    output = root / "Проверка музыки.wav"
-    command.update(caption="Calm solo piano instrumental, gentle melody", duration=30, seed=42, output=str(output))
-    with (root / "music-worker.log").open("w", encoding="utf-8") as errors:
-        result = subprocess.run([str(binary)], input=json.dumps(command, ensure_ascii=False) + "\n",
-                                encoding="utf-8", stdout=subprocess.PIPE, stderr=errors, timeout=1800)
-    print(result.stdout)
-    if result.returncode != 0 or not any(json.loads(line).get("event") == "done" for line in result.stdout.splitlines() if line.startswith("{")):
-        raise RuntimeError("Music worker failed, see music-worker.log")
-    with wave.open(str(output), "rb") as audio:
-        assert (audio.getnchannels(), audio.getsampwidth(), audio.getframerate()) == (2, 2, 48000)
-        seconds = audio.getnframes() / audio.getframerate()
-        assert seconds == 30, seconds
-        samples = audio.readframes(audio.getnframes())
-    energy = sum(value[0] ** 2 for value in struct.iter_unpack("<h", samples)) / (len(samples) // 2)
-    assert energy > 1, "Silent output"
-    print(f"Stereo PCM16 WAV verified, {seconds:.2f} seconds, RMS {energy ** 0.5:.1f}")
+    fixtures = [
+        ("Проверка музыки.wav", "Calm solo piano instrumental, gentle melody", "[Instrumental]", "unknown"),
+        ("Русская песня.wav", "Warm acoustic pop song, clear Russian male vocal, gentle guitar and piano, 90 BPM, intimate clean production",
+         "[Verse]\nТихий вечер за окном\nМы с тобой идём домой\nСветит нам одна звезда\nТы со мною навсегда\n[Chorus]\nПо дороге мы вдвоём\nТихо песенку поём\nТы со мною рядом будь\nОсвещай наш долгий путь", "ru"),
+    ]
+    for name, caption, lyrics, language in fixtures:
+        output = root / name
+        command.update(caption=caption, lyrics=lyrics, vocal_language=language, duration=30, seed=42, lm_seed=42, output=str(output))
+        with (root / (output.stem + ".log")).open("w", encoding="utf-8") as errors:
+            result = subprocess.run([str(binary)], input=json.dumps(command, ensure_ascii=False) + "\n",
+                                    encoding="utf-8", stdout=subprocess.PIPE, stderr=errors, timeout=1800)
+        print(result.stdout)
+        if result.returncode != 0 or not any(json.loads(line).get("event") == "done" for line in result.stdout.splitlines() if line.startswith("{")):
+            raise RuntimeError("Music worker failed, see worker log")
+        with wave.open(str(output), "rb") as audio:
+            assert (audio.getnchannels(), audio.getsampwidth(), audio.getframerate()) == (2, 2, 48000)
+            seconds = audio.getnframes() / audio.getframerate()
+            assert seconds == 30, seconds
+            samples = audio.readframes(audio.getnframes())
+        energy = sum(value[0] ** 2 for value in struct.iter_unpack("<h", samples)) / (len(samples) // 2)
+        assert energy > 1, "Silent output"
+        print(f"{name}: Stereo PCM16 WAV verified, {seconds:.2f} seconds, RMS {energy ** 0.5:.1f}")
 
 
 if __name__ == "__main__":

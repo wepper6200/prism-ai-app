@@ -57,7 +57,8 @@ def files(model):
 
 def main():
     root = os.path.abspath(sys.argv[1])
-    only_vad = "--only" in sys.argv and sys.argv[sys.argv.index("--only") + 1] == "vad"
+    only = sys.argv[sys.argv.index("--only") + 1] if "--only" in sys.argv else None
+    only_vad = only == "vad"
     models = {m["id"]: m for m in json.load(open(CATALOG, encoding="utf-8"))["models"]}
     env = {}
     gigaam = models["gigaam-v3-ctc-punct-ru-int8"]
@@ -68,6 +69,10 @@ def main():
             fetch(url, size, sha, os.path.join(root, "gigaam", url.rsplit("/", 1)[1]))
     if not only_vad:
         env["PRISM_TEST_GIGAAM_DIR"] = os.path.join(root, "gigaam")
+        if only == "gigaam":
+            for name, value in env.items():
+                print(f"{name}={value}")
+            return
         for role, url, size, sha in files(models["whisper-small-int8"]):
             if role != "vad":
                 fetch(url, size, sha, os.path.join(root, "whisper", url.rsplit("/", 1)[1]))

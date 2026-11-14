@@ -25,11 +25,13 @@ class MusicServiceTest {
     private class Generator : MusicGenerator {
         override val isSupported = true
         var prompt: String? = null
+        var request: MusicRequest? = null
         var releases = 0
         var failure: ImageGenerationError? = null
         var duringGeneration: () -> Unit = {}
         override suspend fun generate(files: Map<String, String>, request: MusicRequest, onProgress: (ImageGenerationProgress) -> Unit): ByteArray {
             prompt = request.prompt
+            this.request = request
             duringGeneration()
             failure?.let { throw ImageGenerationException(it, "test") }
             return byteArrayOf(1, 2, 3)
@@ -39,7 +41,7 @@ class MusicServiceTest {
     }
 
     private fun app(generator: Generator, downloaded: Boolean = true): TestApp = TestApp(
-        engine = FakeInferenceEngine(reply = listOf("A calm piano instrumental")),
+        engine = FakeInferenceEngine(reply = listOf("""{"caption":"A calm piano instrumental","lyrics":"[Instrumental]"}""")),
         models = FakeModelRepository(listOf(
             ModelEntry(testModel(), ModelStatus.Downloaded, true),
             ModelEntry(testModel().copy(id = "music", kind = ModelKind.MUSIC),
@@ -59,12 +61,12 @@ class MusicServiceTest {
         assertEquals("music", reply.modelId)
         assertTrue(reply.images.single().isAudio)
         assertEquals("A calm piano instrumental", generator.prompt)
-        assertEquals(1, generator.releases)
+        assertEquals(2, generator.releases)
         assertNull(app.generation.active.value)
         app.chats.updateMessage(reply.id, "", MessageStatus.STOPPED, null)
         app.generation.retry(chat.id)
         assertEquals(MessageStatus.COMPLETE, app.chats.messagesSnapshot(chat.id).last().status)
-        assertEquals(2, generator.releases)
+        assertEquals(4, generator.releases)
     }
 
     @Test
@@ -75,6 +77,18 @@ class MusicServiceTest {
         app.generation.composeMusic(chat.id, "piano")
         assertEquals(GenerationError.NO_MUSIC_MODEL, app.chats.messagesSnapshot(chat.id).last().error)
         assertNull(generator.prompt)
+    }
+
+    @Test
+    fun russianLyricsReachGeneratorWithoutTranslation() = runBlocking {
+        val generator = Generator()
+        val app = app(generator)
+        val lyrics = "[Verse]\nТихий вечер за окном\nМы с тобой опять вдвоём"
+        val chat = app.chats.createChat()
+        app.generation.composeMusic(chat.id, "Нежная песня на русском\nТекст песни:\n$lyrics")
+        assertEquals(lyrics, generator.request?.lyrics)
+        assertEquals("ru", generator.request?.vocalLanguage)
+        assertEquals(lyrics, app.chats.messagesSnapshot(chat.id).last().content)
     }
 
     @Test
@@ -90,7 +104,7 @@ class MusicServiceTest {
         val stopped = app.chats.messagesSnapshot(chat.id).last()
         assertEquals(MessageStatus.STOPPED, stopped.status)
         assertTrue(stopped.images.isEmpty())
-        assertEquals(2, generator.releases)
+        assertEquals(4, generator.releases)
         assertFalse(app.generation.composeMusic(chat.id, " "))
     }
 }

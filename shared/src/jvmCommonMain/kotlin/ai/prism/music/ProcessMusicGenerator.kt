@@ -82,7 +82,8 @@ class ProcessMusicGenerator(
                     put("output", output.absolutePath)
                     put("caption", request.prompt)
                     put("duration", request.seconds)
-                    put("vocal_language", "ru")
+                    put("lyrics", request.lyrics)
+                    put("vocal_language", request.vocalLanguage)
                 }
                 running.outputStream.bufferedWriter(Charsets.UTF_8).use { it.write(command.toString() + "\n") }
                 for (line in events) {

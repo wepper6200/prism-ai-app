@@ -1,5 +1,7 @@
 package ai.prism.ui.screens
 
+import ai.prism.resources.music_preparing
+import ai.prism.resources.music_needs_translator
 import ai.prism.resources.music_mode_hint
 import ai.prism.resources.music_remove_photos
 import ai.prism.resources.music_download
@@ -332,7 +334,7 @@ fun ChatScreen(
         }
         if (state.drawNeedsTranslator) {
             Text(
-                text = stringResource(Res.string.draw_needs_translator),
+                text = stringResource(if (state.musicMode) Res.string.music_needs_translator else Res.string.draw_needs_translator),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.error,
                 textAlign = TextAlign.Center,
@@ -911,7 +913,7 @@ private fun Drawing(progress: DrawingProgress) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.testTag("drawing_progress")) {
         val stage = if (progress.music) {
             stringResource(when (progress.stage) {
-                DrawingStage.TRANSLATING -> Res.string.draw_translating
+                DrawingStage.TRANSLATING -> Res.string.music_preparing
                 DrawingStage.LOADING, DrawingStage.COMPRESSING -> Res.string.music_loading
                 DrawingStage.DRAWING -> when (progress.step) {
                     1 -> Res.string.music_composing

@@ -33,6 +33,8 @@ import ai.prism.resources.agent_tool_open_program
 import org.jetbrains.compose.resources.StringResource
 import ai.prism.domain.inference.PromptMessage
 import ai.prism.domain.model.MessageRole
+import ai.prism.resources.music_prompt_instruction
+import ai.prism.resources.music_safety_instruction
 import ai.prism.resources.Res
 import ai.prism.resources.current_date_note
 import ai.prism.resources.document_context
@@ -60,6 +62,8 @@ class ResourcePersonaProvider : PersonaProvider {
         reminder = getString(Res.string.persona_reminder),
         currentDateNote = getString(Res.string.current_date_note),
         imagePromptInstruction = getString(Res.string.image_prompt_instruction),
+        musicPromptInstruction = getString(Res.string.music_prompt_instruction),
+        musicSafetyInstruction = getString(Res.string.music_safety_instruction),
         safeModeRule = getString(Res.string.safe_mode_chat_rule),
         imageSafetyInstruction = getString(Res.string.image_safety_instruction),
         imageReviewInstruction = getString(Res.string.image_review_instruction),

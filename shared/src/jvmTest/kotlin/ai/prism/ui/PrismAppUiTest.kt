@@ -442,6 +442,7 @@ class PrismAppUiTest {
             override suspend fun release() = Unit
         }
         val app = TestApp(
+            engine = ai.prism.testing.FakeInferenceEngine(reply = listOf("""{"caption":"Calm piano instrumental","lyrics":"[Instrumental]"}""")),
             models = FakeModelRepository(listOf(
                 ModelEntry(testModel(), ModelStatus.Downloaded, true),
                 ModelEntry(testModel().copy(id = "music", name = "Prism Music 1", kind = ModelKind.MUSIC), ModelStatus.Downloaded, true),

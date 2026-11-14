@@ -42,7 +42,7 @@ class ProcessMusicGeneratorTest {
             withTimeout(15_000) { started.await() }
             generator.cancel()
             assertEquals(ImageGenerationError.CANCELLED, withTimeout(15_000) { failure.await() }.error)
-            val audio = generator.generate(files, MusicRequest("piano")) {}
+            val audio = generator.generate(files, MusicRequest("piano", lyrics = "Тихий вечер за окном", vocalLanguage = "ru")) {}
             assertTrue(audio.size > 44)
             assertTrue(out.listFiles().orEmpty().isEmpty())
             val corrupt = assertFailsWith<ImageGenerationException> { generator.generate(files, MusicRequest("corrupt")) {} }

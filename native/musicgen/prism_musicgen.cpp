@@ -87,6 +87,7 @@ int main() {
         request.lm_batch_size = 1;
         request.synth_batch_size = 1;
         request.task_type = "text2music";
+        request.use_cot_caption = false;
         request_resolve_seed(&request);
         request_resolve_lm_seed(&request);
         std::unique_ptr<ModelStore, decltype(&store_free)> store(store_create(EVICT_STRICT), store_free);
@@ -100,15 +101,29 @@ int main() {
         std::unique_ptr<AceLm, decltype(&ace_lm_free)> lm(ace_lm_load(store.get(), &lm_params), ace_lm_free);
         if (!lm) throw std::runtime_error("Cannot load composition model");
         AceRequest enriched;
-        // Compose caption and lyrics. Synthesizing directly from them lets the
-        // requested duration determine the latent length instead of LM code count.
-        const int mode = request.lyrics.empty() ? LM_MODE_INSPIRE : LM_MODE_FORMAT;
+        // Preserve the prepared lyrics and generate acoustic codes as well as metadata.
+        const int mode = LM_MODE_GENERATE;
         if (ace_lm_generate(lm.get(), &request, 1, &enriched, nullptr, nullptr, nullptr, nullptr, mode) != 0) {
             throw std::runtime_error("Composition failed");
         }
         lm.reset();
         enriched.duration = request.duration;
-        enriched.audio_codes.clear();
+        enriched.caption = request.caption;
+        if (!request.lyrics.empty()) enriched.lyrics = request.lyrics;
+        enriched.vocal_language = request.vocal_language;
+        // The planner can emit EOS too early. Never let its code count shorten a track.
+        const int required_codes = static_cast<int>(std::lround(request.duration * 5.0f));
+        const int code_count = enriched.audio_codes.empty() ? 0 :
+            1 + static_cast<int>(std::count(enriched.audio_codes.begin(), enriched.audio_codes.end(), ','));
+        std::cerr << "[Music] Acoustic codes: " << code_count << "/" << required_codes << std::endl;
+        if (code_count < required_codes) {
+            std::cerr << "[Music] Incomplete plan; using lyrics-conditioned synthesis" << std::endl;
+            enriched.audio_codes.clear();
+        } else if (code_count > required_codes) {
+            size_t cut = 0;
+            for (int i = 0; i < required_codes; ++i) cut = enriched.audio_codes.find(',', cut) + 1;
+            enriched.audio_codes.resize(cut - 1);
+        }
         enriched.inference_steps = 8;
         stage("synthesizing");
         AceSynthParams synth_params;

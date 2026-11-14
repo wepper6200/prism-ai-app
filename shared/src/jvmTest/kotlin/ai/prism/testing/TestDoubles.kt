@@ -644,6 +644,8 @@ class TestApp(
                     PromptMessage(MessageRole.ASSISTANT, "Я Prism AI."),
                 ),
                 imagePromptInstruction = "Переведи на английский.",
+                musicPromptInstruction = "Подготовь музыкальный JSON: caption, lyrics.",
+                musicSafetyInstruction = "BLOCKED для недопустимого содержимого.",
                 safeModeRule = "Безопасный режим.",
                 imageSafetyInstruction = "Проверь и переведи.",
                 imageReviewInstruction = "Есть недопустимое?",

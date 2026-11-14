@@ -323,8 +323,19 @@ jobs:
         run: |
           cmake -S native/musicgen -B native/build/musicgen -DCMAKE_BUILD_TYPE=Release
           cmake --build native/build/musicgen --target prism_musicgen --parallel 2
-      - name: Generate and check a thirty-second track
+      - name: Generate instrumental and Russian vocal tracks
         run: python3 .github/music_smoke_test.py native/build/musicgen/bin/prism_musicgen "$RUNNER_TEMP/prism-music"
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Download Russian recognizer
+        run: python3 .github/download_speech_models.py "$RUNNER_TEMP/music-recognizer" --only gigaam >> "$GITHUB_ENV"
+      - name: Recognize Russian lyrics in the generated song
+        env:
+          PRISM_TEST_RUSSIAN_MUSIC: ${{ runner.temp }}/prism-music/Русская песня.wav
+        run: ./gradlew --stacktrace -Pprism.skipAndroid=true :shared:jvmTest --tests "ai.prism.voice.RussianMusicIntegrationTest"
       - name: Upload music and worker diagnostics
         if: always()
         uses: actions/upload-artifact@v6
@@ -333,6 +344,7 @@ jobs:
           path: |
             ${{ runner.temp }}/prism-music/*.wav
             ${{ runner.temp }}/prism-music/*.log
+            ${{ runner.temp }}/prism-music/*.txt
           if-no-files-found: ignore
 
   flux:

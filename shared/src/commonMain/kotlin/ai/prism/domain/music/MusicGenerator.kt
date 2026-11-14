@@ -4,7 +4,12 @@ import ai.prism.domain.imagegen.ImageGenerationError
 import ai.prism.domain.imagegen.ImageGenerationException
 import ai.prism.domain.imagegen.ImageGenerationProgress
 
-data class MusicRequest(val prompt: String, val seconds: Int = 30)
+data class MusicRequest(
+    val prompt: String,
+    val seconds: Int = 30,
+    val lyrics: String = "",
+    val vocalLanguage: String = "unknown",
+)
 
 /** Локальный музыкальный движок в отдельном процессе. Результат — стерео WAV PCM16, 48 кГц. */
 interface MusicGenerator {

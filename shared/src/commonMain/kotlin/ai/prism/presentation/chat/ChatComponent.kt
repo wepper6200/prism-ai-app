@@ -239,7 +239,7 @@ data class ChatState(
 
     /** Описание картинки по-русски, а переводить его на английский нечем: генератор нарисовал бы не то. */
     val drawNeedsTranslator: Boolean
-        get() = (drawMode || videoMode || musicMode) && !canTranslateDrawing && ImagePromptPolicy.hasCyrillic(draft)
+        get() = (drawMode || videoMode || musicMode) && !canTranslateDrawing && (musicMode || ImagePromptPolicy.hasCyrillic(draft))
 
     companion object {
         const val MAX_ATTACHMENTS = 4
