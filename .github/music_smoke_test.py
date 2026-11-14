@@ -47,7 +47,7 @@ def main():
     for component in model["components"]:
         command[component["role"]] = download(component, root)
     output = root / "Проверка музыки.wav"
-    command.update(caption="Calm solo piano instrumental, gentle melody", lyrics="[Instrumental]", duration=30, seed=42, output=str(output))
+    command.update(caption="Calm solo piano instrumental, gentle melody", duration=30, seed=42, output=str(output))
     with (root / "music-worker.log").open("w", encoding="utf-8") as errors:
         result = subprocess.run([str(binary)], input=json.dumps(command, ensure_ascii=False) + "\n",
                                 encoding="utf-8", stdout=subprocess.PIPE, stderr=errors, timeout=1800)

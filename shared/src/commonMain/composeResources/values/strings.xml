@@ -261,9 +261,9 @@
     <string name="chat_computer">Компьютер</string>
     <string name="chat_thinking_level">Размышления: %1$s</string>
     <string name="error_image_generation_failed">Не удалось нарисовать изображение. Попробуйте ещё раз или измените описание.</string>
-    <string name="error_gpu_driver_missing">Для рисования нужен драйвер видеокарты с поддержкой Vulkan. Установите драйвер NVIDIA, AMD или Intel.</string>
+    <string name="error_gpu_driver_missing">Для генерации нужен драйвер видеокарты с поддержкой Vulkan. Установите драйвер NVIDIA, AMD или Intel.</string>
     <string name="error_blocked_by_safe_mode">Безопасный режим: такой запрос Prism AI не выполняет. Режим можно выключить в «Настройках».</string>
-    <string name="error_translator_required">Модели рисования понимают только английский. Напишите описание по-английски или скачайте на экране «Модели» модель чата (например, Prism 1 Lite) — она переведёт описание.</string>
+    <string name="error_translator_required">Напишите описание по-английски или скачайте на экране «Модели» модель чата (например, Prism 1 Lite) — она переведёт описание для генерации.</string>
     <string name="error_translation_failed">Не получилось перевести описание на английский. Переформулируйте его или напишите по-английски.</string>
     <string name="error_unknown">Не удалось получить ответ. Попробуйте ещё раз.</string>
 

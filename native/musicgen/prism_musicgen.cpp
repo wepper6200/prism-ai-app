@@ -44,7 +44,8 @@ static void write_audio(const std::string & path, const AceAudio & audio, int sa
     float peak = 1.0f;
     for (int i = 0; i < audio.n_samples * 2; ++i) {
         if (!std::isfinite(audio.samples[i])) throw std::runtime_error("Invalid audio");
-        peak = std::max(peak, std::abs(audio.samples[i]));
+        // Upstream Windows headers define a function-like max macro.
+        peak = (std::max)(peak, std::abs(audio.samples[i]));
     }
     for (int i = 0; i < samples; ++i) {
         for (int channel = 0; channel < 2; ++channel) {
