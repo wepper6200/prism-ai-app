@@ -328,9 +328,9 @@ Prism AI — полностью офлайн ИИ-ассистент для **Wi
 
 - **0.9.5:** память диалога и о пользователе, чип размышлений (готово).
 - **0.9.6:** работа с компьютером на Windows, управление экраном, вставка фото из буфера, MCP-серверы (готово).
-- **0.9.7:** Prism Music 1 (ACE-Step 1.5 через acestep.cpp, отдельный процесс как `prism_imagegen`; проверить лицензию
-  весов) и **Prism 1.5 Onyx** — Qwen3-Coder 30B A3B Q4_K_M (ggml-org, `chatFormat: chatml` — ChatML без размышлений,
-  только Desktop, уже в каталоге).
+- **0.9.7:** Prism Music 1 — отдельный процесс `prism_musicgen` через acestep.cpp на Windows и Android,
+  генерация 30 секунд музыки, воспроизведение и сохранение WAV; **Prism 1.5 Onyx** — Qwen3-Coder 30B A3B Q4_K_M
+  (ggml-org, `chatFormat: chatml` — ChatML без размышлений, только Desktop). Готово, Windows/Android и CI проверены.
 - **0.9.8:** первая версия для iOS (чат на Prism 1 Lite/Flash, фото, файлы, голос, черновики, память; без рисования,
   видео, команд, Store и OTA; неподписанный IPA с macOS-раннера CI, установка через Sideloadly с бесплатным Apple ID).
 - **0.9.9:** **Prism 2 Kobalt** — DeepSeek V4.1 Flash (552B основа + Engram, ~750B всего, ~16B активных на токен;
