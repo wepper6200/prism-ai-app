@@ -323,7 +323,7 @@ jobs:
         run: |
           cmake -S native/musicgen -B native/build/musicgen -DCMAKE_BUILD_TYPE=Release
           cmake --build native/build/musicgen --target prism_musicgen --parallel 2
-      - name: Generate and check a five-second track
+      - name: Generate and check a thirty-second track
         run: python3 .github/music_smoke_test.py native/build/musicgen/bin/prism_musicgen "$RUNNER_TEMP/prism-music"
       - name: Upload music and worker diagnostics
         if: always()

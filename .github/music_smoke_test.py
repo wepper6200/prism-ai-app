@@ -47,7 +47,7 @@ def main():
     for component in model["components"]:
         command[component["role"]] = download(component, root)
     output = root / "Проверка музыки.wav"
-    command.update(caption="Calm solo piano instrumental, gentle melody", lyrics="[Instrumental]", duration=5, seed=42, output=str(output))
+    command.update(caption="Calm solo piano instrumental, gentle melody", lyrics="[Instrumental]", duration=30, seed=42, output=str(output))
     with (root / "music-worker.log").open("w", encoding="utf-8") as errors:
         result = subprocess.run([str(binary)], input=json.dumps(command, ensure_ascii=False) + "\n",
                                 encoding="utf-8", stdout=subprocess.PIPE, stderr=errors, timeout=1800)
@@ -57,7 +57,7 @@ def main():
     with wave.open(str(output), "rb") as audio:
         assert (audio.getnchannels(), audio.getsampwidth(), audio.getframerate()) == (2, 2, 48000)
         seconds = audio.getnframes() / audio.getframerate()
-        assert 4 <= seconds <= 7, seconds
+        assert seconds == 30, seconds
         samples = audio.readframes(audio.getnframes())
     energy = sum(value[0] ** 2 for value in struct.iter_unpack("<h", samples)) / (len(samples) // 2)
     assert energy > 1, "Silent output"

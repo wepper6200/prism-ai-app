@@ -30,13 +30,13 @@ static void write_u32(std::ostream & out, uint32_t value, int bytes = 4) {
     for (int i = 0; i < bytes; ++i) out.put(static_cast<char>((value >> (8 * i)) & 255));
 }
 
-static void write_audio(const std::string & path, const AceAudio & audio) {
-    if (!audio.samples || audio.n_samples <= 0 || audio.sample_rate != 48000) {
+static void write_audio(const std::string & path, const AceAudio & audio, int samples) {
+    if (!audio.samples || samples <= 0 || audio.n_samples < samples || audio.sample_rate != 48000) {
         throw std::runtime_error("Empty audio");
     }
     std::ofstream out(std::filesystem::u8path(path), std::ios::binary | std::ios::trunc);
     if (!out) throw std::runtime_error("Cannot create output");
-    const uint32_t size = static_cast<uint32_t>(audio.n_samples) * 4;
+    const uint32_t size = static_cast<uint32_t>(samples) * 4;
     out.write("RIFF", 4); write_u32(out, size + 36); out.write("WAVEfmt ", 8);
     write_u32(out, 16); write_u32(out, 1, 2); write_u32(out, 2, 2);
     write_u32(out, 48000); write_u32(out, 192000); write_u32(out, 4, 2); write_u32(out, 16, 2);
@@ -46,7 +46,7 @@ static void write_audio(const std::string & path, const AceAudio & audio) {
         if (!std::isfinite(audio.samples[i])) throw std::runtime_error("Invalid audio");
         peak = std::max(peak, std::abs(audio.samples[i]));
     }
-    for (int i = 0; i < audio.n_samples; ++i) {
+    for (int i = 0; i < samples; ++i) {
         for (int channel = 0; channel < 2; ++channel) {
             const float sample = audio.samples[channel * audio.n_samples + i] / peak;
             const auto pcm = static_cast<int16_t>(std::lround(sample * 32767.0f));
@@ -99,11 +99,15 @@ int main() {
         std::unique_ptr<AceLm, decltype(&ace_lm_free)> lm(ace_lm_load(store.get(), &lm_params), ace_lm_free);
         if (!lm) throw std::runtime_error("Cannot load composition model");
         AceRequest enriched;
-        if (ace_lm_generate(lm.get(), &request, 1, &enriched, nullptr, nullptr) != 0) {
+        // Compose caption and lyrics. Synthesizing directly from them lets the
+        // requested duration determine the latent length instead of LM code count.
+        const int mode = request.lyrics.empty() ? LM_MODE_INSPIRE : LM_MODE_FORMAT;
+        if (ace_lm_generate(lm.get(), &request, 1, &enriched, nullptr, nullptr, nullptr, nullptr, mode) != 0) {
             throw std::runtime_error("Composition failed");
         }
         lm.reset();
         enriched.duration = request.duration;
+        enriched.audio_codes.clear();
         enriched.inference_steps = 8;
         stage("synthesizing");
         AceSynthParams synth_params;
@@ -124,7 +128,8 @@ int main() {
             ace_audio_free(&audio);
             throw std::runtime_error("Audio decoding failed");
         }
-        try { write_audio(output, audio); }
+        // DiT rounds its latent length up to a patch boundary. Remove that padding.
+        try { write_audio(output, audio, static_cast<int>(std::lround(request.duration * 48000.0f))); }
         catch (...) { ace_audio_free(&audio); throw; }
         ace_audio_free(&audio);
         std::cout << "{\"event\":\"done\",\"seed\":" << request.seed << "}" << std::endl;

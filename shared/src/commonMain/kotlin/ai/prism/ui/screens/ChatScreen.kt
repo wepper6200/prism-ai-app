@@ -932,7 +932,7 @@ private fun Drawing(progress: DrawingProgress) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         val modifier = Modifier.widthIn(max = 280.dp).fillMaxWidth()
-        if (progress.stage == DrawingStage.DRAWING && progress.steps > 0) {
+        if (!progress.music && progress.stage == DrawingStage.DRAWING && progress.steps > 0) {
             LinearProgressIndicator(progress = { progress.step.toFloat() / progress.steps }, modifier = modifier)
         } else {
             LinearProgressIndicator(modifier = modifier)
