@@ -90,7 +90,6 @@ kotlin {
             target.binaries.framework {
                 baseName = "PrismShared"
                 isStatic = true
-                freeCompilerArgs += "-Xbackend-threads=${Runtime.getRuntime().availableProcessors().coerceIn(1, 4)}"
                 linkerOpts("-L${nativeOutput.asFile.absolutePath}", "-lprism_bundle", "-lprism_sherpa", "-lprism_onnx", "-lc++", "-framework", "Metal", "-framework", "Accelerate", "-framework", "CoreML", "-framework", "AudioToolbox", "-lbz2", "-lz")
                 linkTaskProvider.configure {
                     dependsOn(buildNative)
