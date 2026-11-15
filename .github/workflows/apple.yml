@@ -3,13 +3,21 @@ on:
   push:
     branches: ["codex/prism-ios-0.9.8"]
   workflow_dispatch:
+    inputs:
+      replay_run_id:
+        description: Existing simulator artifact run for a fast plist and model validation
+        required: false
+        default: ""
+        type: string
 permissions:
   contents: read
+  actions: read
 concurrency:
-  group: apple-${{ github.ref }}
+  group: apple-${{ github.ref }}-${{ inputs.replay_run_id || 'build' }}
   cancel-in-progress: true
 jobs:
   ios-framework:
+    if: ${{ !inputs.replay_run_id }}
     name: iOS shared framework
     runs-on: xcode-27
     timeout-minutes: 60
@@ -56,6 +64,7 @@ jobs:
             shared/build/bin/iosSimulatorArm64/debugFramework/PrismShared.framework/Headers/PrismShared.h
           if-no-files-found: ignore
   portable-bridge:
+    if: ${{ !inputs.replay_run_id }}
     name: Portable llama.cpp C API
     runs-on: ubuntu-latest
     steps:
@@ -76,3 +85,38 @@ jobs:
           echo '270cba1bd5109f42d03350f60406024560464db173c0e387d91f0426d3bd256d  /tmp/tiny.gguf' | sha256sum -c -
       - name: Exercise streaming, cancellation, reuse and missing model errors
         run: native/build/portable/prism_bridge_smoke /tmp/tiny.gguf
+
+  ios-replay:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.replay_run_id != '' }}
+    name: Replay simulator model checks
+    runs-on: xcode-27
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v7
+        with:
+          name: PrismAI-iOS-Simulator
+          path: build/replay
+          run-id: ${{ inputs.replay_run_id }}
+          github-token: ${{ github.token }}
+      - name: Prepare the existing app with current plist settings
+        run: |
+          mkdir -p iosApp/DerivedData/Build/Products/Debug-iphonesimulator
+          ditto -x -k build/replay/PrismAI-iOS-Simulator.zip iosApp/DerivedData/Build/Products/Debug-iphonesimulator
+          python3 - <<'PY'
+          import pathlib, plistlib
+          target = pathlib.Path("iosApp/DerivedData/Build/Products/Debug-iphonesimulator/PrismAI.app/Info.plist")
+          info = plistlib.loads(target.read_bytes())
+          info["CADisableMinimumFrameDurationOnPhone"] = True
+          target.write_bytes(plistlib.dumps(info))
+          PY
+          codesign --force --deep --sign - --timestamp=none iosApp/DerivedData/Build/Products/Debug-iphonesimulator/PrismAI.app
+      - name: Run offline model checks without recompiling Kotlin
+        timeout-minutes: 15
+        run: python3 iosApp/smoke.py
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: ios-replay-smoke
+          path: build/ios-smoke/
+          if-no-files-found: ignore
