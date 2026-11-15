@@ -2,6 +2,7 @@ import Foundation
 import UIKit
 import CryptoKit
 import PDFKit
+import ImageIO
 import PrismShared
 import os
 
@@ -23,6 +24,11 @@ final class AppleHost: NSObject, IosHost {
         try? url.setResourceValues(values)
         return url
     }()
+    func setSystemAppearance(dark: Bool) {
+        DispatchQueue.main.async {
+            UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.flatMap { $0.windows }.forEach { $0.overrideUserInterfaceStyle = dark ? .dark : .light }
+        }
+    }
     func dataDirectory() -> String { directory.path }
     func totalMemory() -> Int64 { Int64(ProcessInfo.processInfo.physicalMemory) }
     func availableMemory() -> Int64 { Int64(os_proc_available_memory()) }
@@ -48,7 +54,13 @@ final class AppleHost: NSObject, IosHost {
     func write(path: String, data: Data) -> Bool { do { try data.write(to: URL(fileURLWithPath: path), options: .atomic); return true } catch { return false } }
     func makeDirectory(path: String) -> Bool { do { try fm.createDirectory(atPath: path, withIntermediateDirectories: true); return true } catch { return false } }
     func remove(path: String) -> Bool { if !exists(path: path) { return true }; do { try fm.removeItem(atPath: path); return true } catch { return false } }
-    func move(from: String, to: String) -> Bool { do { try fm.moveItem(atPath: from, toPath: to); return true } catch { return false } }
+    func move(from: String, to: String) -> Bool {
+        do {
+            if fm.fileExists(atPath: to) { _ = try fm.replaceItemAt(URL(fileURLWithPath: to), withItemAt: URL(fileURLWithPath: from)) }
+            else { try fm.moveItem(atPath: from, toPath: to) }
+            return true
+        } catch { return false }
+    }
     func sha256(path: String) -> String? {
         guard let file = FileHandle(forReadingAtPath: path) else { return nil }
         defer { try? file.close() }
@@ -60,7 +72,9 @@ final class AppleHost: NSObject, IosHost {
     }
     func unpackArchive(path: String, destination: String) -> Bool { AppleArchives.shared.unpack(path: path, destination: destination) }
     func encodeImage(data: Data, maxSide: Int32) -> IosEncodedImage? {
-        guard let image = UIImage(data: data), image.size.width > 0, image.size.height > 0 else { return nil }
+        guard maxSide > 0, let source = CGImageSourceCreateWithData(data as CFData, nil),
+            let thumbnail = CGImageSourceCreateThumbnailAtIndex(source, 0, [kCGImageSourceCreateThumbnailFromImageAlways: true, kCGImageSourceCreateThumbnailWithTransform: true, kCGImageSourceThumbnailMaxPixelSize: maxSide, kCGImageSourceShouldCacheImmediately: true] as CFDictionary) else { return nil }
+        let image = UIImage(cgImage: thumbnail)
         let scale = min(1, CGFloat(maxSide) / max(image.size.width, image.size.height))
         let width = max(1, Int(image.size.width * scale)), height = max(1, Int(image.size.height * scale))
         let format = UIGraphicsImageRendererFormat(); format.scale = 1; format.opaque = true

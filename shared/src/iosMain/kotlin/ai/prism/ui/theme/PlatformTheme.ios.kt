@@ -20,4 +20,6 @@ internal actual fun rememberBackdropBlur(radius: Dp): RenderEffect? {
 }
 
 @Composable
-internal actual fun SystemBarsEffect(darkTheme: Boolean) = Unit
+internal actual fun SystemBarsEffect(darkTheme: Boolean) {
+    androidx.compose.runtime.SideEffect { ai.prism.ios.appleHost.setSystemAppearance(darkTheme) }
+}

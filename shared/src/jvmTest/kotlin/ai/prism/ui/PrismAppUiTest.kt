@@ -159,6 +159,7 @@ class PrismAppUiTest {
     @Test
     fun wideLayoutChatsWithModelAndSwitchesThemes() = runDesktopComposeUiTest(width = 1280, height = 800) {
         val (app, root) = createApp()
+        app.settings.setDarkMode(DarkMode.LIGHT)
         setContent { PrismApp(root) }
 
         onNodeWithTag("welcome").assertIsDisplayed()
@@ -189,11 +190,14 @@ class PrismAppUiTest {
 
         onNodeWithTag("nav_models").performClick()
         screenshot("wide_6_glass_dark_models")
+        app.settings.setDarkMode(DarkMode.LIGHT)
+        screenshot("wide_7_glass_light_models")
     }
 
     @Test
     fun compactLayoutUsesSeparateScreens() = runDesktopComposeUiTest(width = 412, height = 892) {
         val (app, root) = createApp()
+        app.settings.setDarkMode(DarkMode.LIGHT)
         setContent { PrismApp(root) }
 
         onNodeWithTag("welcome").assertDoesNotExist()
@@ -225,6 +229,8 @@ class PrismAppUiTest {
         onNodeWithTag("chat_item_$chatId").performClick()
         onNodeWithTag("chat_screen").assertIsDisplayed()
         screenshot("compact_6_glass_dark_chat")
+        app.settings.setDarkMode(DarkMode.LIGHT)
+        screenshot("compact_22_glass_light_chat")
     }
 
     @Test

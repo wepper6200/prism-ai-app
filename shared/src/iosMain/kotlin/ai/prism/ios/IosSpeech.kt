@@ -54,7 +54,7 @@ internal class IosSpeechEngine(private val host: IosHost, private val threads: I
             voiceKey = key
         }
         val language = spec.language.filter { it.isLetter() || it == '-' }.take(16)
-        val result = prism_tts_generate(voice, text, spec.speaker, speed * spec.speed, spec.steps.takeIf { it > 0 } ?: 5, "{\"lang\":\"$language\"}")
+        val result = prism_tts_generate(voice, text, spec.speaker, speed, spec.steps.takeIf { it > 0 } ?: 5, "{\"lang\":\"$language\"}")
         try { result.useContents { if (count <= 0 || samples == null) failure(); SpeechAudio(FloatArray(count) { samples!![it] }, sample_rate) } }
         finally { prism_audio_destroy(result) }
     }
