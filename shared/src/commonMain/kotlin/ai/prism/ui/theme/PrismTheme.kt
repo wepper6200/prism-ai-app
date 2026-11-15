@@ -61,7 +61,7 @@ fun PrismTheme(
         ThemeStyle.LIQUID_GLASS -> glassColorScheme(baseScheme, darkTheme)
     }
 
-    SystemBarsEffect(darkTheme)
+    SystemBarsEffect(darkTheme, followSystem = settings.darkMode == DarkMode.SYSTEM)
 
     CompositionLocalProvider(LocalPrismStyle provides PrismStyle(settings.themeStyle, darkTheme)) {
         MaterialTheme(

@@ -39,7 +39,7 @@ internal actual fun rememberBackdropBlur(radius: Dp): RenderEffect? {
 }
 
 @Composable
-internal actual fun SystemBarsEffect(darkTheme: Boolean) {
+internal actual fun SystemBarsEffect(darkTheme: Boolean, followSystem: Boolean) {
     val activity = LocalActivity.current as? ComponentActivity ?: return
     LaunchedEffect(activity, darkTheme) {
         val style = if (darkTheme) {

@@ -24,9 +24,9 @@ final class AppleHost: NSObject, IosHost {
         try? url.setResourceValues(values)
         return url
     }()
-    func setSystemAppearance(dark: Bool) {
+    func setSystemAppearance(dark: Bool, followSystem: Bool) {
         DispatchQueue.main.async {
-            UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.flatMap { $0.windows }.forEach { $0.overrideUserInterfaceStyle = dark ? .dark : .light }
+            UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.flatMap { $0.windows }.forEach { $0.overrideUserInterfaceStyle = followSystem ? .unspecified : (dark ? .dark : .light) }
         }
     }
     func dataDirectory() -> String { directory.path }

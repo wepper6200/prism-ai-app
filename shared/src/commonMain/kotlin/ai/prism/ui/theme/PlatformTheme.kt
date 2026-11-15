@@ -19,4 +19,4 @@ internal expect fun rememberBackdropBlur(radius: Dp): RenderEffect?
 
 /** Цвет значков системных панелей под текущую тему. */
 @Composable
-internal expect fun SystemBarsEffect(darkTheme: Boolean)
+internal expect fun SystemBarsEffect(darkTheme: Boolean, followSystem: Boolean)

@@ -16,7 +16,7 @@ class IosDocumentResult(val pages: List<IosTextPage>, val error: String?)
 class IosHttpResponse(val status: Int, val data: NSData, val headers: Map<String, String>)
 
 interface IosHost {
-    fun setSystemAppearance(dark: Boolean)
+    fun setSystemAppearance(dark: Boolean, followSystem: Boolean)
     fun dataDirectory(): String
     fun totalMemory(): Long
     fun availableMemory(): Long

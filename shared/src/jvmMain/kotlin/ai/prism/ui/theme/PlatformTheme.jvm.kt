@@ -26,6 +26,6 @@ internal actual fun rememberBackdropBlur(radius: Dp): RenderEffect? {
 
 /** Системные панели окна Desktop не зависят от темы приложения. */
 @Composable
-internal actual fun SystemBarsEffect(darkTheme: Boolean) = Unit
+internal actual fun SystemBarsEffect(darkTheme: Boolean, followSystem: Boolean) = Unit
 
 private const val BLUR_SIGMA_SCALE = 0.57735f
