@@ -4,6 +4,11 @@ on:
     branches: ["codex/prism-ios-0.9.8"]
   workflow_dispatch:
     inputs:
+      device_only:
+        description: Build the unsigned iPhone package independently
+        required: false
+        default: false
+        type: boolean
       replay_run_id:
         description: Existing simulator artifact run for a fast plist and model validation
         required: false
@@ -13,11 +18,11 @@ permissions:
   contents: read
   actions: read
 concurrency:
-  group: apple-${{ github.ref }}-${{ inputs.replay_run_id || 'build' }}
+  group: apple-${{ github.ref }}-${{ inputs.replay_run_id || 'build' }}-${{ inputs.device_only && 'device' || 'all' }}
   cancel-in-progress: true
 jobs:
   ios-framework:
-    if: ${{ !inputs.replay_run_id }}
+    if: ${{ !inputs.replay_run_id && !inputs.device_only }}
     name: iOS shared framework
     runs-on: xcode-27
     timeout-minutes: 60
@@ -49,12 +54,6 @@ jobs:
           name: ios-simulator-smoke
           path: build/ios-smoke/
           if-no-files-found: ignore
-      - name: Build unsigned iPhone and iPad package
-        run: bash iosApp/build.sh iphoneos Release
-      - uses: actions/upload-artifact@v6
-        with:
-          name: PrismAI-iOS-unsigned
-          path: build/PrismAI-unsigned.ipa
       - uses: actions/upload-artifact@v6
         if: always()
         with:
@@ -64,7 +63,7 @@ jobs:
             shared/build/bin/iosSimulatorArm64/debugFramework/PrismShared.framework/Headers/PrismShared.h
           if-no-files-found: ignore
   portable-bridge:
-    if: ${{ !inputs.replay_run_id }}
+    if: ${{ !inputs.replay_run_id && !inputs.device_only }}
     name: Portable llama.cpp C API
     runs-on: ubuntu-latest
     steps:
@@ -120,3 +119,24 @@ jobs:
           name: ios-replay-smoke
           path: build/ios-smoke/
           if-no-files-found: ignore
+
+  ios-device:
+    if: ${{ !inputs.replay_run_id }}
+    name: iPhone and iPad unsigned IPA
+    runs-on: xcode-27
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Build device application
+        run: bash iosApp/build.sh iphoneos Release
+      - uses: actions/upload-artifact@v6
+        with:
+          name: PrismAI-iOS-unsigned
+          path: build/PrismAI-unsigned.ipa
