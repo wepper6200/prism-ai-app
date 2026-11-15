@@ -1,5 +1,9 @@
 package ai.prism.ui
 
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.MotionDurationScale
 import ai.prism.domain.model.DarkMode
 import ai.prism.domain.model.ModelEntry
 import ai.prism.domain.model.ModelKind
@@ -166,6 +170,42 @@ class PrismAppUiTest {
     }
 
     @Test
+    fun promptCategoryWorksWithAnimationsDisabled() = runDesktopComposeUiTest(
+        width = 375,
+        height = 812,
+        effectContext = object : MotionDurationScale { override val scaleFactor = 0f },
+    ) {
+        val (_, root) = createApp()
+        setContent { PrismApp(root) }
+        onNodeWithTag("new_chat").performClick()
+        onNodeWithTag("prompt_category_1").performClick()
+        onNodeWithTag("chat_suggestion_1").performScrollTo().performClick()
+        val chat = assertIs<RootComponent.Child.Chat>(root.stack.value.active.instance).component
+        assertTrue(chat.state.value.draft.startsWith("Помоги улучшить"))
+        assertTrue(chat.state.value.messages.isEmpty())
+    }
+
+    @Test
+    fun suggestionsRemainUsableOnSmallPhoneWithLargeText() = checkSuggestionLayout(375, 812, 2f)
+
+    @Test
+    fun suggestionsRemainUsableInLandscape() = checkSuggestionLayout(812, 375, 1f)
+
+    private fun checkSuggestionLayout(width: Int, height: Int, fontScale: Float) =
+        runDesktopComposeUiTest(width = width, height = height) {
+            val (_, root) = createApp()
+            setContent {
+                CompositionLocalProvider(LocalDensity provides Density(1f, fontScale)) { PrismApp(root) }
+            }
+            onNodeWithTag("new_chat").performClick()
+            onNodeWithTag("chat_suggestion_1").performScrollTo().assertIsDisplayed().performClick()
+            val chat = assertIs<RootComponent.Child.Chat>(root.stack.value.active.instance).component
+            assertTrue(chat.state.value.draft.startsWith("Помоги сравнить"))
+            assertTrue(chat.state.value.messages.isEmpty())
+            screenshot("suggestions_" + width + "x" + height + "_font" + fontScale)
+        }
+
+    @Test
     fun jumpToLatestReturnsToTheEndOfLongHistory() = runDesktopComposeUiTest(width = 412, height = 892) {
         val (app, root) = createApp()
         setContent { PrismApp(root) }
@@ -245,6 +285,10 @@ class PrismAppUiTest {
         screenshot("wide_6_glass_dark_models")
         app.settings.setDarkMode(DarkMode.LIGHT)
         screenshot("wide_7_glass_light_models")
+        onNodeWithTag("new_chat").performClick()
+        screenshot("wide_8_glass_light_suggestions")
+        app.settings.setDarkMode(DarkMode.DARK)
+        screenshot("wide_9_glass_dark_suggestions")
     }
 
     @Test

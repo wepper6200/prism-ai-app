@@ -736,7 +736,9 @@ private fun MessageList(
         else if (!listState.canScrollForward) follow = true
     }
     val lastLength = state.messages.lastOrNull()?.text?.length ?: 0
-    LaunchedEffect(state.messages.size) { if (state.messages.lastOrNull()?.role == MessageRole.USER) follow = true }
+    // The user message and assistant placeholder may arrive in the same frame.
+    val lastUserId = state.messages.lastOrNull { it.role == MessageRole.USER }?.id
+    LaunchedEffect(lastUserId) { follow = true }
     LaunchedEffect(state.messages.size, lastLength) {
         if (follow && state.messages.isNotEmpty()) {
             listState.scrollToItem(state.messages.lastIndex, Int.MAX_VALUE)
