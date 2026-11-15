@@ -1,5 +1,5 @@
 {
-  "version": 12,
+  "version": 13,
   "models": [
     {
       "id": "gemma-4-e2b-it-q4_0",
@@ -18,7 +18,8 @@
       "minRamMb": 6144,
       "chatFormat": "gemma4",
       "recommendedFor": [
-        "android"
+        "android",
+        "ios"
       ],
       "vision": {
         "url": "https://huggingface.co/ggml-org/gemma-4-E2B-it-GGUF/resolve/main/mmproj-gemma-4-E2B-it-Q8_0.gguf",
@@ -31,6 +32,11 @@
       },
       "oldFileNames": [
         "gemma-4-E2B-it-Q4_0.gguf"
+      ],
+      "platforms": [
+        "android",
+        "desktop",
+        "ios"
       ]
     },
     {
@@ -63,6 +69,10 @@
       },
       "oldFileNames": [
         "gemma-4-E4B-it-Q4_0.gguf"
+      ],
+      "platforms": [
+        "android",
+        "desktop"
       ]
     },
     {
@@ -95,6 +105,10 @@
       },
       "oldFileNames": [
         "gemma-4-12B-it-Q4_0.gguf"
+      ],
+      "platforms": [
+        "android",
+        "desktop"
       ]
     },
     {
@@ -125,6 +139,10 @@
       },
       "oldFileNames": [
         "gemma-4-26B-A4B-it-Q4_0.gguf"
+      ],
+      "platforms": [
+        "android",
+        "desktop"
       ]
     },
     {
@@ -197,9 +215,16 @@
       "contextLength": 8192,
       "minRamMb": 3072,
       "chatFormat": "gemma3",
-      "recommendedFor": [],
+      "recommendedFor": [
+        "ios"
+      ],
       "oldFileNames": [
         "gemma-3-1b-it-Q4_K_M.gguf"
+      ],
+      "platforms": [
+        "android",
+        "desktop",
+        "ios"
       ]
     },
     {
@@ -228,6 +253,11 @@
       },
       "oldFileNames": [
         "embeddinggemma-300M-Q8_0.gguf"
+      ],
+      "platforms": [
+        "android",
+        "desktop",
+        "ios"
       ]
     },
     {
@@ -246,7 +276,8 @@
       "minRamMb": 3072,
       "recommendedFor": [
         "android",
-        "desktop"
+        "desktop",
+        "ios"
       ],
       "kind": "speech_recognition",
       "mainRole": "model",
@@ -281,6 +312,11 @@
       },
       "oldFileNames": [
         "gigaam-v3-ctc-punct-ru.int8.onnx"
+      ],
+      "platforms": [
+        "android",
+        "desktop",
+        "ios"
       ]
     },
     {
@@ -353,6 +389,11 @@
       },
       "oldFileNames": [
         "whisper-small-encoder.int8.onnx"
+      ],
+      "platforms": [
+        "android",
+        "desktop",
+        "ios"
       ]
     },
     {
@@ -446,7 +487,8 @@
       "minRamMb": 2048,
       "recommendedFor": [
         "android",
-        "desktop"
+        "desktop",
+        "ios"
       ],
       "kind": "speech_synthesis",
       "mainRole": "voice",
@@ -485,6 +527,11 @@
       },
       "oldFileNames": [
         "sherpa-onnx-supertonic-3-tts-int8-2026-05-11.tar.bz2"
+      ],
+      "platforms": [
+        "android",
+        "desktop",
+        "ios"
       ]
     },
     {
@@ -545,7 +592,7 @@
         "width": 1024,
         "height": 1024,
         "steps": 4,
-        "cfg": 1.0,
+        "cfg": 1,
         "guidance": 3.5,
         "sampler": "euler"
       },
@@ -591,7 +638,7 @@
         "width": 768,
         "height": 768,
         "steps": 4,
-        "cfg": 1.0,
+        "cfg": 1,
         "sampler": "euler",
         "scheduler": "sgm_uniform",
         "vaeTiling": true,
@@ -651,8 +698,8 @@
         "frames": 49,
         "fps": 24,
         "steps": 20,
-        "cfg": 5.0,
-        "flowShift": 5.0,
+        "cfg": 5,
+        "flowShift": 5,
         "sampler": "euler",
         "negativePrompt": "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走",
         "vaeTiling": true,
@@ -721,8 +768,8 @@
         "frames": 17,
         "fps": 24,
         "steps": 20,
-        "cfg": 5.0,
-        "flowShift": 5.0,
+        "cfg": 5,
+        "flowShift": 5,
         "sampler": "euler",
         "negativePrompt": "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走",
         "vaeTiling": true,
@@ -800,8 +847,8 @@
         "frames": 121,
         "fps": 24,
         "steps": 8,
-        "cfg": 1.0,
-        "flowShift": 0.0,
+        "cfg": 1,
+        "flowShift": 0,
         "sampler": "euler",
         "negativePrompt": "worst quality, low quality, blurry, distorted, artifacts",
         "vaeTiling": true,
@@ -875,8 +922,8 @@
         "frames": 17,
         "fps": 16,
         "steps": 16,
-        "cfg": 6.0,
-        "flowShift": 3.0,
+        "cfg": 6,
+        "flowShift": 3,
         "sampler": "euler",
         "negativePrompt": "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走",
         "vaeTiling": true,

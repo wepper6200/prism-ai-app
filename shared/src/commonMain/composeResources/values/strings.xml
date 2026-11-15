@@ -425,4 +425,6 @@
     <string name="music_decoding">Сохраняем звук…</string>
     <string name="error_no_music_model">Скачайте Prism Music 1 на экране моделей.</string>
     <string name="error_music_generation">Не удалось создать музыку. Попробуйте ещё раз или сократите описание.</string>
+    <string name="models_no_results">Модели не найдены</string>
+    <string name="models_no_results_hint">Попробуйте другое название или выберите другой раздел.</string>
 </resources>

@@ -149,7 +149,7 @@ class DefaultSettingsComponent(
         settings = settings,
         supportsDynamicColor = capabilities.supportsDynamicColor,
         computerSupported = capabilities.supportsComputer,
-        mcpSupported = mcp != null,
+        mcpSupported = mcp != null && capabilities.platform != "ios",
         mcpLocalSupported = mcp?.supportsLocal == true,
         versionName = BuildInfo.VERSION_NAME,
         updatesSupported = updates.supported,

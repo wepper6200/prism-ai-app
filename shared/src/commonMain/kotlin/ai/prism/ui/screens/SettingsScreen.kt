@@ -838,7 +838,7 @@ private fun ThemePreview(style: ThemeStyle, modifier: Modifier = Modifier) {
             }
             ThemeStyle.LIQUID_GLASS -> {
                 Canvas(Modifier.fillMaxSize()) { drawPrismBackdrop(size, darkTheme) }
-                val glass = if (darkTheme) Color(0xFF16131F).copy(alpha = 0.45f) else Color.White.copy(alpha = 0.55f)
+                val glass = if (darkTheme) Color(0xFF151B23).copy(alpha = 0.58f) else Color.White.copy(alpha = 0.72f)
                 Box(
                     Modifier
                         .align(Alignment.Center)

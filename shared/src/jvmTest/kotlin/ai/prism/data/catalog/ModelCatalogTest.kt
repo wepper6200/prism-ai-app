@@ -63,6 +63,16 @@ class ModelCatalogTest {
     }
 
     @Test
+    fun iosCatalogOffersOnlySupportedLocalEngines() {
+        val ios = models.filter { it.availableOn("ios") }
+        assertEquals(setOf("Prism 1 Lite", "Prism 1 Flash"), ios.filter { it.kind == ModelKind.CHAT }.map { it.name }.toSet())
+        assertTrue(ios.any { it.kind == ModelKind.EMBEDDING })
+        assertTrue(ios.any { it.kind == ModelKind.SPEECH_RECOGNITION && it.speech?.engine == SpeechEngineType.NEMO_CTC })
+        assertTrue(ios.any { it.kind == ModelKind.SPEECH_SYNTHESIS && it.speech?.engine == SpeechEngineType.SUPERTONIC })
+        assertTrue(ios.none { it.kind in setOf(ModelKind.IMAGE, ModelKind.VIDEO, ModelKind.MUSIC) })
+    }
+
+    @Test
     fun hasGemma4ModelForPhones() {
         assertTrue(models.any { it.chatFormat == ChatFormat.GEMMA4 && "android" in it.recommendedFor && it.minRamMb <= 8192 })
     }
@@ -72,7 +82,7 @@ class ModelCatalogTest {
         val embedding = models.filter { it.kind == ModelKind.EMBEDDING }
         assertEquals(1, embedding.size, "нужна ровно одна модель поиска по файлам")
         val model = embedding.single()
-        assertTrue(model.platforms.isEmpty(), "поиск по файлам нужен на обеих платформах")
+        assertTrue(listOf("android", "desktop", "ios").all(model::availableOn), "поиск по файлам нужен на всех платформах")
         val settings = assertNotNull(model.embedding)
         assertTrue("{text}" in settings.queryTemplate && "{text}" in settings.documentTemplate)
         assertTrue(model.url.startsWith("https://huggingface.co/ggml-org/"))

@@ -1,5 +1,8 @@
 package ai.prism.ui.screens
 
+import ai.prism.resources.models_no_results
+import ai.prism.resources.models_no_results_hint
+import ai.prism.ui.components.EmptyState
 import ai.prism.resources.models_search
 import ai.prism.resources.models_search_clear
 import ai.prism.resources.models_filter_all
@@ -184,6 +187,9 @@ fun ModelsScreen(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                     )
                 }
+            }
+            if (visibleEntries.isEmpty()) item(key = "no_results") {
+                EmptyState(Icons.Outlined.Search, stringResource(Res.string.models_no_results), stringResource(Res.string.models_no_results_hint), Modifier.testTag("models_no_results"))
             }
             items(visibleEntries, key = { it.model.id }) { entry ->
                 ModelCard(
