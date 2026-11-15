@@ -41,19 +41,27 @@ def main():
     binary = Path(sys.argv[1]).resolve()
     root = Path(sys.argv[2]).resolve()
     root.mkdir(parents=True, exist_ok=True)
+    # Validate the real worker boundary without allocating generation tensors.
+    for duration in (9, 10, 600, 601):
+        probe = dict(caption="Piano", duration=duration, output=str(root / "probe.wav"))
+        probe.update({role: str(root / "missing.gguf") for role in ("model", "lm", "text_encoder", "vae")})
+        result = subprocess.run([str(binary)], input=json.dumps(probe) + "\n", encoding="utf-8",
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
+        accepted = any(json.loads(line).get("stage") == "composing" for line in result.stdout.splitlines() if line.startswith("{"))
+        assert accepted == (10 <= duration <= 600), (duration, result.stdout, result.stderr)
     catalog_path = Path(__file__).resolve().parent.parent / "shared/src/commonMain/composeResources/files/models.json"
     model = next(model for model in json.loads(catalog_path.read_text(encoding="utf-8"))["models"] if model["id"] == "prism-music-1")
     command = {"model": download(model, root)}
     for component in model["components"]:
         command[component["role"]] = download(component, root)
     fixtures = [
-        ("Проверка музыки.wav", "Calm solo piano instrumental, gentle melody", "[Instrumental]", "unknown"),
+        ("Проверка музыки.wav", "Calm solo piano instrumental, gentle melody", "[Instrumental]", "unknown", 75),
         ("Русская песня.wav", "Warm acoustic pop song, clear Russian male vocal, gentle guitar and piano, 90 BPM, intimate clean production",
-         "[Verse]\nТихий вечер за окном\nМы с тобой идём домой\nСветит нам одна звезда\nТы со мною навсегда\n[Chorus]\nПо дороге мы вдвоём\nТихо песенку поём\nТы со мною рядом будь\nОсвещай наш долгий путь", "ru"),
+         "[Verse]\nТихий вечер за окном\nМы с тобой идём домой\nСветит нам одна звезда\nТы со мною навсегда\n[Chorus]\nПо дороге мы вдвоём\nТихо песенку поём\nТы со мною рядом будь\nОсвещай наш долгий путь", "ru", 30),
     ]
-    for name, caption, lyrics, language in fixtures:
+    for name, caption, lyrics, language, duration in fixtures:
         output = root / name
-        command.update(caption=caption, lyrics=lyrics, vocal_language=language, duration=30, seed=42, lm_seed=42, output=str(output))
+        command.update(caption=caption, lyrics=lyrics, vocal_language=language, duration=duration, seed=42, lm_seed=42, output=str(output))
         with (root / (output.stem + ".log")).open("w", encoding="utf-8") as errors:
             result = subprocess.run([str(binary)], input=json.dumps(command, ensure_ascii=False) + "\n",
                                     encoding="utf-8", stdout=subprocess.PIPE, stderr=errors, timeout=1800)
@@ -64,7 +72,7 @@ def main():
         with wave.open(str(output), "rb") as audio:
             assert (audio.getnchannels(), audio.getsampwidth(), audio.getframerate()) == (2, 2, 48000)
             seconds = audio.getnframes() / audio.getframerate()
-            assert seconds == 30, seconds
+            assert seconds == duration, seconds
             samples = audio.readframes(audio.getnframes())
         energy = sum(value[0] ** 2 for value in struct.iter_unpack("<h", samples)) / (len(samples) // 2)
         assert energy > 1, "Silent output"

@@ -80,6 +80,18 @@ class MusicServiceTest {
     }
 
     @Test
+    fun chosenDurationReachesPreparationAndGenerator() = runBlocking {
+        val generator = Generator()
+        val app = app(generator)
+        app.settings.setMusicSeconds(600)
+        val chat = app.chats.createChat()
+        app.generation.composeMusic(chat.id, "Спокойная музыка на пианино")
+        assertEquals(MessageStatus.COMPLETE, app.chats.messagesSnapshot(chat.id).last().status)
+        assertEquals(600, generator.request?.seconds)
+        assertTrue(app.engine.lastRequest?.systemPrompt?.contains("600") == true)
+    }
+
+    @Test
     fun russianLyricsReachGeneratorWithoutTranslation() = runBlocking {
         val generator = Generator()
         val app = app(generator)

@@ -9,7 +9,13 @@ data class MusicRequest(
     val seconds: Int = 30,
     val lyrics: String = "",
     val vocalLanguage: String = "unknown",
-)
+) {
+    companion object {
+        const val MIN_SECONDS = 10
+        const val MAX_SECONDS = 600
+        val DURATIONS = listOf(10, 30, 60, 120, 180, 300, 600)
+    }
+}
 
 /** Локальный музыкальный движок в отдельном процессе. Результат — стерео WAV PCM16, 48 кГц. */
 interface MusicGenerator {

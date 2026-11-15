@@ -48,7 +48,7 @@ class LlamaInferenceEngineIntegrationTest {
         val source = "Создай нежную песню на русском о дороге домой"
         try {
             val answer = engine.generate(GenerationRequest(
-                systemPrompt = ResourcePersonaProvider().persona().musicPromptInstruction,
+                systemPrompt = ResourcePersonaProvider().persona().musicPromptInstruction.replace("{seconds}", "30"),
                 messages = listOf(PromptMessage(MessageRole.USER, "vocal_language: ru\n\n$source")),
                 maxTokens = 1200,
                 sampling = SamplingParams(temperature = 0.3f),

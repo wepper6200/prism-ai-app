@@ -45,7 +45,7 @@ class ProcessMusicGenerator(
         withContext(Dispatchers.IO) {
             val binary = executable()?.takeIf { it.isFile }
                 ?: throw ImageGenerationException(ImageGenerationError.NOT_SUPPORTED, "Music worker unavailable")
-            require(request.seconds in 5..60 && request.prompt.isNotBlank())
+            require(request.seconds in MusicRequest.MIN_SECONDS..MusicRequest.MAX_SECONDS && request.prompt.isNotBlank())
             require(listOf("model", "lm", "text_encoder", "vae").all { files[it]?.let(::File)?.isFile == true })
             if (!workDir.isDirectory && !workDir.mkdirs()) {
                 throw ImageGenerationException(ImageGenerationError.FAILED, "Cannot create music directory")

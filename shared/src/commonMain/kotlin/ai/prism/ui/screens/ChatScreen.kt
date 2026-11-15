@@ -97,6 +97,7 @@ import ai.prism.ui.components.message
 import ai.prism.ui.components.rememberImageExporter
 import ai.prism.ui.components.rememberImagePicker
 import ai.prism.ui.components.AgentContextRow
+import ai.prism.ui.components.MusicDurationSelector
 import ai.prism.ui.components.VideoPlayer
 import ai.prism.ui.components.VideoAudioPlayer
 import ai.prism.ui.components.AgentSteps
@@ -318,6 +319,12 @@ fun ChatScreen(
             )
         }
         if (state.musicMode) {
+            MusicDurationSelector(
+                selected = state.musicSeconds,
+                enabled = !state.isGenerating && !state.busyInOtherChat,
+                onSelect = { component.onIntent(ChatIntent.SelectMusicSeconds(it)) },
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+            )
             Text(
                 text = stringResource(if (state.attachments.isEmpty()) Res.string.music_mode_hint else Res.string.music_remove_photos),
                 modifier = Modifier.align(Alignment.CenterHorizontally).padding(8.dp),

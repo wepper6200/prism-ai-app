@@ -1,5 +1,6 @@
 package ai.prism.data.settings
 
+import ai.prism.domain.music.MusicRequest
 import ai.prism.domain.model.AppSettings
 import ai.prism.domain.model.DarkMode
 import ai.prism.domain.model.TextEncoderMode
@@ -47,6 +48,8 @@ class DefaultSettingsRepository(
 
     override fun setVideoSeconds(seconds: Int) = update { it.copy(videoSeconds = seconds.coerceIn(0, MAX_VIDEO_SECONDS)) }
 
+    override fun setMusicSeconds(seconds: Int) = update { it.copy(musicSeconds = seconds.coerceIn(MusicRequest.MIN_SECONDS, MusicRequest.MAX_SECONDS)) }
+
     override fun setTextEncoderMode(mode: TextEncoderMode?) = update { it.copy(textEncoderMode = mode) }
 
     override fun setContextLength(tokens: Int) = update { it.copy(contextLength = tokens.coerceIn(0, MAX_CONTEXT)) }
@@ -85,6 +88,7 @@ class DefaultSettingsRepository(
             voiceSpeaker = store.getString(KEY_VOICE_SPEAKER)?.toIntOrNull()?.coerceAtLeast(0) ?: defaults.voiceSpeaker,
             videoModelId = store.getString(KEY_VIDEO_MODEL) ?: defaults.videoModelId,
             videoSeconds = store.getString(KEY_VIDEO_SECONDS)?.toIntOrNull()?.coerceIn(0, MAX_VIDEO_SECONDS) ?: defaults.videoSeconds,
+            musicSeconds = store.getString(KEY_MUSIC_SECONDS)?.toIntOrNull()?.coerceIn(MusicRequest.MIN_SECONDS, MusicRequest.MAX_SECONDS) ?: defaults.musicSeconds,
             textEncoderMode = enumValues<TextEncoderMode>().firstOrNull { it.name == store.getString(KEY_TEXT_ENCODER) },
             contextLength = store.getString(KEY_CONTEXT)?.toIntOrNull()?.coerceIn(0, MAX_CONTEXT) ?: defaults.contextLength,
             agentSteps = store.getString(KEY_AGENT_STEPS)?.toIntOrNull()?.coerceAtLeast(0) ?: defaults.agentSteps,
@@ -108,6 +112,7 @@ class DefaultSettingsRepository(
         store.putString(KEY_VOICE_SPEAKER, settings.voiceSpeaker.toString())
         store.putString(KEY_VIDEO_MODEL, settings.videoModelId)
         store.putString(KEY_VIDEO_SECONDS, settings.videoSeconds.toString())
+        store.putString(KEY_MUSIC_SECONDS, settings.musicSeconds.toString())
         store.putString(KEY_TEXT_ENCODER, settings.textEncoderMode?.name.orEmpty())
         store.putString(KEY_CONTEXT, settings.contextLength.toString())
         store.putString(KEY_AGENT_STEPS, settings.agentSteps.toString())
@@ -133,6 +138,7 @@ class DefaultSettingsRepository(
         const val KEY_VOICE_SPEAKER = "voice_speaker"
         const val KEY_VIDEO_MODEL = "video_model"
         const val KEY_VIDEO_SECONDS = "video_seconds"
+        const val KEY_MUSIC_SECONDS = "music_seconds"
         const val KEY_TEXT_ENCODER = "text_encoder_mode"
         const val KEY_CONTEXT = "context_length"
         const val KEY_AGENT_STEPS = "agent_steps"

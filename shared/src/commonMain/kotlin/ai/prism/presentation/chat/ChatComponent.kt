@@ -194,6 +194,7 @@ data class ChatState(
     val videoDurations: List<Int> = emptyList(),
     /** Выбранная длительность видео, секунды. */
     val videoSeconds: Int = 0,
+    val musicSeconds: Int = 30,
     /** Размер модуля зрения активной модели (для подсказки о загрузке), байт. */
     val visionModuleBytes: Long = 0,
     /** Файлы диалога: ассистент ищет в них ответы на вопросы. */
@@ -283,6 +284,7 @@ sealed interface ChatIntent {
 
     /** Длительность следующих видео, секунды. */
     data class SelectVideoSeconds(val seconds: Int) : ChatIntent
+    data class SelectMusicSeconds(val seconds: Int) : ChatIntent
     data object Send : ChatIntent
     data object Stop : ChatIntent
 
@@ -410,6 +412,7 @@ class DefaultChatComponent(
         val videoFromPhoto: Boolean,
         val videoDurations: List<Int>,
         val videoSeconds: Int,
+        val musicSeconds: Int,
         val thinkingSupported: Boolean,
         val music: DrawSupport,
         val musicModelName: String?,
@@ -451,7 +454,7 @@ class DefaultChatComponent(
         modelRepository.models,
         engine.state,
         settingsRepository.settings,
-    ) { activeId, entries, engineState, _ ->
+    ) { activeId, entries, engineState, settings ->
         val entry = entries.firstOrNull { it.model.id == activeId }
         val imageEntry = entries.firstOrNull { it.model.kind == ModelKind.IMAGE }
         val embeddingEntry = entries.firstOrNull { it.model.kind == ModelKind.EMBEDDING }
@@ -496,6 +499,7 @@ class DefaultChatComponent(
             videoFromPhoto = videoEntry?.model?.video?.imageToVideo == true,
             videoDurations = videoEntry?.model?.video?.availableDurations.orEmpty(),
             videoSeconds = videoEntry?.model?.let(generation::videoSeconds) ?: 0,
+            musicSeconds = settings.musicSeconds,
             music = when {
                 musicEntry == null || !generation.canGenerateMusic -> DrawSupport.UNAVAILABLE
                 musicEntry.status == ModelStatus.Downloaded -> DrawSupport.READY
@@ -600,6 +604,7 @@ class DefaultChatComponent(
             videoFromPhoto = model.videoFromPhoto,
             videoDurations = model.videoDurations,
             videoSeconds = model.videoSeconds,
+            musicSeconds = model.musicSeconds,
             draw = model.draw,
             imageModelName = model.imageModelName,
             imageModelBytes = model.imageModelBytes,
@@ -659,6 +664,7 @@ class DefaultChatComponent(
                 }
             }
             is ChatIntent.SelectVideoSeconds -> settingsRepository.setVideoSeconds(intent.seconds)
+            is ChatIntent.SelectMusicSeconds -> settingsRepository.setMusicSeconds(intent.seconds)
             ChatIntent.Send -> send()
             ChatIntent.Stop -> generation.stop()
             ChatIntent.ToggleDictation -> toggleDictation()

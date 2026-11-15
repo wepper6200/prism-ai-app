@@ -381,7 +381,7 @@ class ChatGenerationService(
         }
         try {
             progress(DrawingStage.TRANSLATING)
-            val prepared = prepareMusicPrompt(prompt, settings.settings.value.safeMode)
+            val prepared = prepareMusicPrompt(prompt, settings.settings.value.safeMode, settings.settings.value.musicSeconds)
             engine.unload()
             imageGenerator.release()
             if (stopRequested) {
@@ -995,13 +995,13 @@ class ChatGenerationService(
         data class Rejected(val error: GenerationError) : PreparedMusic
     }
 
-    private suspend fun prepareMusicPrompt(prompt: String, safeMode: Boolean): PreparedMusic {
+    private suspend fun prepareMusicPrompt(prompt: String, safeMode: Boolean, seconds: Int): PreparedMusic {
         val model = translatorModel()
         val path = model?.let { models.downloadedFilePath(it.id) }
         if (model == null || path == null) return PreparedMusic.Rejected(GenerationError.TRANSLATOR_REQUIRED)
         val persona = personaProvider.persona()
         if (persona.musicPromptInstruction.isBlank()) return PreparedMusic.Rejected(GenerationError.MUSIC_GENERATION_FAILED)
-        val instruction = persona.musicPromptInstruction + "\n" +
+        val instruction = persona.musicPromptInstruction.replace("{seconds}", seconds.toString()) + "\n" +
             (if (safeMode) persona.musicSafetyInstruction else "")
         val answer = try {
             imageGenerator.release()
@@ -1013,7 +1013,7 @@ class ChatGenerationService(
                     systemPrompt = instruction,
                     messages = listOf(PromptMessage(MessageRole.USER,
                         "vocal_language: ${MusicPromptPolicy.language(prompt)}\n\n$prompt")),
-                    maxTokens = 1200,
+                    maxTokens = minOf(maxOf(1200, seconds * 6), (withChosenContext(model).contextLength / 2).coerceAtLeast(256)),
                     sampling = SamplingParams(temperature = 0.3f),
                 ),
             ).toList().joinToString("").trim()
@@ -1023,7 +1023,7 @@ class ChatGenerationService(
             } else GenerationError.MUSIC_GENERATION_FAILED)
         }
         if (safeMode && ImagePromptPolicy.isBlockedVerdict(answer)) return PreparedMusic.Rejected(GenerationError.BLOCKED_BY_SAFE_MODE)
-        return MusicPromptPolicy.parse(prompt, answer)?.let { PreparedMusic.Ready(it) }
+        return MusicPromptPolicy.parse(prompt, answer, seconds)?.let { PreparedMusic.Ready(it) }
             ?: PreparedMusic.Rejected(GenerationError.MUSIC_GENERATION_FAILED)
     }
 

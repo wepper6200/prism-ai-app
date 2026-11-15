@@ -81,7 +81,7 @@ int main() {
         request_init(&request);
         if (!request_parse_json(&request, line.c_str()) || request.caption.empty() || output.empty() ||
             lm_path.empty() || text_path.empty() || dit_path.empty() || vae_path.empty() ||
-            !std::isfinite(request.duration) || request.duration < 5 || request.duration > 60) {
+            !std::isfinite(request.duration) || request.duration < 10 || request.duration > 600) {
             throw std::runtime_error("Invalid request parameters");
         }
         request.lm_batch_size = 1;
@@ -96,7 +96,9 @@ int main() {
         AceLmParams lm_params;
         ace_lm_default_params(&lm_params);
         lm_params.model_path = lm_path.c_str();
-        lm_params.max_seq = 4096;
+        // A ten-minute plan alone contains about 3000 acoustic tokens.
+        lm_params.max_seq = request.lyrics.size() > 20000 ? 16384 :
+            (request.duration > 120 || request.lyrics.size() > 8000 ? 8192 : 4096);
         lm_params.max_batch = 1;
         std::unique_ptr<AceLm, decltype(&ace_lm_free)> lm(ace_lm_load(store.get(), &lm_params), ace_lm_free);
         if (!lm) throw std::runtime_error("Cannot load composition model");

@@ -36,6 +36,8 @@ interface SettingsRepository {
 
     fun setVideoSeconds(seconds: Int)
 
+    fun setMusicSeconds(seconds: Int)
+
     /** Текстовый энкодер видео; `null` — выбирать по объёму оперативной памяти. */
     fun setTextEncoderMode(mode: TextEncoderMode?)
 

@@ -21,6 +21,20 @@ class MapKeyValueStore : KeyValueStore {
 class DefaultSettingsRepositoryTest {
 
     @Test
+    fun musicDurationSurvivesRestartAndIsBounded() {
+        val store = MapKeyValueStore()
+        val settings = DefaultSettingsRepository(store)
+        settings.setMusicSeconds(90)
+        assertEquals(90, DefaultSettingsRepository(store).settings.value.musicSeconds)
+        settings.setMusicSeconds(600)
+        assertEquals(600, DefaultSettingsRepository(store).settings.value.musicSeconds)
+        settings.setMusicSeconds(601)
+        assertEquals(600, settings.settings.value.musicSeconds)
+        settings.setMusicSeconds(0)
+        assertEquals(10, settings.settings.value.musicSeconds)
+    }
+
+    @Test
     fun emptyStoreGivesDefaults() {
         val repository = DefaultSettingsRepository(MapKeyValueStore())
         assertEquals(AppSettings(), repository.settings.value)

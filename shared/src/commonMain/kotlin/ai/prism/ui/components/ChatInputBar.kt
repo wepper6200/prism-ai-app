@@ -30,9 +30,11 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -150,26 +152,16 @@ fun ChatInputBar(
     val drawActive = drawing?.active == true
     val videoActive = video?.active == true
     val musicActive = music?.active == true
-    PrismPanel(modifier.fillMaxWidth(), shape = RoundedCornerShape(28.dp)) {
-        Column {
-            if (music != null) MusicButton(music, enabled = !isGenerating)
-            AnimatedVisibility(visible = attachments.items.isNotEmpty() || attachments.isAttaching) {
-                AttachmentStrip(attachments)
-            }
-            Row(
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.Bottom,
-            ) {
-                IconButton(
-                    onClick = { onPickDocuments?.invoke() },
-                    enabled = onPickDocuments != null && !isGenerating && !drawActive && !videoActive && !musicActive,
-                    modifier = Modifier.testTag("attach_document"),
-                ) {
-                    Icon(Icons.Outlined.AttachFile, contentDescription = stringResource(Res.string.input_attach_document))
+    BoxWithConstraints(modifier.fillMaxWidth()) {
+        val reservedHeight = (if (music != null) 112.dp else 64.dp) +
+            (if (attachments.items.isNotEmpty() || attachments.isAttaching) 84.dp else 0.dp)
+        val inputMaxHeight = (maxHeight - reservedHeight).coerceIn(48.dp, 180.dp)
+        PrismPanel(Modifier.fillMaxWidth(), shape = RoundedCornerShape(28.dp)) {
+            Column {
+                if (music != null) MusicButton(music, enabled = !isGenerating)
+                AnimatedVisibility(visible = attachments.items.isNotEmpty() || attachments.isAttaching) {
+                    AttachmentStrip(attachments)
                 }
-                if (drawing != null) DrawButton(drawing, enabled = !isGenerating)
-                if (video != null) VideoButton(video, enabled = !isGenerating)
-                ImageButton(attachments, enabled = !isGenerating && attachments.canAttachMore)
                 val textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface)
                 BasicTextField(
                     value = text,
@@ -178,9 +170,9 @@ fun ChatInputBar(
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                     maxLines = 6,
                     modifier = Modifier
-                        .weight(1f)
-                        .heightIn(min = 48.dp)
-                        .padding(horizontal = 8.dp, vertical = 13.dp)
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp, max = inputMaxHeight)
+                        .padding(horizontal = 16.dp, vertical = 13.dp)
                         .onPreviewKeyEvent { event ->
                             // Ctrl+V / Shift+Insert: картинка из буфера прикладывается к сообщению, текст вставляется как обычно.
                             val isPaste = (event.key == Key.V && (event.isCtrlPressed || event.isMetaPressed)) ||
@@ -219,15 +211,31 @@ fun ChatInputBar(
                         }
                     },
                 )
-                if (voice != null) MicButton(voice)
-                AnimatedContent(targetState = isGenerating, label = "sendOrStop") { generating ->
-                    if (generating) {
-                        FilledIconButton(onClick = onStop, modifier = Modifier.testTag("stop_button")) {
-                            Icon(Icons.Filled.Stop, contentDescription = stringResource(Res.string.input_stop))
-                        }
-                    } else {
-                        FilledIconButton(onClick = onSend, enabled = canSend, modifier = Modifier.testTag("send_button")) {
-                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(Res.string.input_send))
+                Row(
+                    modifier = Modifier.heightIn(min = 56.dp).padding(horizontal = 4.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.Bottom,
+                ) {
+                    IconButton(
+                        onClick = { onPickDocuments?.invoke() },
+                        enabled = onPickDocuments != null && !isGenerating && !drawActive && !videoActive && !musicActive,
+                        modifier = Modifier.testTag("attach_document"),
+                    ) {
+                        Icon(Icons.Outlined.AttachFile, contentDescription = stringResource(Res.string.input_attach_document))
+                    }
+                    if (drawing != null) DrawButton(drawing, enabled = !isGenerating)
+                    if (video != null) VideoButton(video, enabled = !isGenerating)
+                    ImageButton(attachments, enabled = !isGenerating && attachments.canAttachMore)
+                    Spacer(Modifier.weight(1f))
+                    if (voice != null) MicButton(voice)
+                    AnimatedContent(targetState = isGenerating, label = "sendOrStop") { generating ->
+                        if (generating) {
+                            FilledIconButton(onClick = onStop, modifier = Modifier.testTag("stop_button")) {
+                                Icon(Icons.Filled.Stop, contentDescription = stringResource(Res.string.input_stop))
+                            }
+                        } else {
+                            FilledIconButton(onClick = onSend, enabled = canSend, modifier = Modifier.testTag("send_button")) {
+                                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(Res.string.input_send))
+                            }
                         }
                     }
                 }

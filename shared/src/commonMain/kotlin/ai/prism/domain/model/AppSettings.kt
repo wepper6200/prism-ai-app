@@ -50,6 +50,8 @@ data class AppSettings(
     val videoModelId: String = "",
     /** Длительность видео, секунды; 0 — по умолчанию модели. */
     val videoSeconds: Int = 0,
+    /** Длительность музыки, 10–600 секунд. */
+    val musicSeconds: Int = 30,
     /** Текстовый энкодер видео (LTX): полный или сжатый; `null` — по объёму оперативной памяти. */
     val textEncoderMode: TextEncoderMode? = null,
     /** Контекст модели чата в токенах; 0 — как в каталоге. Не больше, чем модель видела при обучении. */

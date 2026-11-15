@@ -13,6 +13,7 @@ object FakeMusicWorker {
         val request = Json.parseToJsonElement(readln()).jsonObject
         val prompt = request.getValue("caption").jsonPrimitive.content
         if (prompt == "piano") {
+            check(request.getValue("duration").jsonPrimitive.content == "600")
             check(request.getValue("lyrics").jsonPrimitive.content == "Тихий вечер за окном")
             check(request.getValue("vocal_language").jsonPrimitive.content == "ru")
         }

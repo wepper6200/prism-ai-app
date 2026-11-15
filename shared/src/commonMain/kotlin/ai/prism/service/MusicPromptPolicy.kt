@@ -34,7 +34,7 @@ internal object MusicPromptPolicy {
         return if (ImagePromptPolicy.hasCyrillic(suppliedLyrics(source) ?: source)) "ru" else "en"
     }
 
-    fun parse(source: String, answer: String): MusicRequest? {
+    fun parse(source: String, answer: String, seconds: Int = 30): MusicRequest? {
         val start = answer.indexOf('{')
         val end = answer.lastIndexOf('}')
         if (start < 0 || end < start) return null
@@ -46,14 +46,14 @@ internal object MusicPromptPolicy {
         val lyrics = suppliedLyrics(source) ?: field("lyrics") ?: return null
         if (lyrics == "[Instrumental]") {
             if (vocals.containsMatchIn(source) && !instrumental.containsMatchIn(source)) return null
-            return MusicRequest(caption, lyrics = lyrics)
+            return MusicRequest(caption, seconds = seconds, lyrics = lyrics)
         }
         if (suppliedLyrics(source) == null && instrumental.containsMatchIn(source)) return null
         val words = section.replace(lyrics, "").filter { it.isLetter() }
-        if (words.length < 8 || lyrics.length > 6000) return null
+        if (words.length < 8 || lyrics.length > 24000) return null
         val language = language(source)
         // Английский текст вместо русского не должен незаметно попадать в синтезатор.
         if (language == "ru" && words.count { it in 'Ѐ'..'ӿ' } * 10 < words.length * 7) return null
-        return MusicRequest(caption, lyrics = lyrics, vocalLanguage = language)
+        return MusicRequest(caption, seconds = seconds, lyrics = lyrics, vocalLanguage = language)
     }
 }
