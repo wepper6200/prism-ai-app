@@ -46,15 +46,15 @@ fun GlassSurface(
     var origin by remember { mutableStateOf(Offset.Zero) }
 
     val tint = when {
-        darkTheme -> Color(0xFF16131F).copy(alpha = if (blur != null) 0.42f else 0.86f)
-        else -> Color.White.copy(alpha = if (blur != null) 0.50f else 0.88f)
+        darkTheme -> Color(0xFF151B23).copy(alpha = if (blur != null) 0.58f else 0.94f)
+        else -> Color.White.copy(alpha = if (blur != null) 0.72f else 0.96f)
     }
     val sheen = Brush.verticalGradient(
         listOf(Color.White.copy(alpha = if (darkTheme) 0.08f else 0.30f), Color.Transparent),
     )
     val rim = Brush.linearGradient(
         listOf(
-            Color.White.copy(alpha = if (darkTheme) 0.28f else 0.85f),
+            Color.White.copy(alpha = if (darkTheme) 0.18f else 0.85f),
             Color.White.copy(alpha = if (darkTheme) 0.04f else 0.25f),
         ),
     )

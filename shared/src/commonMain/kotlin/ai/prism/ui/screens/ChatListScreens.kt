@@ -21,6 +21,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import ai.prism.resources.action_new_chat
+import ai.prism.resources.home_subtitle
 import ai.prism.resources.app_name
 import ai.prism.resources.chat_untitled
 import ai.prism.resources.chats_empty_text
@@ -187,20 +188,7 @@ fun ChatListScreen(
                         modifier = Modifier.padding(start = 8.dp).size(32.dp),
                     )
                 },
-                actions = {
-                    IconButton(
-                        onClick = { component.onIntent(ChatListIntent.OpenModels) },
-                        modifier = Modifier.testTag("nav_models"),
-                    ) {
-                        Icon(Icons.Outlined.Memory, contentDescription = stringResource(Res.string.nav_models))
-                    }
-                    IconButton(
-                        onClick = { component.onIntent(ChatListIntent.OpenSettings) },
-                        modifier = Modifier.testTag("nav_settings"),
-                    ) {
-                        Icon(Icons.Outlined.Settings, contentDescription = stringResource(Res.string.nav_settings))
-                    }
-                },
+                subtitle = stringResource(Res.string.home_subtitle),
             )
             if (state.chats.isEmpty()) {
                 Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {

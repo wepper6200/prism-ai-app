@@ -1,5 +1,7 @@
 package ai.prism.ui.components
 
+import androidx.compose.ui.unit.dp
+
 import ai.prism.ui.theme.BackdropState
 import ai.prism.ui.theme.GlassSurface
 import ai.prism.ui.theme.LocalBackdropState
@@ -67,7 +69,8 @@ fun PrismPanel(
         Surface(
             modifier = modifier,
             shape = shape,
-            color = MaterialTheme.colorScheme.surfaceContainer,
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
+            tonalElevation = 1.dp,
             contentColor = MaterialTheme.colorScheme.onSurface,
         ) {
             Box(content = content)

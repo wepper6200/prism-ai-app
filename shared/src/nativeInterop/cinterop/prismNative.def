@@ -1,2 +1,2 @@
-headers = prism_native.h
+headers = prism_native.h prism_speech.h
 package = ai.prism.apple.native

@@ -3,6 +3,7 @@ package ai.prism.ui
 import ai.prism.presentation.chats.ChatListIntent
 import ai.prism.presentation.root.RootComponent
 import ai.prism.ui.components.PrismBackground
+import ai.prism.ui.components.AppNavigation
 import ai.prism.ui.screens.ChatListScreen
 import ai.prism.ui.screens.ChatScreen
 import ai.prism.ui.screens.ModelsScreen
@@ -13,6 +14,8 @@ import ai.prism.ui.screens.WelcomePane
 import ai.prism.ui.theme.PrismTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -79,9 +82,12 @@ private fun RootContent(
 /** Телефон: каждый раздел — отдельный экран со сдвигом при переходе. */
 @Composable
 private fun CompactLayout(component: RootComponent) {
-    Children(
+    val stack by component.stack.subscribeAsState()
+    val active = stack.active.instance
+    Column(Modifier.fillMaxSize()) {
+      Children(
         stack = component.stack,
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.weight(1f).fillMaxWidth(),
         animation = stackAnimation(slide()),
     ) { child ->
         when (val instance = child.instance) {
@@ -90,6 +96,19 @@ private fun CompactLayout(component: RootComponent) {
             is RootComponent.Child.Models -> ModelsScreen(instance.component)
             is RootComponent.Child.Settings -> SettingsScreen(instance.component)
         }
+      }
+      if (active !is RootComponent.Child.Chat) {
+        AppNavigation(
+            selected = when (active) { is RootComponent.Child.Models -> 1; is RootComponent.Child.Settings -> 2; else -> 0 },
+            onSelect = { destination ->
+                when (destination) {
+                    0 -> component.onBack()
+                    1 -> component.chatList.onIntent(ChatListIntent.OpenModels)
+                    else -> component.chatList.onIntent(ChatListIntent.OpenSettings)
+                }
+            },
+        )
+      }
     }
 }
 

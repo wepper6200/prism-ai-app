@@ -240,7 +240,7 @@ class PrismAppUiTest {
 
         onNodeWithTag("vision_open_models").performClick()
         onNodeWithTag("models_screen").assertIsDisplayed()
-        onNodeWithTag("download_vision_gemma-4-e2b-old").assertIsDisplayed()
+        onNodeWithTag("download_vision_gemma-4-e2b-old").performScrollTo().assertIsDisplayed()
     }
 
     /** Режим «Нарисовать»: описание отправляется модели изображений, ответ — картинка. */

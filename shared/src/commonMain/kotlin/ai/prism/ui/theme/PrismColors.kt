@@ -93,8 +93,16 @@ internal val PrismDarkColors: ColorScheme = darkColorScheme(
  * чтобы сквозь них проступал размытый фон.
  */
 internal fun glassColorScheme(base: ColorScheme, darkTheme: Boolean): ColorScheme {
-    val glass = if (darkTheme) Color(0xFF1A1724) else Color(0xFFFFFFFF)
+    val glass = if (darkTheme) Color(0xFF171E27) else Color(0xFFFFFFFF)
     return base.copy(
+        primary = if (darkTheme) Color(0xFFF0F3F7) else Color(0xFF1A2632),
+        onPrimary = if (darkTheme) Color(0xFF111821) else Color.White,
+        primaryContainer = if (darkTheme) Color(0xFF303B49) else Color(0xFFE2EAF2),
+        onPrimaryContainer = if (darkTheme) Color(0xFFF0F3F7) else Color(0xFF1A2632),
+        onBackground = if (darkTheme) Color(0xFFEDF1F5) else Color(0xFF19232D),
+        onSurface = if (darkTheme) Color(0xFFEDF1F5) else Color(0xFF19232D),
+        onSurfaceVariant = if (darkTheme) Color(0xFFB5C0CD) else Color(0xFF526171),
+        onSecondaryContainer = if (darkTheme) Color.White else Color(0xFF19232D),
         background = Color.Transparent,
         surface = Color.Transparent,
         surfaceContainerLowest = glass.copy(alpha = 0.20f),
@@ -103,6 +111,6 @@ internal fun glassColorScheme(base: ColorScheme, darkTheme: Boolean): ColorSchem
         surfaceContainerHigh = glass.copy(alpha = 0.46f),
         surfaceContainerHighest = glass.copy(alpha = 0.56f),
         surfaceVariant = glass.copy(alpha = 0.40f),
-        secondaryContainer = base.secondaryContainer.copy(alpha = 0.72f),
+        secondaryContainer = if (darkTheme) Color(0xFF364252).copy(alpha = 0.72f) else Color(0xFFDAE5F0).copy(alpha = 0.82f),
     )
 }

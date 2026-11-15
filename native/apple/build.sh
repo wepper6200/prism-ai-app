@@ -5,8 +5,9 @@ output=${2:?output directory}
 script_dir=$(cd "$(dirname "$0")" && pwd)
 mkdir -p "$output"
 output=$(cd "$output" && pwd)
+python3 "$script_dir/dependencies.py" "$sdk" "$output"
 cmake -S "$script_dir" -B "$output/cmake" -G Ninja \
-  -DCMAKE_BUILD_TYPE=Release -DCMAKE_SYSTEM_NAME=iOS \
+  -DPRISM_APPLE_DEPS="$output" -DCMAKE_BUILD_TYPE=Release -DCMAKE_SYSTEM_NAME=iOS \
   -DCMAKE_OSX_SYSROOT="$(xcrun --sdk "$sdk" --show-sdk-path)" \
   -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=17.0 \
   -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY

@@ -12,6 +12,7 @@ interface IosCancellation { fun cancel() }
 class IosEncodedImage(val jpeg: NSData, val rgb: NSData, val width: Int, val height: Int)
 class IosPickedFile(val name: String, val data: NSData)
 class IosTextPage(val page: Int, val text: String)
+class IosDocumentResult(val pages: List<IosTextPage>, val error: String?)
 class IosHttpResponse(val status: Int, val data: NSData, val headers: Map<String, String>)
 
 interface IosHost {
@@ -26,6 +27,9 @@ interface IosHost {
     fun size(path: String): Long
     fun modifiedMillis(path: String): Long
     fun children(path: String): List<String>
+    fun isDirectory(path: String): Boolean
+    fun canonicalPath(path: String): String
+    fun resolveFolder(location: String): String?
     fun read(path: String): NSData?
     fun write(path: String, data: NSData): Boolean
     fun makeDirectory(path: String): Boolean
@@ -34,9 +38,9 @@ interface IosHost {
     fun sha256(path: String): String?
     fun unpackArchive(path: String, destination: String): Boolean
     fun download(url: String, destination: String, resumePath: String, progress: (Long, Long) -> Unit, completion: (String?) -> Unit): IosCancellation
-    fun request(url: String, method: String, headers: Map<String, String>, body: NSData?, completion: (IosHttpResponse?, String?) -> Unit): IosCancellation
+    fun request(url: String, method: String, headers: Map<String, String>, body: NSData?, maxBytes: Long, completion: (IosHttpResponse?, String?) -> Unit): IosCancellation
     fun encodeImage(data: NSData, maxSide: Int): IosEncodedImage?
-    fun extractDocument(data: NSData, format: String): List<IosTextPage>
+    fun extractDocument(data: NSData, format: String): IosDocumentResult
     fun pickImages(completion: (List<NSData>) -> Unit, failure: () -> Unit)
     fun cameraAvailable(): Boolean
     fun takePhoto(completion: (NSData?) -> Unit, failure: () -> Unit)

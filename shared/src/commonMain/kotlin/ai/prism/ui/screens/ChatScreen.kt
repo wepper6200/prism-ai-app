@@ -1,5 +1,15 @@
 package ai.prism.ui.screens
 
+import ai.prism.resources.suggestion_explain
+import ai.prism.resources.suggestion_explain_prompt
+import ai.prism.resources.suggestion_write
+import ai.prism.resources.suggestion_write_prompt
+import ai.prism.resources.suggestion_plan
+import ai.prism.resources.suggestion_plan_prompt
+import androidx.compose.material3.AssistChip
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+
 import ai.prism.resources.music_preparing
 import ai.prism.resources.music_needs_translator
 import ai.prism.resources.music_mode_hint
@@ -266,7 +276,7 @@ fun ChatScreen(
             contentAlignment = Alignment.Center,
         ) {
             if (state.messages.isEmpty()) {
-                ChatEmptyState(state, onOpenModels = { component.onIntent(ChatIntent.OpenModels) })
+                ChatEmptyState(state, onOpenModels = { component.onIntent(ChatIntent.OpenModels) }, onPrompt = { component.onIntent(ChatIntent.DraftChanged(it)) })
             } else {
                 MessageList(
                     state = state,
@@ -315,7 +325,7 @@ fun ChatScreen(
                 durations = state.videoDurations,
                 selected = state.videoSeconds,
                 onSelect = { component.onIntent(ChatIntent.SelectVideoSeconds(it)) },
-                modifier = Modifier.align(Alignment.CenterHorizontally).widthIn(max = 880.dp),
+                modifier = Modifier.align(Alignment.CenterHorizontally).widthIn(max = 800.dp),
             )
         }
         if (state.musicMode) {
@@ -361,34 +371,34 @@ fun ChatScreen(
             onToggleComputer = { component.onIntent(ChatIntent.ToggleComputer) },
             thinkingLevel = state.thinkingLevel.takeIf { state.thinkingSupported },
             onSelectThinking = { component.onIntent(ChatIntent.SetThinkingLevel(it)) },
-            modifier = Modifier.align(Alignment.CenterHorizontally).widthIn(max = 880.dp).fillMaxWidth(),
+            modifier = Modifier.align(Alignment.CenterHorizontally).widthIn(max = 800.dp).fillMaxWidth(),
         )
         if (state.documents.isNotEmpty()) {
             DocumentStrip(
                 documents = state.documents,
                 onRemove = { component.onIntent(ChatIntent.RemoveDocument(it)) },
-                modifier = Modifier.align(Alignment.CenterHorizontally).widthIn(max = 880.dp),
+                modifier = Modifier.align(Alignment.CenterHorizontally).widthIn(max = 800.dp),
             )
         }
         state.attachmentError?.let { error ->
             AttachmentErrorBanner(
                 error = error,
                 onDismiss = { component.onIntent(ChatIntent.DismissAttachmentError) },
-                modifier = Modifier.align(Alignment.CenterHorizontally).widthIn(max = 880.dp),
+                modifier = Modifier.align(Alignment.CenterHorizontally).widthIn(max = 800.dp),
             )
         }
         state.voice.error?.let { error ->
             VoiceErrorBanner(
                 error = error,
                 onDismiss = { component.onIntent(ChatIntent.DismissVoiceError) },
-                modifier = Modifier.align(Alignment.CenterHorizontally).widthIn(max = 880.dp).fillMaxWidth(),
+                modifier = Modifier.align(Alignment.CenterHorizontally).widthIn(max = 800.dp).fillMaxWidth(),
             )
         }
         if (state.voice.conversation) {
             ConversationPanel(
                 voice = state.voice,
                 onStop = { component.onIntent(ChatIntent.ToggleConversation) },
-                modifier = Modifier.align(Alignment.CenterHorizontally).widthIn(max = 880.dp),
+                modifier = Modifier.align(Alignment.CenterHorizontally).widthIn(max = 800.dp),
             )
         }
         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -475,7 +485,7 @@ fun ChatScreen(
                         },
                     )
                 },
-                modifier = Modifier.widthIn(max = 880.dp),
+                modifier = Modifier.widthIn(max = 800.dp),
             )
         }
     }
@@ -673,14 +683,30 @@ private fun AttachmentErrorBanner(error: AttachmentError, onDismiss: () -> Unit,
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ChatEmptyState(state: ChatState, onOpenModels: () -> Unit) {
+private fun ChatEmptyState(state: ChatState, onOpenModels: () -> Unit, onPrompt: (String) -> Unit) {
     if (state.modelName != null && state.modelDownloaded) {
+      Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
         EmptyState(
             icon = Icons.Outlined.AutoAwesome,
             title = stringResource(Res.string.chat_greeting_title),
             text = stringResource(Res.string.chat_greeting_text),
         )
+        FlowRow(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+        ) {
+            listOf(
+                Res.string.suggestion_explain to Res.string.suggestion_explain_prompt,
+                Res.string.suggestion_write to Res.string.suggestion_write_prompt,
+                Res.string.suggestion_plan to Res.string.suggestion_plan_prompt,
+            ).forEachIndexed { index, (label, prompt) ->
+                val value = stringResource(prompt)
+                AssistChip(onClick = { onPrompt(value) }, label = { Text(stringResource(label)) }, modifier = Modifier.testTag("chat_suggestion_$index"))
+            }
+        }
+      }
     } else {
         EmptyState(
             icon = Icons.Outlined.Memory,
@@ -729,7 +755,7 @@ private fun MessageList(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         items(state.messages, key = { it.id }) { message ->
-            Box(Modifier.widthIn(max = 880.dp).fillMaxWidth()) {
+            Box(Modifier.widthIn(max = 800.dp).fillMaxWidth()) {
                 when (message.role) {
                     MessageRole.USER -> UserMessage(message, loadImage, onOpenImage)
                     MessageRole.ASSISTANT -> AssistantMessage(

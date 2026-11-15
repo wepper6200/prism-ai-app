@@ -1,5 +1,21 @@
 package ai.prism.ui.screens
 
+import ai.prism.resources.models_search
+import ai.prism.resources.models_search_clear
+import ai.prism.resources.models_filter_all
+import ai.prism.resources.models_filter_chat
+import ai.prism.resources.models_filter_media
+import ai.prism.resources.models_filter_voice
+import ai.prism.resources.models_filter_files
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.runtime.saveable.rememberSaveable
+
 import ai.prism.resources.input_music
 
 import ai.prism.domain.inference.EngineState
@@ -107,6 +123,19 @@ fun ModelsScreen(
     val state by component.state.collectAsState()
     val expanded = LocalExpandedLayout.current
     var pendingDelete by remember { mutableStateOf<ModelEntry?>(null) }
+    var query by rememberSaveable { mutableStateOf("") }
+    var category by rememberSaveable { mutableStateOf(0) }
+    val categories = listOf(
+        Res.string.models_filter_all to ModelKind.entries.toSet(),
+        Res.string.models_filter_chat to setOf(ModelKind.CHAT),
+        Res.string.models_filter_media to setOf(ModelKind.IMAGE, ModelKind.VIDEO, ModelKind.MUSIC),
+        Res.string.models_filter_voice to setOf(ModelKind.SPEECH_RECOGNITION, ModelKind.SPEECH_SYNTHESIS),
+        Res.string.models_filter_files to setOf(ModelKind.EMBEDDING),
+    )
+    val visibleEntries = state.entries.filter { entry ->
+        entry.model.kind in categories[category].second &&
+            (query.isBlank() || entry.model.name.contains(query.trim(), true) || entry.model.description.values.any { it.contains(query.trim(), true) })
+    }
 
     Column(
         modifier = modifier
@@ -119,6 +148,22 @@ fun ModelsScreen(
             title = stringResource(Res.string.nav_models),
             onBack = if (expanded) null else ({ component.onIntent(ModelsIntent.Back) }),
         )
+        OutlinedTextField(
+            value = query, onValueChange = { query = it }, singleLine = true,
+            label = { Text(stringResource(Res.string.models_search)) },
+            leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+            trailingIcon = { if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { Icon(Icons.Outlined.Close, stringResource(Res.string.models_search_clear)) } },
+            shape = MaterialTheme.shapes.extraLarge,
+            modifier = Modifier.widthIn(max = 880.dp).fillMaxWidth().align(Alignment.CenterHorizontally).testTag("models_search"),
+        )
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            categories.forEachIndexed { index, (label, kinds) ->
+                if (index == 0 || state.entries.any { it.model.kind in kinds }) FilterChip(
+                    selected = category == index, onClick = { category = index },
+                    label = { Text(stringResource(label)) }, modifier = Modifier.testTag("models_category_$index"),
+                )
+            }
+        }
         LazyColumn(
             modifier = Modifier.fillMaxWidth().weight(1f),
             contentPadding = PaddingValues(bottom = 12.dp),
@@ -140,7 +185,7 @@ fun ModelsScreen(
                     )
                 }
             }
-            items(state.entries, key = { it.model.id }) { entry ->
+            items(visibleEntries, key = { it.model.id }) { entry ->
                 ModelCard(
                     entry = entry,
                     isActive = entry.model.id == state.activeModelId,

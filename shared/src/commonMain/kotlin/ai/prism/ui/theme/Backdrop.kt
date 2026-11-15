@@ -30,17 +30,17 @@ val LocalBackdropState = staticCompositionLocalOf { BackdropState() }
 private data class Glow(val x: Float, val y: Float, val radius: Float, val color: Color, val lightAlpha: Float, val darkAlpha: Float)
 
 private val Glows = listOf(
-    Glow(x = 0.12f, y = 0.10f, radius = 0.60f, color = Color(0xFF7C3AED), lightAlpha = 0.40f, darkAlpha = 0.60f),
-    Glow(x = 0.88f, y = 0.22f, radius = 0.48f, color = Color(0xFF22D3EE), lightAlpha = 0.34f, darkAlpha = 0.36f),
-    Glow(x = 0.72f, y = 0.88f, radius = 0.55f, color = Color(0xFFEC4899), lightAlpha = 0.30f, darkAlpha = 0.42f),
-    Glow(x = 0.08f, y = 0.82f, radius = 0.38f, color = Color(0xFFF59E0B), lightAlpha = 0.24f, darkAlpha = 0.26f),
+    Glow(x = 0.12f, y = 0.10f, radius = 0.60f, color = Color(0xFF7C3AED), lightAlpha = 0.12f, darkAlpha = 0.14f),
+    Glow(x = 0.88f, y = 0.22f, radius = 0.48f, color = Color(0xFF22D3EE), lightAlpha = 0.10f, darkAlpha = 0.10f),
+    Glow(x = 0.72f, y = 0.88f, radius = 0.55f, color = Color(0xFFEC4899), lightAlpha = 0.05f, darkAlpha = 0.06f),
+    Glow(x = 0.08f, y = 0.82f, radius = 0.38f, color = Color(0xFFF59E0B), lightAlpha = 0.03f, darkAlpha = 0.04f),
 )
 
 /** Рисует фон в координатах окна размером [windowSize]. */
 internal fun DrawScope.drawPrismBackdrop(windowSize: Size, darkTheme: Boolean) {
     if (windowSize.width <= 0f || windowSize.height <= 0f) return
     drawRect(
-        color = if (darkTheme) Color(0xFF0F0D1A) else Color(0xFFF3EEFF),
+        color = if (darkTheme) Color(0xFF0B0E13) else Color(0xFFF5F7FA),
         topLeft = Offset.Zero,
         size = windowSize,
     )

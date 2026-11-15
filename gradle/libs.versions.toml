@@ -1,4 +1,8 @@
 [versions]
+apple-sherpa-url = "https://github.com/k2-fsa/sherpa-onnx/releases/download/xcframework/sherpa-onnx-v1.13.8-ios-static.xcframework.zip"
+apple-sherpa-sha256 = "6b8e769cb153343270fdccbe92e3b3db0d1c421d67fa0989ab01fdf5b2fcf2de"
+apple-onnx-url = "https://github.com/csukuangfj/onnxruntime-libs/releases/download/v1.28.1/onnxruntime-ios-static-xcframework-1.28.1.xcframework.zip"
+apple-onnx-sha256 = "992d8a0cc6014cccc3a7815c36bbff5e5a06833ea2c4d47dd43ef071f639cf9d"
 # Версия приложения Prism AI (единый источник для Android, Desktop и экрана «О приложении»).
 prism-versionName = "0.9.7"
 prism-versionCode = "17"

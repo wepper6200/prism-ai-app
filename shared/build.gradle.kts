@@ -84,7 +84,7 @@ kotlin {
             target.binaries.framework {
                 baseName = "PrismShared"
                 isStatic = true
-                linkerOpts("-L${nativeOutput.asFile.absolutePath}", "-lprism_bundle", "-lc++", "-framework", "Metal", "-framework", "Accelerate")
+                linkerOpts("-L${nativeOutput.asFile.absolutePath}", "-lprism_bundle", "-lprism_sherpa", "-lprism_onnx", "-lc++", "-framework", "Metal", "-framework", "Accelerate", "-framework", "CoreML", "-framework", "AudioToolbox", "-lbz2", "-lz")
                 linkTaskProvider.configure { dependsOn(buildNative) }
             }
         }

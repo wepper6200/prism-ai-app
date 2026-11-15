@@ -1,6 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Prism AI</string>
+    <string name="models_search">Поиск моделей</string>
+    <string name="models_search_clear">Очистить поиск</string>
+    <string name="models_filter_all">Все</string>
+    <string name="models_filter_chat">Чат</string>
+    <string name="models_filter_media">Медиа</string>
+    <string name="models_filter_voice">Голос</string>
+    <string name="models_filter_files">Файлы</string>
+    <string name="suggestion_explain">Объяснить понятно</string>
+    <string name="suggestion_explain_prompt">Объясни простыми словами: </string>
+    <string name="suggestion_write">Помочь с текстом</string>
+    <string name="suggestion_write_prompt">Помоги написать текст: </string>
+    <string name="suggestion_plan">Составить план</string>
+    <string name="suggestion_plan_prompt">Помоги составить план: </string>
+    <string name="home_subtitle">Ваше пространство для идей</string>
     <string name="logo_description">Логотип Prism AI</string>
 
     <string name="nav_chats">Чаты</string>

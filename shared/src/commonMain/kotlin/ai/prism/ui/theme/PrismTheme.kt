@@ -67,6 +67,7 @@ fun PrismTheme(
         MaterialTheme(
             colorScheme = animateColorScheme(targetScheme),
             shapes = PrismShapes,
+            typography = if (settings.themeStyle == ThemeStyle.LIQUID_GLASS) GlassTypography else ExpressiveTypography,
             content = content,
         )
     }
