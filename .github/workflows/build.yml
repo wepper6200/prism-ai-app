@@ -299,6 +299,14 @@ jobs:
       - name: Check image generator in the Windows app
         shell: bash
         run: test -f desktopApp/build/compose/binaries/main/app/PrismAI/app/resources/prism_imagegen.exe || (find desktopApp/build/compose/binaries -name "prism_imagegen*" ; exit 1)
+      - name: Build Windows setup installer
+        shell: pwsh
+        run: ./desktopApp/installer/build.ps1
+      - uses: actions/upload-artifact@v6
+        with:
+          name: PrismAI-windows-setup
+          path: build/installer/*-Setup.exe
+          if-no-files-found: error
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v6
@@ -577,6 +585,10 @@ jobs:
           path: artifacts/windows/PrismAI
       - uses: actions/download-artifact@v7
         with:
+          name: PrismAI-windows-setup
+          path: artifacts/windows-setup
+      - uses: actions/download-artifact@v7
+        with:
           name: PrismStore-android-apk
           path: artifacts/store-android
       - uses: actions/download-artifact@v7
@@ -589,6 +601,7 @@ jobs:
           store=$(sed -n 's/^store-versionName = "\(.*\)"/\1/p' gradle/libs.versions.toml)
           mkdir dist
           cp artifacts/android/*.apk "dist/PrismAI-$VERSION-android-arm64.apk"
+          cp artifacts/windows-setup/*-Setup.exe dist/
           (cd artifacts/windows && zip -qr9 "$GITHUB_WORKSPACE/dist/PrismAI-$VERSION-windows-x64.zip" PrismAI)
           cp artifacts/store-android/*.apk "dist/PrismStore-$store-android.apk"
           (cd artifacts/store-windows && zip -qr9 "$GITHUB_WORKSPACE/dist/PrismStore-$store-windows.zip" PrismStore)
