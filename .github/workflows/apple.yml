@@ -30,7 +30,10 @@ jobs:
         with:
           name: PrismAI-iOS-Simulator
           path: build/PrismAI-iOS-Simulator.zip
+      - name: Free compiler memory before simulator tests
+        run: ./gradlew --stop
       - name: Run offline inference inside the iPhone simulator
+        timeout-minutes: 15
         run: python3 iosApp/smoke.py
       - uses: actions/upload-artifact@v6
         if: always()

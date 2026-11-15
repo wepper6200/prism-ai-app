@@ -1,11 +1,19 @@
-import json, os, pathlib, subprocess, time, urllib.request, hashlib
+import json, pathlib, socket, subprocess, time, urllib.request, hashlib
+socket.setdefaulttimeout(120)
 root = pathlib.Path(__file__).resolve().parents[1]
+output = root / 'build/ios-smoke'; output.mkdir(parents=True, exist_ok=True)
+def stage(text):
+    print(text, flush=True)
+    (output / 'stage.txt').write_text(text)
+stage('Preparing iPhone simulator')
 def run(*args): return subprocess.check_output(args, text=True).strip()
 devices = json.loads(run('xcrun', 'simctl', 'list', 'devices', 'available', '--json'))['devices']
 device = next(d for group in devices.values() for d in group if d['name'].startswith('iPhone'))
 udid = device['udid']
 if device['state'] != 'Booted': run('xcrun', 'simctl', 'boot', udid)
+stage('Booting ' + device['name'])
 run('xcrun', 'simctl', 'bootstatus', udid, '-b')
+stage('Installing Prism AI')
 app = root / 'iosApp/DerivedData/Build/Products/Debug-iphonesimulator/PrismAI.app'
 run('xcrun', 'simctl', 'install', udid, str(app))
 data = pathlib.Path(run('xcrun', 'simctl', 'get_app_container', udid, 'ai.prism.app', 'data'))
@@ -19,10 +27,12 @@ for model in catalog:
     if model['id'] not in ('gigaam-v3-ctc-punct-ru-int8', 'supertonic-3-int8', 'embeddinggemma-300m-q8_0'): continue
     for item in [model] + model.get('components', []):
         path = models_dir / item['fileName']
+        stage('Downloading ' + item['fileName'])
         urllib.request.urlretrieve(item['url'], path)
         assert path.stat().st_size == item['sizeBytes']
         assert hashlib.sha256(path.read_bytes()).hexdigest() == item['sha256']
 output = root / 'build/ios-smoke'; output.mkdir(parents=True, exist_ok=True)
+stage('Running local GGUF, embedding and Russian speech checks')
 console = (output / 'app.log').open('w')
 launch = subprocess.Popen(['xcrun', 'simctl', 'launch', '--console', udid, 'ai.prism.app', '--prism-smoke'], stdout=console, stderr=subprocess.STDOUT)
 report = folder / 'smoke-result.txt'
@@ -40,3 +50,6 @@ launch.wait(timeout=20); console.close()
 run('xcrun', 'simctl', 'launch', udid, 'ai.prism.app')
 time.sleep(5)
 run('xcrun', 'simctl', 'io', udid, 'screenshot', str(output / 'iphone-relaunch.png'))
+
+run('xcrun', 'simctl', 'shutdown', udid)
+stage('All simulator checks passed')
