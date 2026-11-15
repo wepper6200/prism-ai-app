@@ -12,10 +12,10 @@ prism_audio prism_tts_generate(void *, const char *, int, float, int, const char
 void prism_tts_destroy(void *);
 void prism_audio_destroy(prism_audio);
 void *prism_vad_create(const char *, float);
-void prism_vad_accept(void *, const float *, int);
+int prism_vad_accept(void *, const float *, int);
 int prism_vad_speaking(void *);
 prism_audio prism_vad_pop(void *);
-void prism_vad_flush(void *);
+int prism_vad_flush(void *);
 void prism_vad_destroy(void *);
 #ifdef __cplusplus
 }

@@ -13,9 +13,18 @@ folder = data / 'Library/Application Support/PrismAI'; folder.mkdir(parents=True
 fixture = folder / 'tiny.gguf'
 urllib.request.urlretrieve('https://huggingface.co/ggml-org/models/resolve/main/tinyllamas/stories260K.gguf', fixture)
 assert hashlib.sha256(fixture.read_bytes()).hexdigest() == '270cba1bd5109f42d03350f60406024560464db173c0e387d91f0426d3bd256d'
+catalog = json.loads((root / 'shared/src/commonMain/composeResources/files/models.json').read_text())['models']
+models_dir = folder / 'models'; models_dir.mkdir(exist_ok=True)
+for model in catalog:
+    if model['id'] not in ('gigaam-v3-ctc-punct-ru-int8', 'supertonic-3-int8'): continue
+    for item in [model] + model.get('components', []):
+        path = models_dir / item['fileName']
+        urllib.request.urlretrieve(item['url'], path)
+        assert path.stat().st_size == item['sizeBytes']
+        assert hashlib.sha256(path.read_bytes()).hexdigest() == item['sha256']
 run('xcrun', 'simctl', 'launch', udid, 'ai.prism.app', '--prism-smoke')
 report = folder / 'smoke-result.txt'
-for _ in range(90):
+for _ in range(180):
     if report.exists(): break
     time.sleep(2)
 assert report.exists(), 'iOS application did not complete real inference smoke'

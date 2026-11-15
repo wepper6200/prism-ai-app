@@ -62,19 +62,19 @@ internal class IosSpeechEngine(private val host: IosHost, private val threads: I
         val pointer = prism_vad_create(modelPath, minSilenceSeconds) ?: failure()
         return object : VoiceDetector {
             private var closed = false
-            override fun accept(samples: FloatArray) { check(!closed); if (samples.isNotEmpty()) samples.usePinned { prism_vad_accept(pointer, it.addressOf(0), samples.size) } }
-            override val isSpeaking: Boolean get() = !closed && prism_vad_speaking(pointer) != 0
+            override fun accept(samples: FloatArray) { check(!closed); if (samples.isNotEmpty()) samples.usePinned { if (prism_vad_accept(pointer, it.addressOf(0), samples.size) == 0) failure() } }
+            override val isSpeaking: Boolean get() = if (closed) false else prism_vad_speaking(pointer).let { if (it < 0) failure(); it != 0 }
             override fun takeSegments(): List<FloatArray> = buildList {
                 check(!closed)
                 while (true) {
                     val result = prism_vad_pop(pointer)
-                    val segment = result.useContents { if (count <= 0 || samples == null) null else FloatArray(count) { samples!![it] } }
+                    val segment = result.useContents { if (count < 0) failure(); if (count == 0 || samples == null) null else FloatArray(count) { samples!![it] } }
                     result.useContents { prism_free(samples) }
                     if (segment == null) break
                     add(segment)
                 }
             }
-            override fun flush() { check(!closed); prism_vad_flush(pointer) }
+            override fun flush() { check(!closed); if (prism_vad_flush(pointer) == 0) failure() }
             override fun close() { if (!closed) { closed = true; prism_vad_destroy(pointer) } }
         }
     }
