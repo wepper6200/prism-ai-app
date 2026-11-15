@@ -22,7 +22,6 @@ private struct PrismRoot: UIViewControllerRepresentable {
             AppleSmokeKt.runOfflineSmoke(modelPath: model) { error in
                 let result = error.map { "FAILED: " + $0 } ?? "OK: streaming, deterministic reuse, cancellation, Russian TTS/ASR and VAD"
                 _ = self.host.write(path: self.host.dataDirectory() + "/smoke-result.txt", data: Data(result.utf8))
-                return KotlinUnit()
             }
         }
         #endif

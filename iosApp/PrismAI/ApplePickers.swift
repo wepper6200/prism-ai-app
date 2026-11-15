@@ -5,26 +5,26 @@ import UniformTypeIdentifiers
 import PrismShared
 
 extension AppleHost {
-    func pickImages(completion: @escaping ([Data]) -> KotlinUnit, failure: @escaping () -> KotlinUnit) {
+    func pickImages(completion: @escaping ([Data]) -> Void, failure: @escaping () -> Void) {
         DispatchQueue.main.async {
             var config = PHPickerConfiguration(); config.filter = .images; config.selectionLimit = 10
             let picker = PHPickerViewController(configuration: config)
-            let delegate = PhotosDelegate { images in _ = completion(images); self.pickerDelegate = nil }
+            let delegate = PhotosDelegate { images in completion(images); self.pickerDelegate = nil }
             self.pickerDelegate = delegate; picker.delegate = delegate; self.present(picker)
         }
     }
     func cameraAvailable() -> Bool { UIImagePickerController.isSourceTypeAvailable(.camera) }
-    func takePhoto(completion: @escaping (Data?) -> KotlinUnit, failure: @escaping () -> KotlinUnit) {
+    func takePhoto(completion: @escaping (Data?) -> Void, failure: @escaping () -> Void) {
         DispatchQueue.main.async {
-            guard self.cameraAvailable() else { _ = failure(); return }
+            guard self.cameraAvailable() else { failure(); return }
             let picker = UIImagePickerController(); picker.sourceType = .camera
-            let delegate = CameraDelegate { data in _ = completion(data); self.pickerDelegate = nil }
+            let delegate = CameraDelegate { data in completion(data); self.pickerDelegate = nil }
             self.pickerDelegate = delegate; picker.delegate = delegate; self.present(picker)
         }
     }
     func clipboardImageAvailable() -> Bool { UIPasteboard.general.hasImages }
     func clipboardImage() -> Data? { UIPasteboard.general.image?.jpegData(compressionQuality: 0.9) }
-    func pickDocuments(completion: @escaping ([IosPickedFile]) -> KotlinUnit, failure: @escaping () -> KotlinUnit) {
+    func pickDocuments(completion: @escaping ([IosPickedFile]) -> Void, failure: @escaping () -> Void) {
         DispatchQueue.main.async {
             let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.pdf, .plainText, UTType(filenameExtension: "md") ?? .plainText, UTType(filenameExtension: "docx") ?? .data], asCopy: true)
             picker.allowsMultipleSelection = true
@@ -33,17 +33,17 @@ extension AppleHost {
                     var files: [IosPickedFile] = []
                     for url in urls {
                         let scoped = url.startAccessingSecurityScopedResource(); defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-                        guard let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize, size <= 50 * 1024 * 1024, let data = try? Data(contentsOf: url) else { DispatchQueue.main.async { _ = failure() }; continue }
+                        guard let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize, size <= 50 * 1024 * 1024, let data = try? Data(contentsOf: url) else { DispatchQueue.main.async { failure() }; continue }
                         files.append(IosPickedFile(name: url.lastPathComponent, data: data))
                     }
                     let result = files
-                    DispatchQueue.main.async { _ = completion(result); self.pickerDelegate = nil }
+                    DispatchQueue.main.async { completion(result); self.pickerDelegate = nil }
                 }
             }
             self.pickerDelegate = delegate; picker.delegate = delegate; self.present(picker)
         }
     }
-    func pickFolder(completion: @escaping (String) -> KotlinUnit) {
+    func pickFolder(completion: @escaping (String) -> Void) {
         DispatchQueue.main.async {
             let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.folder], asCopy: false)
             let delegate = FilesDelegate { urls in
@@ -52,12 +52,12 @@ extension AppleHost {
                 guard let bookmark = try? url.bookmarkData(options: .minimalBookmark, includingResourceValuesForKeys: nil, relativeTo: nil) else { url.stopAccessingSecurityScopedResource(); return }
                 let location = "bookmark:" + bookmark.base64EncodedString()
                 self.scopedFolders[location] = url
-                _ = completion(location)
+                completion(location)
             }
             self.pickerDelegate = delegate; picker.delegate = delegate; self.present(picker)
         }
     }
-    func exportFile(data: Data, name: String, completion: @escaping (KotlinBoolean) -> KotlinUnit) {
+    func exportFile(data: Data, name: String, completion: @escaping (KotlinBoolean) -> Void) {
         DispatchQueue.main.async {
             do {
                 let folder = self.fm.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -65,9 +65,9 @@ extension AppleHost {
                 let file = folder.appendingPathComponent(URL(fileURLWithPath: name).lastPathComponent)
                 try data.write(to: file)
                 let sheet = UIActivityViewController(activityItems: [file], applicationActivities: nil)
-                sheet.completionWithItemsHandler = { _, success, _, _ in _ = completion(KotlinBoolean(value: success)); try? self.fm.removeItem(at: folder) }
+                sheet.completionWithItemsHandler = { _, success, _, _ in completion(KotlinBoolean(value: success)); try? self.fm.removeItem(at: folder) }
                 self.present(sheet)
-            } catch { _ = completion(KotlinBoolean(value: false)) }
+            } catch { completion(KotlinBoolean(value: false)) }
         }
     }
 }

@@ -3,15 +3,15 @@ import AVFoundation
 import PrismShared
 
 extension AppleHost {
-    func microphonePermission(completion: @escaping (KotlinBoolean) -> KotlinUnit) {
-        AVAudioSession.sharedInstance().requestRecordPermission { granted in DispatchQueue.main.async { _ = completion(KotlinBoolean(value: granted)) } }
+    func microphonePermission(completion: @escaping (KotlinBoolean) -> Void) {
+        AVAudioSession.sharedInstance().requestRecordPermission { granted in DispatchQueue.main.async { completion(KotlinBoolean(value: granted)) } }
     }
-    func recordPcm(sampleRate: Int32, samples: @escaping (Data) -> KotlinUnit, failure: @escaping (String) -> KotlinUnit) -> any IosCancellation {
+    func recordPcm(sampleRate: Int32, samples: @escaping (Data) -> Void, failure: @escaping (String) -> Void) -> any IosCancellation {
         let recording = MicrophoneRecording(rate: Double(sampleRate), samples: samples, failure: failure)
         DispatchQueue.main.async { recording.start() }
         return AppleCancellation { DispatchQueue.main.async { recording.stop() } }
     }
-    func playPcm(data: Data, sampleRate: Int32, completion: @escaping (String?) -> KotlinUnit) -> any IosCancellation {
+    func playPcm(data: Data, sampleRate: Int32, completion: @escaping (String?) -> Void) -> any IosCancellation {
         let playback = AudioPlayback(data: data, rate: Double(sampleRate), completion: completion)
         DispatchQueue.main.async { playback.start() }
         return AppleCancellation { DispatchQueue.main.async { playback.stop() } }
@@ -24,9 +24,9 @@ private func configureSession() throws {
 }
 private final class MicrophoneRecording {
     let engine = AVAudioEngine(), rate: Double
-    let samples: (Data) -> KotlinUnit, failure: (String) -> KotlinUnit
+    let samples: (Data) -> Void, failure: (String) -> Void
     var cancelled = false, started = false
-    init(rate: Double, samples: @escaping (Data) -> KotlinUnit, failure: @escaping (String) -> KotlinUnit) { self.rate = rate; self.samples = samples; self.failure = failure }
+    init(rate: Double, samples: @escaping (Data) -> Void, failure: @escaping (String) -> Void) { self.rate = rate; self.samples = samples; self.failure = failure }
     func start() {
         guard !cancelled else { return }
         do {
@@ -42,20 +42,20 @@ private final class MicrophoneRecording {
                     if supplied { outStatus.pointee = .noDataNow; return nil }
                     supplied = true; outStatus.pointee = .haveData; return buffer
                 }
-                if status == .error { _ = self.failure(error?.localizedDescription ?? "Microphone conversion failed"); return }
-                if let channel = converted.int16ChannelData?[0], converted.frameLength > 0 { _ = self.samples(Data(bytes: channel, count: Int(converted.frameLength) * 2)) }
+                if status == .error { self.failure(error?.localizedDescription ?? "Microphone conversion failed"); return }
+                if let channel = converted.int16ChannelData?[0], converted.frameLength > 0 { self.samples(Data(bytes: channel, count: Int(converted.frameLength) * 2)) }
             }
             started = true; try engine.start()
-        } catch { stop(); _ = failure(error.localizedDescription) }
+        } catch { stop(); failure(error.localizedDescription) }
     }
     func stop() { cancelled = true; if started { engine.inputNode.removeTap(onBus: 0); engine.stop(); started = false } }
     deinit { engine.stop() }
 }
 private final class AudioPlayback {
     let engine = AVAudioEngine(), player = AVAudioPlayerNode(), data: Data, rate: Double
-    let completion: (String?) -> KotlinUnit
+    let completion: (String?) -> Void
     var cancelled = false
-    init(data: Data, rate: Double, completion: @escaping (String?) -> KotlinUnit) { self.data = data; self.rate = rate; self.completion = completion }
+    init(data: Data, rate: Double, completion: @escaping (String?) -> Void) { self.data = data; self.rate = rate; self.completion = completion }
     func start() {
         guard !cancelled else { return }
         do {
@@ -68,10 +68,10 @@ private final class AudioPlayback {
             engine.attach(player); engine.connect(player, to: engine.mainMixerNode, format: format)
             try engine.start()
             player.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { [self] _ in
-                DispatchQueue.main.async { if !cancelled { stop(); _ = completion(nil) } }
+                DispatchQueue.main.async { if !cancelled { stop(); completion(nil) } }
             }
             player.play()
-        } catch { stop(); _ = completion(error.localizedDescription) }
+        } catch { stop(); completion(error.localizedDescription) }
     }
     func stop() { cancelled = true; player.stop(); engine.stop() }
 }
