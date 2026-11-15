@@ -239,6 +239,15 @@ Prism AI — полностью офлайн ИИ-ассистент для **Wi
   модели качает `.github/download_speech_models.py` по каталогу) и `VoiceDetectorNativeTest` (загрузка нативных
   библиотек, в том числе на Windows).
 
+## iOS (0.9.8)
+
+- iPhone/iPad, iOS 17+, arm64; iosApp/PrismAI.xcodeproj. Общий интерфейс и бизнес-логика из shared; Swift IosHost предоставляет системные операции UIKit/Foundation, PDFKit, PhotosUI, AVAudioEngine и CryptoKit.
+- llama.cpp работает через прямой C ABI native/apple; тот же конвейер генерации и фильтров, что на JVM. NativeLibraryLoader и LlamaNative имеют actual для iOS. Статические библиотеки движков и SQLite явно связываются в Xcode; Gradle отслеживает изменения нативных архивов.
+- Чат Prism 1 Lite/Flash, фото с модулем зрения, PDF/TXT/MD/DOCX с PrismFile Reader, локальные GigaAM/Whisper и Supertonic, VAD, память и черновики. Рисование, видео, музыка, MCP, команды, Store и OTA на первой версии iOS выключены.
+- Модели и база в Application Support/PrismAI; этот каталог исключён из iCloud backup. Загрузки только по действию пользователя, с размером/SHA-256 и поддержкой возобновления. iOS может завершить приложение при нехватке памяти; длительные операции выполняются с открытым приложением.
+- bash iosApp/build.sh iphoneos Release создаёт неподписанный IPA; iphonesimulator Debug — сборку симулятора. Версия из gradle/libs.versions.toml. Установка IPA требует собственной подписи, учётные данные в проект не добавляются.
+- Apple workflow проверяет реальную локальную генерацию, русский поиск по файлам, TTS/ASR и VAD внутри симулятора. Полная проверка 43740556945 прошла; физическое устройство ещё требуется проверить вручную. Инструкция — iosApp/README.md.
+
 ## Дизайн
 
 - Две темы на выбор:
@@ -337,7 +346,7 @@ Prism AI — полностью офлайн ИИ-ассистент для **Wi
   генерация музыки до 10 минут, воспроизведение и сохранение WAV; **Prism 1.5 Onyx** — Qwen3-Coder 30B A3B Q4_K_M
   (ggml-org, `chatFormat: chatml` — ChatML без размышлений, только Desktop). Готово, Windows/Android и CI проверены.
 - **0.9.8:** первая версия для iOS (чат на Prism 1 Lite/Flash, фото, файлы, голос, черновики, память; без рисования,
-  видео, команд, Store и OTA; неподписанный IPA с macOS-раннера CI, установка через Sideloadly с бесплатным Apple ID).
+  видео, команд, Store и OTA; неподписанный IPA с macOS-раннера CI, установка через Sideloadly с бесплатным Apple ID). Реализовано; CI Windows/Android/iOS прошли, нужна ручная проверка на физическом iPhone.
 - **0.9.9:** **Prism 2 Kobalt** — DeepSeek V4.1 Flash (552B основа + Engram, ~750B всего, ~16B активных на токен;
   GGUF от ~200 ГБ, нужны 256–512 ГБ ОЗУ, только Desktop). Перед работой: проверить поддержку архитектуры в основной
   ветке llama.cpp и обновить подмодуль; научить каталог и загрузку моделям из нескольких файлов (части до 50 ГБ,
