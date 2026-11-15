@@ -26,9 +26,13 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTextInput
@@ -153,7 +157,56 @@ class PrismAppUiTest {
         assertTrue(chat.state.value.draft.startsWith("Объясни"))
         assertTrue(chat.state.value.messages.isEmpty())
         onNodeWithTag("nav_chats").assertDoesNotExist()
+        onNodeWithTag("prompt_category_1").performClick()
+        waitForIdle()
+        onNodeWithTag("chat_suggestion_1").performScrollTo().performClick()
+        assertTrue(chat.state.value.draft.startsWith("Помоги улучшить"))
+        assertTrue(chat.state.value.messages.isEmpty())
         screenshot("compact_21_prompt_suggestions")
+    }
+
+    @Test
+    fun jumpToLatestReturnsToTheEndOfLongHistory() = runDesktopComposeUiTest(width = 412, height = 892) {
+        val (app, root) = createApp()
+        setContent { PrismApp(root) }
+        onNodeWithTag("new_chat").performClick()
+        repeat(8) { index ->
+            app.engine.reply = listOf("Ответ $index: " + "Подробное объяснение. ".repeat(12))
+            sendMessage("Вопрос $index")
+        }
+        onNodeWithTag("message_list").performScrollToIndex(0)
+        waitForIdle()
+        onNode(hasText("Вопрос 0") and hasAnyAncestor(hasTestTag("message_list"))).assertIsDisplayed()
+        onNodeWithTag("jump_latest").assertIsDisplayed().performClick()
+        waitForIdle()
+        onNodeWithText("Ответ 7: ", substring = true).assertIsDisplayed()
+        onNode(hasText("Вопрос 0") and hasAnyAncestor(hasTestTag("message_list"))).assertDoesNotExist()
+        screenshot("compact_24_jump_latest")
+    }
+
+    @Test
+    fun chatSearchFiltersAndClearRestoresHistory() = runDesktopComposeUiTest(width = 412, height = 892) {
+        val (_, root) = createApp()
+        setContent { PrismApp(root) }
+        onNodeWithTag("new_chat").performClick()
+        sendMessage("Отпуск на море")
+        onNodeWithTag("back").performClick()
+        val first = root.chatList.state.value.chats.single().id
+        onNodeWithTag("new_chat").performClick()
+        sendMessage("Рабочие заметки")
+        onNodeWithTag("back").performClick()
+        val second = root.chatList.state.value.chats.first { it.id != first }.id
+        onNodeWithTag("toggle_chat_search").performClick()
+        onNodeWithTag("chat_search").performTextInput("ОТПУСК")
+        onNodeWithTag("chat_item_$first").assertIsDisplayed()
+        onNodeWithTag("chat_item_$second").assertDoesNotExist()
+        onNodeWithTag("chat_search").performTextReplacement("несуществующий запрос")
+        onNodeWithText("Диалоги не найдены").assertIsDisplayed()
+        screenshot("compact_22_chat_search_empty")
+        onNodeWithTag("clear_chat_search").performClick()
+        onNodeWithTag("chat_item_$first").assertIsDisplayed()
+        onNodeWithTag("chat_item_$second").assertIsDisplayed()
+        screenshot("compact_23_chat_search_restored")
     }
 
     @Test

@@ -1,5 +1,15 @@
 package ai.prism.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material3.OutlinedTextField
+import ai.prism.resources.chats_search
+import ai.prism.resources.chats_search_close
+import ai.prism.resources.chats_search_clear
+import ai.prism.resources.chats_no_results
+import ai.prism.resources.chats_no_results_hint
 import ai.prism.domain.model.ChatSummary
 import ai.prism.presentation.chats.ChatListComponent
 import ai.prism.presentation.chats.ChatListIntent
@@ -87,14 +97,26 @@ fun ChatList(
     onDeleteChat: (String) -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(vertical = 4.dp),
+    query: String = "",
 ) {
     var pendingDelete by remember { mutableStateOf<String?>(null) }
+    val untitled = stringResource(Res.string.chat_untitled)
+    val filtered = chats.filter { (it.title ?: untitled).contains(query.trim(), ignoreCase = true) }
     LazyColumn(
         modifier = modifier,
         contentPadding = contentPadding,
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        items(chats, key = { it.id }) { chat ->
+        if (filtered.isEmpty() && query.isNotBlank()) {
+            item {
+                EmptyState(
+                    icon = Icons.Outlined.Search,
+                    title = stringResource(Res.string.chats_no_results),
+                    text = stringResource(Res.string.chats_no_results_hint),
+                )
+            }
+        }
+        items(filtered, key = { it.id }) { chat ->
             NavigationDrawerItem(
                 label = {
                     Text(
@@ -148,7 +170,7 @@ fun ChatList(
 private fun ChatItemMenu(onDelete: () -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Box {
-        IconButton(onClick = { expanded = true }, modifier = Modifier.size(32.dp).testTag("chat_menu")) {
+        IconButton(onClick = { expanded = true }, modifier = Modifier.size(48.dp).testTag("chat_menu")) {
             Icon(Icons.Outlined.MoreVert, contentDescription = stringResource(Res.string.chat_more), modifier = Modifier.size(18.dp))
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
@@ -172,6 +194,8 @@ fun ChatListScreen(
     modifier: Modifier = Modifier,
 ) {
     val state by component.state.collectAsState()
+    var searching by rememberSaveable { mutableStateOf(false) }
+    var query by rememberSaveable { mutableStateOf("") }
     Box(modifier.fillMaxSize()) {
         Column(
             Modifier
@@ -189,7 +213,21 @@ fun ChatListScreen(
                     )
                 },
                 subtitle = stringResource(Res.string.home_subtitle),
+                actions = {
+                    if (state.chats.isNotEmpty()) IconButton(
+                        onClick = { searching = !searching; query = "" },
+                        modifier = Modifier.testTag("toggle_chat_search"),
+                    ) {
+                        Icon(
+                            if (searching) Icons.Outlined.Close else Icons.Outlined.Search,
+                            stringResource(if (searching) Res.string.chats_search_close else Res.string.chats_search),
+                        )
+                    }
+                },
             )
+            AnimatedVisibility(searching && state.chats.isNotEmpty()) {
+                ChatSearchField(query, { query = it })
+            }
             if (state.chats.isEmpty()) {
                 Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                     EmptyState(
@@ -208,6 +246,7 @@ fun ChatListScreen(
                         onDeleteChat = { component.onIntent(ChatListIntent.DeleteChat(it)) },
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(start = 8.dp, top = 8.dp, end = 8.dp, bottom = 88.dp),
+                        query = query,
                     )
                 }
             }
@@ -233,6 +272,7 @@ fun Sidebar(
     modifier: Modifier = Modifier,
 ) {
     val state by component.state.collectAsState()
+    var query by rememberSaveable { mutableStateOf("") }
     PrismPanel(modifier) {
         Column(
             Modifier
@@ -264,6 +304,7 @@ fun Sidebar(
                 Text(stringResource(Res.string.action_new_chat))
             }
             Spacer(Modifier.height(16.dp))
+            if (state.chats.isNotEmpty()) ChatSearchField(query, { query = it })
             Text(
                 text = stringResource(Res.string.nav_chats),
                 style = MaterialTheme.typography.labelLarge,
@@ -282,6 +323,7 @@ fun Sidebar(
                     ChatList(
                         chats = state.chats,
                         selectedChatId = selectedChatId,
+                        query = query,
                         generatingChatId = state.generatingChatId,
                         onOpenChat = { component.onIntent(ChatListIntent.OpenChat(it)) },
                         onDeleteChat = { component.onIntent(ChatListIntent.DeleteChat(it)) },
@@ -309,4 +351,23 @@ fun Sidebar(
             )
         }
     }
+}
+
+@Composable
+private fun ChatSearchField(query: String, onQuery: (String) -> Unit) {
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQuery,
+        singleLine = true,
+        label = { Text(stringResource(Res.string.chats_search)) },
+        leadingIcon = { Icon(Icons.Outlined.Search, null) },
+        trailingIcon = {
+            if (query.isNotEmpty()) IconButton(
+                onClick = { onQuery("") },
+                modifier = Modifier.testTag("clear_chat_search"),
+            ) { Icon(Icons.Outlined.Close, stringResource(Res.string.chats_search_clear)) }
+        },
+        shape = MaterialTheme.shapes.extraLarge,
+        modifier = Modifier.fillMaxWidth().testTag("chat_search"),
+    )
 }

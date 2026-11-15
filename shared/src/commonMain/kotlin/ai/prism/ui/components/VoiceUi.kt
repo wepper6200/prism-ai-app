@@ -150,7 +150,7 @@ fun VoiceErrorBanner(error: VoiceError, onDismiss: () -> Unit, modifier: Modifie
 /** Кнопка «Озвучить» под ответом; пока ответ звучит — «Остановить». */
 @Composable
 fun SpeakButton(speaking: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    IconButton(onClick = onClick, modifier = modifier.size(36.dp).testTag("speak_button")) {
+    IconButton(onClick = onClick, modifier = modifier.size(48.dp).testTag("speak_button")) {
         Icon(
             if (speaking) Icons.Filled.Stop else Icons.AutoMirrored.Outlined.VolumeUp,
             contentDescription = stringResource(if (speaking) Res.string.message_speak_stop else Res.string.message_speak),

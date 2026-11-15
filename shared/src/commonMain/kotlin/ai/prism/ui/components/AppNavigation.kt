@@ -1,5 +1,9 @@
 package ai.prism.ui.components
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.material.icons.filled.ChatBubble
+import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.Settings
 import ai.prism.resources.Res
 import ai.prism.resources.nav_chats
 import ai.prism.resources.nav_models
@@ -26,6 +30,7 @@ import org.jetbrains.compose.resources.stringResource
 fun AppNavigation(selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
     val labels = listOf(Res.string.nav_chats, Res.string.nav_models, Res.string.nav_settings)
     val icons = listOf(Icons.Outlined.ChatBubbleOutline, Icons.Outlined.Memory, Icons.Outlined.Settings)
+    val activeIcons = listOf(Icons.Filled.ChatBubble, Icons.Filled.Memory, Icons.Filled.Settings)
     val tags = listOf("nav_chats", "nav_models", "nav_settings")
     PrismPanel(modifier.padding(horizontal = 12.dp, vertical = 8.dp), RoundedCornerShape(28.dp)) {
         NavigationBar(containerColor = Color.Transparent, tonalElevation = if (LocalPrismStyle.current.isGlass) 0.dp else 2.dp) {
@@ -33,7 +38,11 @@ fun AppNavigation(selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = M
                 NavigationBarItem(
                     selected = selected == index,
                     onClick = { onSelect(index) },
-                    icon = { Icon(icons[index], contentDescription = null) },
+                    icon = {
+                        Crossfade(selected == index) { active ->
+                            Icon(if (active) activeIcons[index] else icons[index], contentDescription = null)
+                        }
+                    },
                     label = { Text(stringResource(label)) },
                     modifier = Modifier.testTag(tags[index]),
                 )

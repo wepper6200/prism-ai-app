@@ -1,12 +1,19 @@
 package ai.prism.ui.screens
 
-import ai.prism.resources.suggestion_explain
-import ai.prism.resources.suggestion_explain_prompt
-import ai.prism.resources.suggestion_write
-import ai.prism.resources.suggestion_write_prompt
-import ai.prism.resources.suggestion_plan
-import ai.prism.resources.suggestion_plan_prompt
-import androidx.compose.material3.AssistChip
+import ai.prism.ui.components.PromptSuggestions
+import ai.prism.ui.components.rememberTextCopier
+import ai.prism.resources.message_copy
+import ai.prism.resources.message_copied
+import ai.prism.resources.message_copy_failed
+import ai.prism.resources.chat_jump_latest
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
+import androidx.compose.material.icons.outlined.ArrowDownward
+import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 
@@ -687,26 +694,14 @@ private fun AttachmentErrorBanner(error: AttachmentError, onDismiss: () -> Unit,
 @Composable
 private fun ChatEmptyState(state: ChatState, onOpenModels: () -> Unit, onPrompt: (String) -> Unit) {
     if (state.modelName != null && state.modelDownloaded) {
-      Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
         EmptyState(
             icon = Icons.Outlined.AutoAwesome,
             title = stringResource(Res.string.chat_greeting_title),
             text = stringResource(Res.string.chat_greeting_text),
         )
-        FlowRow(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-        ) {
-            listOf(
-                Res.string.suggestion_explain to Res.string.suggestion_explain_prompt,
-                Res.string.suggestion_write to Res.string.suggestion_write_prompt,
-                Res.string.suggestion_plan to Res.string.suggestion_plan_prompt,
-            ).forEachIndexed { index, (label, prompt) ->
-                val value = stringResource(prompt)
-                AssistChip(onClick = { onPrompt(value) }, label = { Text(stringResource(label)) }, modifier = Modifier.testTag("chat_suggestion_$index"))
-            }
+        PromptSuggestions(onPrompt, Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
         }
-      }
     } else {
         EmptyState(
             icon = Icons.Outlined.Memory,
@@ -737,49 +732,66 @@ private fun MessageList(
     // Следуем за ответом, пока пользователь сам не прокрутил историю вверх.
     var follow by remember { mutableStateOf(true) }
     LaunchedEffect(listState.isScrollInProgress) {
-        if (!listState.isScrollInProgress) follow = !listState.canScrollForward
+        if (listState.isScrollInProgress) follow = false
+        else if (!listState.canScrollForward) follow = true
     }
     val lastLength = state.messages.lastOrNull()?.text?.length ?: 0
-    LaunchedEffect(state.messages.size) { follow = true }
+    LaunchedEffect(state.messages.size) { if (state.messages.lastOrNull()?.role == MessageRole.USER) follow = true }
     LaunchedEffect(state.messages.size, lastLength) {
         if (follow && state.messages.isNotEmpty()) {
             listState.scrollToItem(state.messages.lastIndex, Int.MAX_VALUE)
         }
     }
     val lastId = state.messages.lastOrNull()?.id
-    LazyColumn(
-        state = listState,
-        modifier = modifier.testTag("message_list"),
-        contentPadding = PaddingValues(vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        items(state.messages, key = { it.id }) { message ->
-            Box(Modifier.widthIn(max = 800.dp).fillMaxWidth()) {
-                when (message.role) {
-                    MessageRole.USER -> UserMessage(message, loadImage, onOpenImage)
-                    MessageRole.ASSISTANT -> AssistantMessage(
-                        message = message,
-                        onResolve = onResolve,
-                        onSaveVideo = onSaveVideo,
-                        playAudio = playAudio,
-                        loadImage = loadImage,
-                        onOpenImage = onOpenImage,
-                        loadingProgress = state.modelLoadingProgress.takeIf { message.isStreaming },
-                        canRetry = message.id == lastId && !state.isGenerating && !state.busyInOtherChat,
-                        onRetry = onRetry,
-                        speech = if (state.voice.supported && !message.isStreaming && message.text.isNotBlank() &&
-                            message.status == MessageStatus.COMPLETE
-                        ) {
-                            MessageSpeech(speaking = state.voice.speakingMessageId == message.id, onSpeak = { onSpeak(message.id) })
-                        } else {
-                            null
-                        },
-                    )
+    val scrollScope = rememberCoroutineScope()
+    Box(modifier) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize().testTag("message_list"),
+            contentPadding = PaddingValues(vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            items(state.messages, key = { it.id }) { message ->
+                Box(Modifier.widthIn(max = 800.dp).fillMaxWidth()) {
+                    when (message.role) {
+                        MessageRole.USER -> UserMessage(message, loadImage, onOpenImage)
+                        MessageRole.ASSISTANT -> AssistantMessage(
+                            message = message,
+                            onResolve = onResolve,
+                            onSaveVideo = onSaveVideo,
+                            playAudio = playAudio,
+                            loadImage = loadImage,
+                            onOpenImage = onOpenImage,
+                            loadingProgress = state.modelLoadingProgress.takeIf { message.isStreaming },
+                            canRetry = message.id == lastId && !state.isGenerating && !state.busyInOtherChat,
+                            onRetry = onRetry,
+                            speech = if (state.voice.supported && !message.isStreaming && message.text.isNotBlank() &&
+                                message.status == MessageStatus.COMPLETE
+                            ) {
+                                MessageSpeech(speaking = state.voice.speakingMessageId == message.id, onSpeak = { onSpeak(message.id) })
+                            } else {
+                                null
+                            },
+                        )
+                    }
+                }
+            }
+        }
+        AnimatedVisibility(visible = listState.canScrollForward, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp)) {
+            ai.prism.ui.components.PrismPanel(shape = CircleShape) {
+                IconButton(onClick = {
+                    scrollScope.launch {
+                        if (state.messages.isNotEmpty()) listState.animateScrollToItem(state.messages.lastIndex, Int.MAX_VALUE)
+                        follow = true
+                    }
+                }, modifier = Modifier.size(48.dp).testTag("jump_latest")) {
+                    Icon(Icons.Outlined.ArrowDownward, stringResource(Res.string.chat_jump_latest))
                 }
             }
         }
     }
+
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -920,7 +932,33 @@ private fun AssistantMessage(
                 MessageStatus.COMPLETE, MessageStatus.GENERATING -> Unit
             }
             if (message.sources.isNotEmpty() && message.text.isNotEmpty()) SourcesLine(message.sources)
-            speech?.let { SpeakButton(speaking = it.speaking, onClick = it.onSpeak) }
+            if (!message.isStreaming && message.text.isNotBlank()) ReplyActions(message.text, speech)
+            else speech?.let { SpeakButton(speaking = it.speaking, onClick = it.onSpeak) }
+        }
+    }
+}
+
+/** Copy feedback remains inside the action row, so it never shifts the transcript. */
+@Composable
+private fun ReplyActions(text: String, speech: MessageSpeech?) {
+    val copy = rememberTextCopier()
+    var copied by remember { mutableStateOf<Boolean?>(null) }
+    var attempt by remember { mutableStateOf(0) }
+    LaunchedEffect(attempt) { if (attempt > 0) { delay(1800); copied = null } }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        IconButton(onClick = { copied = copy(text); attempt++ }, modifier = Modifier.size(48.dp).testTag("copy_reply")) {
+            Crossfade(targetState = copied == true, label = "copyConfirmation") { done ->
+                Icon(if (done) Icons.Outlined.Check else Icons.Outlined.ContentCopy,
+                    stringResource(if (done) Res.string.message_copied else Res.string.message_copy),
+                    Modifier.size(20.dp), tint = if (done) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        speech?.let { SpeakButton(speaking = it.speaking, onClick = it.onSpeak) }
+        copied?.let { success ->
+            Text(stringResource(if (success) Res.string.message_copied else Res.string.message_copy_failed),
+                style = MaterialTheme.typography.labelMedium,
+                color = if (success) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }.testTag("copy_feedback"))
         }
     }
 }
