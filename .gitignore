@@ -9,3 +9,6 @@ captures/
 __pycache__/
 *.pyc
 **/.cxx/
+
+iosApp/Version.xcconfig
+iosApp/DerivedData/

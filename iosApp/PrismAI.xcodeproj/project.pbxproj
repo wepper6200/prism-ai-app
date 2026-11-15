@@ -1,0 +1,33 @@
+// !$*UTF8*$!
+{ archiveVersion = 1; classes = {}; objectVersion = 56; objects = {
+000000000000000000000001 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrismAIApp.swift; sourceTree = "<group>"; };
+000000000000000000000002 = { isa = PBXBuildFile; fileRef = 000000000000000000000001; };
+000000000000000000000003 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleHost.swift; sourceTree = "<group>"; };
+000000000000000000000004 = { isa = PBXBuildFile; fileRef = 000000000000000000000003; };
+000000000000000000000005 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleNetwork.swift; sourceTree = "<group>"; };
+000000000000000000000006 = { isa = PBXBuildFile; fileRef = 000000000000000000000005; };
+000000000000000000000007 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplePickers.swift; sourceTree = "<group>"; };
+000000000000000000000008 = { isa = PBXBuildFile; fileRef = 000000000000000000000007; };
+000000000000000000000009 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleAudio.swift; sourceTree = "<group>"; };
+00000000000000000000000A = { isa = PBXBuildFile; fileRef = 000000000000000000000009; };
+00000000000000000000000B = { isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+00000000000000000000000C = { isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+00000000000000000000000D = { isa = PBXBuildFile; fileRef = 00000000000000000000000C; };
+00000000000000000000000E = { isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Version.xcconfig; sourceTree = "<group>"; };
+00000000000000000000000F = { isa = PBXFileReference; explicitFileType = wrapper.application; path = PrismAI.app; sourceTree = BUILT_PRODUCTS_DIR; };
+000000000000000000000010 = { isa = PBXGroup; children = (000000000000000000000001,000000000000000000000003,000000000000000000000005,000000000000000000000007,000000000000000000000009,00000000000000000000000B,00000000000000000000000C); path = PrismAI; sourceTree = "<group>"; };
+000000000000000000000011 = { isa = PBXGroup; children = (00000000000000000000000F); name = Products; sourceTree = "<group>"; };
+000000000000000000000012 = { isa = PBXGroup; children = (000000000000000000000010,00000000000000000000000E,000000000000000000000011); sourceTree = "<group>"; };
+000000000000000000000013 = { isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (000000000000000000000002,000000000000000000000004,000000000000000000000006,000000000000000000000008,00000000000000000000000A); runOnlyForDeploymentPostprocessing = 0; };
+000000000000000000000014 = { isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (00000000000000000000000D); runOnlyForDeploymentPostprocessing = 0; };
+000000000000000000000015 = { isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+000000000000000000000016 = { isa = PBXShellScriptBuildPhase; alwaysOutOfDate = 1; buildActionMask = 2147483647; files = (); inputPaths = (); name = "Compile shared Kotlin"; outputPaths = (); runOnlyForDeploymentPostprocessing = 0; shellPath = /bin/sh; shellScript = "cd \"$SRCROOT/..\"\n./gradlew -Pprism.ios=true -Pprism.skipAndroid=true :shared:embedAndSignAppleFrameworkForXcode --console=plain\n"; };
+000000000000000000000017 = { isa = XCBuildConfiguration; buildSettings = { CLANG_ENABLE_MODULES = YES; }; name = Debug; };
+000000000000000000000018 = { isa = XCBuildConfiguration; baseConfigurationReference = 00000000000000000000000E; buildSettings = { ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; CODE_SIGN_STYLE = Automatic; ENABLE_USER_SCRIPT_SANDBOXING = NO; FRAMEWORK_SEARCH_PATHS = "$(inherited) $(SRCROOT)/../shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"; OTHER_LDFLAGS = "$(inherited) -framework PrismShared"; INFOPLIST_FILE = PrismAI/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = ai.prism.app; PRODUCT_NAME = PrismAI; SDKROOT = iphoneos; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SUPPORTS_MACCATALYST = NO; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG; DEBUG_INFORMATION_FORMAT = dwarf; }; name = Debug; };
+000000000000000000000019 = { isa = XCBuildConfiguration; buildSettings = { CLANG_ENABLE_MODULES = YES; }; name = Release; };
+00000000000000000000001A = { isa = XCBuildConfiguration; baseConfigurationReference = 00000000000000000000000E; buildSettings = { ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; CODE_SIGN_STYLE = Automatic; ENABLE_USER_SCRIPT_SANDBOXING = NO; FRAMEWORK_SEARCH_PATHS = "$(inherited) $(SRCROOT)/../shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"; OTHER_LDFLAGS = "$(inherited) -framework PrismShared"; INFOPLIST_FILE = PrismAI/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = ai.prism.app; PRODUCT_NAME = PrismAI; SDKROOT = iphoneos; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SUPPORTS_MACCATALYST = NO; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; SWIFT_OPTIMIZATION_LEVEL = "-O"; DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym"; }; name = Release; };
+00000000000000000000001B = { isa = XCConfigurationList; buildConfigurations = (000000000000000000000017,000000000000000000000019); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+00000000000000000000001C = { isa = XCConfigurationList; buildConfigurations = (000000000000000000000018,00000000000000000000001A); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+00000000000000000000001D = { isa = PBXNativeTarget; buildConfigurationList = 00000000000000000000001C; buildPhases = (000000000000000000000016,000000000000000000000013,000000000000000000000015,000000000000000000000014); buildRules = (); dependencies = (); name = PrismAI; productName = PrismAI; productReference = 00000000000000000000000F; productType = "com.apple.product-type.application"; };
+00000000000000000000001E = { isa = PBXProject; attributes = { BuildIndependentTargetsInParallel = YES; LastUpgradeCheck = 2700; }; buildConfigurationList = 00000000000000000000001B; compatibilityVersion = "Xcode 14.0"; developmentRegion = ru; hasScannedForEncodings = 0; knownRegions = (ru,en,Base); mainGroup = 000000000000000000000012; productRefGroup = 000000000000000000000011; projectDirPath = ""; projectRoot = ""; targets = (00000000000000000000001D); };
+}; rootObject = 00000000000000000000001E; }

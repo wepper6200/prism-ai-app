@@ -32,7 +32,7 @@ internal class IosModelStorage(private val host: IosHost) : ModelStorage {
     override fun filePath(file: ModelFile): String = "$directory/${file.fileName}"
     fun part(file: ModelFile): String = filePath(file) + ".part"
     override fun isDownloaded(file: ModelFile): Boolean = host.exists(filePath(file)) && host.size(filePath(file)) == file.sizeBytes
-    override fun partialBytes(file: ModelFile): Long = host.size(part(file)).coerceAtLeast(0)
+    override fun partialBytes(file: ModelFile): Long = maxOf(host.size(part(file)), host.read(filePath(file) + ".resume.bytes")?.toBytes()?.decodeToString()?.toLongOrNull() ?: 0).coerceAtLeast(0)
     override fun freeSpaceBytes(): Long = host.freeSpace()
     override fun unpackedPath(file: ModelFile): String {
         val directory = filePath(file) + ".d"
@@ -44,11 +44,11 @@ internal class IosModelStorage(private val host: IosHost) : ModelStorage {
         return directory
     }
     override fun delete(file: ModelFile) {
-        listOf("", ".part", ".resume", ".d").forEach { host.remove(filePath(file) + it) }
+        listOf("", ".part", ".resume", ".resume.bytes", ".d").forEach { host.remove(filePath(file) + it) }
     }
     override fun adoptOldFiles(file: ModelFile) {
         file.oldFileNames.filter { it != file.fileName && '/' !in it && '\\' !in it }.forEach { old ->
-            listOf("", ".part", ".resume", ".d").forEach { suffix ->
+            listOf("", ".part", ".resume", ".resume.bytes", ".d").forEach { suffix ->
                 val target = filePath(file) + suffix
                 val source = "$directory/$old$suffix"
                 if (!host.exists(target) && host.exists(source)) host.move(source, target)
