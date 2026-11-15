@@ -75,6 +75,12 @@ kotlin {
             val sdk = if (target.name == "iosArm64") "iphoneos" else "iphonesimulator"
             val nativeOutput = rootProject.layout.projectDirectory.dir("native/build/ios/${target.name}")
             val buildNative = tasks.register<Exec>("buildNative${target.name.replaceFirstChar { it.uppercaseChar() }}") {
+                inputs.dir(rootProject.file("native/apple"))
+                inputs.file(rootProject.file("native/prism_llama.cpp"))
+                inputs.dir(rootProject.file("native/llama.cpp"))
+                inputs.file(rootProject.file("gradle/libs.versions.toml"))
+                inputs.property("sdk", sdk)
+                outputs.dir(nativeOutput)
                 commandLine("bash", rootProject.file("native/apple/build.sh"), sdk, nativeOutput.asFile.absolutePath)
             }
             target.compilations.getByName("main").cinterops.create("prismNative") {
@@ -84,8 +90,12 @@ kotlin {
             target.binaries.framework {
                 baseName = "PrismShared"
                 isStatic = true
+                freeCompilerArgs += "-Xbackend-threads=${Runtime.getRuntime().availableProcessors().coerceIn(1, 4)}"
                 linkerOpts("-L${nativeOutput.asFile.absolutePath}", "-lprism_bundle", "-lprism_sherpa", "-lprism_onnx", "-lc++", "-framework", "Metal", "-framework", "Accelerate", "-framework", "CoreML", "-framework", "AudioToolbox", "-lbz2", "-lz")
-                linkTaskProvider.configure { dependsOn(buildNative) }
+                linkTaskProvider.configure {
+                    dependsOn(buildNative)
+                    inputs.files(listOf("libprism_bundle.a", "libprism_sherpa.a", "libprism_onnx.a").map { nativeOutput.file(it) }).withPropertyName("appleNativeLibraries")
+                }
             }
         }
     }

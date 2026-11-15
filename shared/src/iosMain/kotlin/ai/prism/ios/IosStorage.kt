@@ -32,7 +32,10 @@ internal class IosModelStorage(private val host: IosHost) : ModelStorage {
     override fun filePath(file: ModelFile): String = "$directory/${file.fileName}"
     fun part(file: ModelFile): String = filePath(file) + ".part"
     override fun isDownloaded(file: ModelFile): Boolean = host.exists(filePath(file)) && host.size(filePath(file)) == file.sizeBytes
-    override fun partialBytes(file: ModelFile): Long = maxOf(host.size(part(file)), host.read(filePath(file) + ".resume.bytes")?.toBytes()?.decodeToString()?.toLongOrNull() ?: 0).coerceAtLeast(0)
+    override fun partialBytes(file: ModelFile): Long {
+        val resumed = if (host.exists(filePath(file) + ".resume")) host.read(filePath(file) + ".resume.bytes")?.toBytes()?.decodeToString()?.toLongOrNull() ?: 0 else 0
+        return maxOf(host.size(part(file)), resumed).coerceAtLeast(0)
+    }
     override fun freeSpaceBytes(): Long = host.freeSpace()
     override fun unpackedPath(file: ModelFile): String {
         val directory = filePath(file) + ".d"

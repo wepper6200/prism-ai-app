@@ -68,7 +68,7 @@ private final class AudioPlayback {
             engine.attach(player); engine.connect(player, to: engine.mainMixerNode, format: format)
             try engine.start()
             player.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { [self] _ in
-                DispatchQueue.main.async { if !cancelled { stop(); completion(nil) } }
+                DispatchQueue.main.async { if !self.cancelled { self.stop(); self.completion(nil) } }
             }
             player.play()
         } catch { stop(); completion(error.localizedDescription) }

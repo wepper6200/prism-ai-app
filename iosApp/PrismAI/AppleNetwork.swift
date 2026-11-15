@@ -49,8 +49,9 @@ private final class ModelDownload: NSObject, URLSessionDownloadDelegate {
         } catch { storedError = error.localizedDescription }
     }
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        if let resume = (error as NSError?)?.userInfo[NSURLSessionDownloadTaskResumeData] as? Data { try? resume.write(to: URL(fileURLWithPath: resumePath), options: .atomic) }
-        if (error as NSError?)?.code == NSURLErrorCannotResume { try? FileManager.default.removeItem(atPath: resumePath); try? FileManager.default.removeItem(atPath: resumePath + ".bytes") }
+        let resume = (error as NSError?)?.userInfo[NSURLSessionDownloadTaskResumeData] as? Data
+        if let resume, storedError == nil { try? resume.write(to: URL(fileURLWithPath: resumePath), options: .atomic) }
+        if storedError != nil || (error != nil && resume == nil) { try? FileManager.default.removeItem(atPath: resumePath); try? FileManager.default.removeItem(atPath: resumePath + ".bytes") }
         completion(storedError ?? error?.localizedDescription ?? (finished ? nil : "Download incomplete"))
         session.finishTasksAndInvalidate()
     }

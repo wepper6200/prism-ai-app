@@ -16,7 +16,7 @@ assert hashlib.sha256(fixture.read_bytes()).hexdigest() == '270cba1bd5109f42d033
 catalog = json.loads((root / 'shared/src/commonMain/composeResources/files/models.json').read_text())['models']
 models_dir = folder / 'models'; models_dir.mkdir(exist_ok=True)
 for model in catalog:
-    if model['id'] not in ('gigaam-v3-ctc-punct-ru-int8', 'supertonic-3-int8'): continue
+    if model['id'] not in ('gigaam-v3-ctc-punct-ru-int8', 'supertonic-3-int8', 'embeddinggemma-300m-q8_0'): continue
     for item in [model] + model.get('components', []):
         path = models_dir / item['fileName']
         urllib.request.urlretrieve(item['url'], path)

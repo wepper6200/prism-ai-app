@@ -33,6 +33,19 @@ fun runOfflineSmoke(modelPath: String, completion: (String?) -> Unit) {
             engine.unload()
             val catalog = ModelCatalog().load()
             val storage = IosModelStorage(host)
+            val embeddingModel = catalog.first { it.kind == ModelKind.EMBEDDING }
+            val embedder = LlamaTextEmbedder(NativeLibraryLoader { "" }, device)
+            try {
+                val settings = checkNotNull(embeddingModel.embedding)
+                val vectors = embedder.embed(embeddingModel, storage.filePath(embeddingModel.mainFile), listOf(
+                    settings.queryTemplate.replace("{text}", "Как ухаживать за кошкой?"),
+                    settings.documentTemplate.replace("{text}", "Кошке нужны корм, свежая вода и уход за шерстью."),
+                    settings.documentTemplate.replace("{text}", "Поезд до Москвы отправляется в восемь часов утра."),
+                ))
+                check(vectors.size == 3 && vectors.all { it.size > 100 && it.all(Float::isFinite) })
+                fun similarity(a: FloatArray, b: FloatArray): Float = a.indices.sumOf { (a[it] * b[it]).toDouble() }.toFloat()
+                check(similarity(vectors[0], vectors[1]) > similarity(vectors[0], vectors[2])) { "Russian document retrieval failed" }
+            } finally { embedder.release() }
             val speech = IosSpeechEngine(host, 2)
             try {
                 val voice = catalog.first { it.id == "supertonic-3-int8" }
