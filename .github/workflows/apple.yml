@@ -48,7 +48,9 @@ jobs:
       - name: Build C bridge
         run: |
           cmake -S native/apple -B native/build/portable -G Ninja -DCMAKE_BUILD_TYPE=Release
-          cmake --build native/build/portable --target prism_bridge_smoke --parallel 2
+          cmake --build native/build/portable --target prism_bridge_smoke prism_archive_check --parallel 2
+      - name: Verify offline voice archives and DOCX bounds
+        run: python3 native/apple/test_archives.py native/build/portable/libprism_archive_check.so
       - name: Download and verify tiny inference fixture
         run: |
           curl -fL --retry 5 -o /tmp/tiny.gguf https://huggingface.co/ggml-org/models/resolve/main/tinyllamas/stories260K.gguf

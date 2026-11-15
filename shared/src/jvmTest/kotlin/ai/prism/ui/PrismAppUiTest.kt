@@ -30,6 +30,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.v2.runDesktopComposeUiTest
 import com.arkivanov.decompose.DecomposeSettings
@@ -47,6 +48,7 @@ import java.io.File
 import java.nio.file.Files
 import javax.imageio.ImageIO
 import kotlin.test.Test
+import kotlin.test.assertTrue
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 
@@ -132,6 +134,26 @@ class PrismAppUiTest {
         onNodeWithTag("message_input").performTextInput(text)
         onNodeWithTag("send_button").performClick()
         waitForIdle()
+    }
+
+    @Test
+    fun compactNavigationSearchAndPromptSuggestionsWork() = runDesktopComposeUiTest(width = 412, height = 892) {
+        val (_, root) = createApp()
+        setContent { PrismApp(root) }
+        onNodeWithTag("nav_models").performClick()
+        onNodeWithTag("models_search").performTextInput("модель которой нет")
+        onNodeWithTag("models_no_results").performScrollTo().assertIsDisplayed()
+        onNodeWithTag("models_search").performTextReplacement("Gemma")
+        onNodeWithTag("models_category_2").performClick()
+        onNodeWithTag("models_no_results").performScrollTo().assertIsDisplayed()
+        onNodeWithTag("nav_chats").performClick()
+        onNodeWithTag("new_chat").performClick()
+        onNodeWithTag("chat_suggestion_0").performClick()
+        val chat = assertIs<RootComponent.Child.Chat>(root.stack.value.active.instance).component
+        assertTrue(chat.state.value.draft.startsWith("Объясни"))
+        assertTrue(chat.state.value.messages.isEmpty())
+        onNodeWithTag("nav_chats").assertDoesNotExist()
+        screenshot("compact_21_prompt_suggestions")
     }
 
     @Test
