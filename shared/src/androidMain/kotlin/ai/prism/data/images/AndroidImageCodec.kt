@@ -49,7 +49,8 @@ class AndroidImageCodec : ImageCodec {
         }
     }
 
-    override fun decodeRgb(file: File): RgbImage? {
+    override fun decodeRgb(path: String): RgbImage? {
+        val file = File(path)
         val options = BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.ARGB_8888 }
         val bitmap = BitmapFactory.decodeFile(file.absolutePath, options) ?: return null
         return try {

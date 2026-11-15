@@ -97,7 +97,7 @@ class FileImageStore(
     }
 
     /** Пиксели изображения для модели. */
-    fun decodeRgb(fileName: String): RgbImage? = codec.decodeRgb(File(directory, fileName))
+    fun decodeRgb(fileName: String): RgbImage? = codec.decodeRgb(File(directory, fileName).absolutePath)
 
     private companion object {
         const val EXTENSION = ".jpg"

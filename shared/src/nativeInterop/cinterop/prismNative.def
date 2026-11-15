@@ -1,0 +1,2 @@
+headers = prism_native.h
+package = ai.prism.apple.native

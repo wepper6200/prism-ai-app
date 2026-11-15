@@ -14,7 +14,6 @@ import ai.prism.domain.model.ChatFormat
 import ai.prism.domain.model.DeviceInfo
 import ai.prism.inference.ChatPromptFormatter
 import ai.prism.inference.ReplyFilter
-import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,9 +24,8 @@ import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlin.concurrent.Volatile
 import kotlinx.coroutines.withContext
-import java.io.File
-import java.util.concurrent.Executors
 
 /**
  * [InferenceEngine] на llama.cpp через JNI.
@@ -42,9 +40,7 @@ class LlamaInferenceEngine(
     private val imageCodec: ImageCodec,
 ) : InferenceEngine {
 
-    private val dispatcher = Executors.newSingleThreadExecutor { runnable ->
-        Thread(runnable, "prism-llama").apply { isDaemon = true }
-    }.asCoroutineDispatcher()
+    private val dispatcher = inferenceDispatcher("prism-llama")
     private val mutex = Mutex()
 
     private val mutableState = MutableStateFlow<EngineState>(EngineState.Idle)
@@ -251,16 +247,9 @@ class LlamaInferenceEngine(
     }
 
     private fun checkModelFile(model: CatalogModel, filePath: String) {
-        if (!isGguf(File(filePath), model.sizeBytes)) {
+        if (!isGguf(filePath, model.sizeBytes)) {
             throw InferenceException(InferenceError.MODEL_CORRUPTED, "Файл модели повреждён или скачан не полностью")
         }
-    }
-
-    private fun isGguf(file: File, expectedSize: Long): Boolean {
-        if (!file.isFile || file.length() != expectedSize) return false
-        val magic = ByteArray(4)
-        val read = file.inputStream().use { it.read(magic) }
-        return read == 4 && magic.contentEquals(GGUF_MAGIC)
     }
 
     /** Загружает модуль зрения при первом запросе с изображениями. */
@@ -271,7 +260,7 @@ class LlamaInferenceEngine(
         if (path == null || vision == null) {
             throw InferenceException(InferenceError.IMAGES_NOT_SUPPORTED, "У модели нет модуля зрения")
         }
-        if (!isGguf(File(path), vision.sizeBytes)) {
+        if (!isGguf(path, vision.sizeBytes)) {
             throw InferenceException(InferenceError.VISION_MODULE_CORRUPTED, "Файл модуля зрения повреждён")
         }
         val threads = deviceInfo.inferenceThreads
@@ -297,7 +286,7 @@ class LlamaInferenceEngine(
         for (image in images) {
             if (image.id in result) continue
             val decoded = try {
-                imageCodec.decodeRgb(File(image.path))
+                imageCodec.decodeRgb(image.path)
             } catch (e: OutOfMemoryError) {
                 throw InferenceException(InferenceError.NOT_ENOUGH_MEMORY, "Не хватает памяти для изображения", e)
             } ?: throw InferenceException(InferenceError.IMAGE_FAILED, "Не удалось открыть изображение")

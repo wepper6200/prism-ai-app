@@ -29,7 +29,8 @@ class DesktopImageCodec : ImageCodec {
         return EncodedImage(jpeg, scaled.width, scaled.height)
     }
 
-    override fun decodeRgb(file: File): RgbImage? {
+    override fun decodeRgb(path: String): RgbImage? {
+        val file = File(path)
         val image = try {
             ImageIO.read(file)
         } catch (e: IOException) {

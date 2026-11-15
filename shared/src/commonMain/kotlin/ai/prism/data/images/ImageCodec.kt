@@ -1,6 +1,5 @@
 package ai.prism.data.images
 
-import java.io.File
 
 /** Платформенное декодирование изображений (Android — ImageDecoder, Desktop — ImageIO). */
 interface ImageCodec {
@@ -11,7 +10,7 @@ interface ImageCodec {
     fun toJpeg(bytes: ByteArray, maxSide: Int): EncodedImage?
 
     /** Пиксели сохранённого изображения в формате RGB (3 байта на пиксель) или `null`. */
-    fun decodeRgb(file: File): RgbImage?
+    fun decodeRgb(path: String): RgbImage?
 }
 
 class EncodedImage(val jpeg: ByteArray, val width: Int, val height: Int)

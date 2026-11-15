@@ -6,13 +6,10 @@ import ai.prism.domain.inference.InferenceException
 import ai.prism.domain.model.CatalogModel
 import ai.prism.domain.model.DeviceInfo
 import ai.prism.domain.model.EmbeddingSettings
-import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import java.io.File
-import java.util.concurrent.Executors
 
 /**
  * [TextEmbedder] на llama.cpp: модель эмбеддингов (EmbeddingGemma) считается на процессоре
@@ -23,9 +20,7 @@ class LlamaTextEmbedder(
     private val deviceInfo: DeviceInfo,
 ) : TextEmbedder {
 
-    private val dispatcher = Executors.newSingleThreadExecutor { runnable ->
-        Thread(runnable, "prism-embed").apply { isDaemon = true }
-    }.asCoroutineDispatcher()
+    private val dispatcher = inferenceDispatcher("prism-embed")
     private val mutex = Mutex()
 
     private var backendReady = false
@@ -64,8 +59,7 @@ class LlamaTextEmbedder(
             }
             backendReady = true
         }
-        val file = File(filePath)
-        if (!file.isFile || file.length() != model.sizeBytes) {
+        if (!isGguf(filePath, model.sizeBytes)) {
             throw InferenceException(InferenceError.MODEL_CORRUPTED, "Файл модели поиска повреждён или скачан не полностью")
         }
         val handle = LlamaNative.loadModel(filePath, 0, null)

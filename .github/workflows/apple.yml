@@ -1,0 +1,49 @@
+name: Apple and portable native bridge
+on:
+  push:
+    branches: ["codex/prism-ios-0.9.8"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: apple-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  ios-framework:
+    name: iOS shared framework
+    runs-on: xcode-27
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Compile iOS simulator framework and shared platform code
+        run: ./gradlew -Pprism.ios=true -Pprism.skipAndroid=true :shared:linkDebugFrameworkIosSimulatorArm64 --stacktrace --console=plain
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: ios-framework-diagnostics
+          path: shared/build/reports/
+          if-no-files-found: ignore
+  portable-bridge:
+    name: Portable llama.cpp C API
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+      - name: Build C bridge
+        run: |
+          cmake -S native/apple -B native/build/portable -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build native/build/portable --target prism_bridge_smoke --parallel 2
+      - name: Download and verify tiny inference fixture
+        run: |
+          curl -fL --retry 5 -o /tmp/tiny.gguf https://huggingface.co/ggml-org/models/resolve/main/tinyllamas/stories260K.gguf
+          echo '270cba1bd5109f42d03350f60406024560464db173c0e387d91f0426d3bd256d  /tmp/tiny.gguf' | sha256sum -c -
+      - name: Exercise streaming, cancellation, reuse and missing model errors
+        run: native/build/portable/prism_bridge_smoke /tmp/tiny.gguf

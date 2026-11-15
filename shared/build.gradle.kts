@@ -68,7 +68,29 @@ kotlin {
 
     jvm()
 
+    // Apple targets are configured by Xcode/macOS CI only; regular Windows builds stay JVM-only.
+    if (providers.gradleProperty("prism.ios").orNull == "true") {
+        listOf(iosArm64(), iosSimulatorArm64()).forEach { target ->
+            val sdk = if (target.name == "iosArm64") "iphoneos" else "iphonesimulator"
+            val nativeOutput = rootProject.layout.projectDirectory.dir("native/build/ios/${target.name}")
+            val buildNative = tasks.register<Exec>("buildNative${target.name.replaceFirstChar { it.uppercaseChar() }}") {
+                commandLine("bash", rootProject.file("native/apple/build.sh"), sdk, nativeOutput.asFile.absolutePath)
+            }
+            target.compilations.getByName("main").cinterops.create("prismNative") {
+                definitionFile.set(project.file("src/nativeInterop/cinterop/prismNative.def"))
+                includeDirs(rootProject.file("native/apple"))
+            }
+            target.binaries.framework {
+                baseName = "PrismShared"
+                isStatic = true
+                linkerOpts("-L${nativeOutput.asFile.absolutePath}", "-lprism_bundle", "-lc++", "-framework", "Metal", "-framework", "Accelerate")
+                linkTaskProvider.configure { dependsOn(buildNative) }
+            }
+        }
+    }
+
     compilerOptions {
+        freeCompilerArgs.add("-Xexpect-actual-classes")
         allWarningsAsErrors.set(providers.gradleProperty("prism.werror").map { it.toBoolean() }.orElse(true))
     }
 
@@ -125,6 +147,11 @@ kotlin {
             // Нативные библиотеки sherpa-onnx и onnxruntime для ОС, на которой идёт сборка
             // (Windows — приложение, Linux — тесты в CI).
             runtimeOnly("com.k2fsa.sherpa-onnx:sherpa-onnx-native-lib-$sherpaNativeOs:${libs.versions.sherpa.onnx.get()}")
+        }
+        if (providers.gradleProperty("prism.ios").orNull == "true") {
+            val iosMain by getting {
+                dependencies { implementation(libs.sqldelight.native.driver) }
+            }
         }
         jvmTest.dependencies {
             implementation(libs.kotlin.test)

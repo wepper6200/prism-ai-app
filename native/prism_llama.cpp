@@ -3,7 +3,11 @@
 // Kotlin-сторона: ai.prism.inference.llama.LlamaNative (общая для Android и Desktop).
 // Все вызовы одной сессии выполняются из одного рабочего потока; cancel() — из любого.
 
+#ifdef PRISM_PORTABLE_BRIDGE
+#include "apple/portable_calls.hpp"
+#else
 #include <jni.h>
+#endif
 
 #include <algorithm>
 #include <cmath>
