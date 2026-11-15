@@ -70,6 +70,7 @@ kotlin {
 
     // Apple targets are configured by Xcode/macOS CI only; regular Windows builds stay JVM-only.
     if (providers.gradleProperty("prism.ios").orNull == "true") {
+        applyDefaultHierarchyTemplate()
         listOf(iosArm64(), iosSimulatorArm64()).forEach { target ->
             val sdk = if (target.name == "iosArm64") "iphoneos" else "iphonesimulator"
             val nativeOutput = rootProject.layout.projectDirectory.dir("native/build/ios/${target.name}")
@@ -149,9 +150,7 @@ kotlin {
             runtimeOnly("com.k2fsa.sherpa-onnx:sherpa-onnx-native-lib-$sherpaNativeOs:${libs.versions.sherpa.onnx.get()}")
         }
         if (providers.gradleProperty("prism.ios").orNull == "true") {
-            val iosMain by getting {
-                dependencies { implementation(libs.sqldelight.native.driver) }
-            }
+            getByName("iosMain").dependencies { implementation(libs.sqldelight.native.driver) }
         }
         jvmTest.dependencies {
             implementation(libs.kotlin.test)
