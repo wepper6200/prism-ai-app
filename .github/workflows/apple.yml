@@ -22,13 +22,21 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: gradle/actions/setup-gradle@v5
-      - name: Compile iOS simulator framework and shared platform code
-        run: ./gradlew -Pprism.ios=true -Pprism.skipAndroid=true :shared:linkDebugFrameworkIosSimulatorArm64 --stacktrace --console=plain
+      - name: Build iPhone simulator application
+        run: bash iosApp/build.sh iphonesimulator Debug
+      - name: Build unsigned iPhone and iPad package
+        run: bash iosApp/build.sh iphoneos Release
+      - uses: actions/upload-artifact@v6
+        with:
+          name: PrismAI-iOS-unsigned
+          path: build/PrismAI-unsigned.ipa
       - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: ios-framework-diagnostics
-          path: shared/build/reports/
+          path: |
+            shared/build/reports/
+            shared/build/bin/iosSimulatorArm64/debugFramework/PrismShared.framework/Headers/PrismShared.h
           if-no-files-found: ignore
   portable-bridge:
     name: Portable llama.cpp C API

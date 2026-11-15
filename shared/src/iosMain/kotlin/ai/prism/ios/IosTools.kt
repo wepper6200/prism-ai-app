@@ -1,7 +1,7 @@
 @file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
 package ai.prism.ios
 
-import ai.prism.data.agent.HtmlText
+import ai.prism.service.agent.HtmlText
 import ai.prism.domain.agent.*
 import ai.prism.domain.documents.*
 import kotlinx.coroutines.Dispatchers
