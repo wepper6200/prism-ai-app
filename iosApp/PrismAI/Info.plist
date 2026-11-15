@@ -9,6 +9,7 @@
 <key>CFBundleShortVersionString</key><string>$(PRISM_VERSION)</string>
 <key>CFBundleVersion</key><string>$(PRISM_BUILD)</string>
 <key>LSRequiresIPhoneOS</key><true/>
+<key>CADisableMinimumFrameDurationOnPhone</key><true/>
 <key>NSCameraUsageDescription</key><string>Снять фото и обсудить его с Prism AI на устройстве.</string>
 <key>NSMicrophoneUsageDescription</key><string>Диктовка и разговор с Prism AI. Звук обрабатывается на устройстве.</string>
 <key>NSAppTransportSecurity</key><dict><key>NSAllowsArbitraryLoads</key><true/></dict>
