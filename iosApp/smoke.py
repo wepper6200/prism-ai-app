@@ -22,10 +22,13 @@ for model in catalog:
         urllib.request.urlretrieve(item['url'], path)
         assert path.stat().st_size == item['sizeBytes']
         assert hashlib.sha256(path.read_bytes()).hexdigest() == item['sha256']
-run('xcrun', 'simctl', 'launch', udid, 'ai.prism.app', '--prism-smoke')
+output = root / 'build/ios-smoke'; output.mkdir(parents=True, exist_ok=True)
+console = (output / 'app.log').open('w')
+launch = subprocess.Popen(['xcrun', 'simctl', 'launch', '--console', udid, 'ai.prism.app', '--prism-smoke'], stdout=console, stderr=subprocess.STDOUT)
 report = folder / 'smoke-result.txt'
 for _ in range(180):
     if report.exists(): break
+    assert launch.poll() is None, "iOS application exited before completing the smoke; see app.log"
     time.sleep(2)
 assert report.exists(), 'iOS application did not complete real inference smoke'
 result = report.read_text(); print(result); assert result.startswith('OK:')
@@ -33,6 +36,7 @@ output = root / 'build/ios-smoke'; output.mkdir(parents=True, exist_ok=True)
 (output / 'inference.txt').write_text(result)
 run('xcrun', 'simctl', 'io', udid, 'screenshot', str(output / 'iphone.png'))
 run('xcrun', 'simctl', 'terminate', udid, 'ai.prism.app')
+launch.wait(timeout=20); console.close()
 run('xcrun', 'simctl', 'launch', udid, 'ai.prism.app')
 time.sleep(5)
 run('xcrun', 'simctl', 'io', udid, 'screenshot', str(output / 'iphone-relaunch.png'))

@@ -41,7 +41,9 @@ extern "C" int prism_unpack_voice(const char *archive, const char *destination) 
             const std::string stored(header + 148, 8);
             if (checksum != std::strtoul(stored.c_str(), nullptr, 8)) break;
             std::string name(header, strnlen(header, 100));
-            const std::string prefix(header + 345, strnlen(header + 345, 155));
+            // GNU tar uses this area for timestamps, not a POSIX path prefix.
+            const std::string prefix = std::memcmp(header + 257, "ustar\0", 6) == 0
+                ? std::string(header + 345, strnlen(header + 345, 155)) : std::string();
             if (!prefix.empty()) name = prefix + "/" + name;
             const fs::path relative(name);
             if (!safe(relative)) break;

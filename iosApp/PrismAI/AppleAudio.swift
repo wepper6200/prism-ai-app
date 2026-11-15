@@ -4,7 +4,7 @@ import PrismShared
 
 extension AppleHost {
     func microphonePermission(completion: @escaping (KotlinBoolean) -> Void) {
-        AVAudioSession.sharedInstance().requestRecordPermission { granted in DispatchQueue.main.async { completion(KotlinBoolean(value: granted)) } }
+        AVAudioApplication.requestRecordPermission { granted in DispatchQueue.main.async { completion(KotlinBoolean(value: granted)) } }
     }
     func recordPcm(sampleRate: Int32, samples: @escaping (Data) -> Void, failure: @escaping (String) -> Void) -> any IosCancellation {
         let recording = MicrophoneRecording(rate: Double(sampleRate), samples: samples, failure: failure)
@@ -19,7 +19,7 @@ extension AppleHost {
 }
 private func configureSession() throws {
     let session = AVAudioSession.sharedInstance()
-    try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
+    try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetoothHFP])
     try session.setActive(true)
 }
 private final class MicrophoneRecording {

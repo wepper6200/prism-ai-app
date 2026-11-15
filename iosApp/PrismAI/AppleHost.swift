@@ -84,8 +84,12 @@ final class AppleHost: NSObject, IosHost {
         }
         guard let jpeg = normalized.jpegData(compressionQuality: 0.88), let cg = normalized.cgImage else { return nil }
         var rgba = [UInt8](repeating: 0, count: width * height * 4)
-        guard let context = CGContext(data: &rgba, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
-        context.draw(cg, in: CGRect(x: 0, y: 0, width: width, height: height))
+        let drawn = rgba.withUnsafeMutableBytes { buffer -> Bool in
+            guard let context = CGContext(data: buffer.baseAddress, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return false }
+            context.draw(cg, in: CGRect(x: 0, y: 0, width: width, height: height))
+            return true
+        }
+        guard drawn else { return nil }
         var rgb = Data(count: width * height * 3)
         rgb.withUnsafeMutableBytes { (out: UnsafeMutableRawBufferPointer) in
             for i in 0..<(width * height) { out[i * 3] = rgba[i * 4]; out[i * 3 + 1] = rgba[i * 4 + 1]; out[i * 3 + 2] = rgba[i * 4 + 2] }
@@ -104,7 +108,10 @@ final class AppleHost: NSObject, IosHost {
             guard parser.parse() else { return IosDocumentResult(pages: [], error: "Invalid DOCX XML") }
             return IosDocumentResult(pages: [IosTextPage(page: 0, text: delegate.text)], error: nil)
         }
-        let text = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .utf16) ?? String(data: data, encoding: .windowsCP1251)
+        let text: String?
+        if data.starts(with: [0xFF, 0xFE]) { text = String(data: data.dropFirst(2), encoding: .utf16LittleEndian) }
+        else if data.starts(with: [0xFE, 0xFF]) { text = String(data: data.dropFirst(2), encoding: .utf16BigEndian) }
+        else { text = (String(data: data, encoding: .utf8) ?? String(data: data, encoding: .windowsCP1251))?.trimmingCharacters(in: CharacterSet(charactersIn: "\u{FEFF}")) }
         return IosDocumentResult(pages: text.map { [IosTextPage(page: 0, text: $0)] } ?? [], error: text == nil ? "Unsupported text encoding" : nil)
     }
     func present(_ controller: UIViewController) {

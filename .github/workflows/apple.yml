@@ -24,6 +24,12 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
       - name: Build iPhone simulator application
         run: bash iosApp/build.sh iphonesimulator Debug
+      - name: Package simulator app for interactive testing
+        run: ditto -c -k --keepParent iosApp/DerivedData/Build/Products/Debug-iphonesimulator/PrismAI.app build/PrismAI-iOS-Simulator.zip
+      - uses: actions/upload-artifact@v6
+        with:
+          name: PrismAI-iOS-Simulator
+          path: build/PrismAI-iOS-Simulator.zip
       - name: Run offline inference inside the iPhone simulator
         run: python3 iosApp/smoke.py
       - uses: actions/upload-artifact@v6

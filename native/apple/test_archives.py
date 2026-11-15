@@ -7,17 +7,24 @@ libc = ctypes.CDLL(None)
 libc.free.argtypes = [ctypes.c_void_p]
 with tempfile.TemporaryDirectory() as folder:
     root = pathlib.Path(folder)
-    def archive(name, kind=tarfile.REGTYPE):
+    def archive(name, kind=tarfile.REGTYPE, fmt=tarfile.USTAR_FORMAT):
         stream = io.BytesIO()
-        with tarfile.open(fileobj=stream, mode='w', format=tarfile.USTAR_FORMAT) as tar:
+        with tarfile.open(fileobj=stream, mode='w', format=fmt) as tar:
             item = tarfile.TarInfo(name); item.type = kind
             payload = b'offline voice fixture'
             if kind == tarfile.REGTYPE: item.size = len(payload)
             if kind == tarfile.SYMTYPE: item.linkname = '../outside'
             tar.addfile(item, io.BytesIO(payload) if kind == tarfile.REGTYPE else None)
-        path = root / 'model.tar.bz2'; path.write_bytes(bz2.compress(stream.getvalue())); return str(path).encode()
+        raw = bytearray(stream.getvalue())
+        if fmt == tarfile.GNU_FORMAT:
+            raw[345:357] = b'00000000001\0'  # GNU atime must never become a path prefix.
+            raw[148:156] = b'        '
+            raw[148:156] = ('%06o\0 ' % sum(raw[:512])).encode()
+        path = root / 'model.tar.bz2'; path.write_bytes(bz2.compress(raw)); return str(path).encode()
     dest = str(root / 'voice').encode()
     assert lib.prism_unpack_voice(archive('voice/tts.json'), dest) == 1
+    assert (root / 'voice/voice/tts.json').read_bytes() == b'offline voice fixture'
+    assert lib.prism_unpack_voice(archive('voice/tts.json', fmt=tarfile.GNU_FORMAT), dest) == 1
     assert (root / 'voice/voice/tts.json').read_bytes() == b'offline voice fixture'
     assert lib.prism_unpack_voice(archive('../escape'), dest) == 0
     assert not (root / 'escape').exists()
