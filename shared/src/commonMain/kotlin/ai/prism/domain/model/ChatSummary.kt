@@ -10,4 +10,5 @@ data class ChatSummary(
     val id: String,
     val title: String?,
     val updatedAt: Long,
+    val pinned: Boolean = false,
 )

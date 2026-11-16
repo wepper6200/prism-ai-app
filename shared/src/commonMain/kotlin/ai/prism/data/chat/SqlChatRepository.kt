@@ -45,7 +45,7 @@ class SqlChatRepository(
     override val chats: Flow<List<ChatSummary>> = queries.selectChats()
         .asFlow()
         .mapToList(ioContext)
-        .map { rows -> rows.map { ChatSummary(id = it.id, title = it.title, updatedAt = it.updated_at) } }
+        .map { rows -> rows.map { ChatSummary(id = it.id, title = it.title, updatedAt = it.updated_at, pinned = it.pinned != 0L) } }
 
     override fun messages(chatId: String): Flow<List<ChatMessage>> = combine(
         queries.selectMessages(chatId).asFlow().mapToList(ioContext),
@@ -109,6 +109,21 @@ class SqlChatRepository(
         val chat = ChatSummary(id = newId(), title = null, updatedAt = now)
         queries.insertChat(id = chat.id, title = null, created_at = now, updated_at = now)
         chat
+    }
+
+    override suspend fun setTitle(chatId: String, title: String) = withContext(ioContext) {
+        queries.setTitle(title.trim().take(120).ifEmpty { null }, chatId)
+        Unit
+    }
+
+    override suspend fun setPinned(chatId: String, pinned: Boolean) = withContext(ioContext) {
+        queries.setPinned(if (pinned) 1L else 0L, chatId)
+        Unit
+    }
+
+    override suspend fun setTrashed(chatId: String, trashed: Boolean) = withContext(ioContext) {
+        queries.setTrashed(if (trashed) 1L else 0L, chatId)
+        Unit
     }
 
     override suspend fun deleteChat(chatId: String) {
@@ -236,6 +251,8 @@ class SqlChatRepository(
 
     override suspend fun markInterruptedGenerations() = withContext(ioContext) {
         queries.markInterrupted()
+        // An interrupted undo window never silently destroys a conversation.
+        queries.selectTrashed().executeAsList().forEach { queries.setTrashed(0L, it) }
         Unit
     }
 

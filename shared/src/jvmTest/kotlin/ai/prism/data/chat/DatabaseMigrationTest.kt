@@ -9,6 +9,9 @@ import ai.prism.testing.MemoryImageStore
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.first
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -28,10 +31,17 @@ class DatabaseMigrationTest {
         ).forEach { driver.execute(null, it, 0) }
 
         PrismDatabase.Schema.migrate(driver, 1, PrismDatabase.Schema.version)
-        assertEquals(5L, PrismDatabase.Schema.version)
+        assertEquals(6L, PrismDatabase.Schema.version)
 
         val repository = SqlChatRepository(PrismDatabase(driver), MemoryImageStore(), Dispatchers.Unconfined)
         assertEquals(listOf("Привет"), repository.messagesSnapshot("c1").map { it.content })
+
+        assertFalse(repository.chats.first().single().pinned)
+        repository.setPinned("c1", true)
+        repository.setTitle("c1", "Сохранённое название")
+        val reopened = SqlChatRepository(PrismDatabase(driver), MemoryImageStore(), Dispatchers.Unconfined)
+        assertTrue(reopened.chats.first().single().pinned)
+        assertEquals("Сохранённое название", reopened.chats.first().single().title)
 
         val photo = ImageAttachment("i1", "i1.jpg", 640, 480)
         repository.addMessage("c1", MessageRole.USER, "Что на фото?", MessageStatus.COMPLETE, null, listOf(photo))

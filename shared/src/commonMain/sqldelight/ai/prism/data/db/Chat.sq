@@ -9,7 +9,9 @@ CREATE TABLE chat (
     workspace TEXT,
     -- Краткое содержание начала длинного диалога и последнее сообщение, которое оно охватывает.
     summary TEXT,
-    summary_until TEXT
+    summary_until TEXT,
+    pinned INTEGER NOT NULL DEFAULT 0,
+    trashed INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE message (
@@ -26,7 +28,7 @@ CREATE TABLE message (
 CREATE INDEX message_by_chat ON message(chat_id, created_at);
 
 selectChats:
-SELECT * FROM chat ORDER BY updated_at DESC;
+SELECT * FROM chat WHERE trashed = 0 ORDER BY pinned DESC, updated_at DESC;
 
 insertChat:
 INSERT INTO chat(id, title, created_at, updated_at) VALUES (?, ?, ?, ?);
@@ -70,3 +72,15 @@ DELETE FROM message WHERE id = ?;
 
 markInterrupted:
 UPDATE message SET status = 'FAILED', error = 'INTERRUPTED' WHERE status = 'GENERATING';
+
+setTitle:
+UPDATE chat SET title = ? WHERE id = ?;
+
+setPinned:
+UPDATE chat SET pinned = ? WHERE id = ?;
+
+setTrashed:
+UPDATE chat SET trashed = ? WHERE id = ?;
+
+selectTrashed:
+SELECT id FROM chat WHERE trashed = 1;

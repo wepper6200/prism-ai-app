@@ -1,5 +1,17 @@
 package ai.prism.ui.components
 
+import ai.prism.resources.*
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ListItem
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+
 import androidx.compose.material.icons.outlined.MusicNote
 import ai.prism.resources.input_music
 import ai.prism.resources.input_music_placeholder
@@ -129,6 +141,7 @@ class InputDrawing(
  * Над полем — миниатюры приложенных изображений. Микрофон диктует текст в поле: первое нажатие — запись,
  * второе — закончить (запись заканчивается и сама после паузы).
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatInputBar(
     text: String,
@@ -148,17 +161,50 @@ fun ChatInputBar(
     /** Микрофон; `null` — голоса на этой платформе нет, кнопки нет. */
     voice: InputVoice? = null,
     music: InputDrawing? = null,
+    extraTools: @Composable () -> Unit = {},
 ) {
+    var toolsOpen by remember { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
     val drawActive = drawing?.active == true
     val videoActive = video?.active == true
     val musicActive = music?.active == true
+    if (toolsOpen) ModalBottomSheet(onDismissRequest = { toolsOpen = false }) {
+        Column(Modifier.fillMaxWidth().heightIn(max = 620.dp).verticalScroll(rememberScrollState()).padding(bottom = 24.dp).testTag("tools_panel")) {
+            Text(stringResource(Res.string.input_tools), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(20.dp))
+            Text(stringResource(Res.string.input_tools_hint), color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 20.dp))
+            Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                    ImageButton(attachments, enabled = attachments.canAttachMore, onAction = { toolsOpen = false })
+                    Text(stringResource(Res.string.input_photo_short), style = MaterialTheme.typography.labelMedium)
+                }
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                    IconButton(onClick = { toolsOpen = false; onPickDocuments?.invoke() }, enabled = onPickDocuments != null && !drawActive && !videoActive && !musicActive, modifier = Modifier.testTag("attach_document")) {
+                        Icon(Icons.Outlined.AttachFile, stringResource(Res.string.input_attach_document))
+                    }
+                    Text(stringResource(Res.string.input_file_short), style = MaterialTheme.typography.labelMedium)
+                }
+            }
+            ToolModeRow(stringResource(Res.string.input_mode_chat), !drawActive && !videoActive && !musicActive, "chat_mode") {
+                when { drawActive -> drawing.onToggle(); videoActive -> video.onToggle(); musicActive -> music.onToggle() }
+                toolsOpen = false
+            }
+            if (voice != null && voice.enabled) ToolModeRow(stringResource(Res.string.input_microphone), voice.listening, "tools_voice") { toolsOpen = false; voice.onToggle() }
+            if (drawing != null) ToolModeRow(stringResource(Res.string.input_draw), drawing.active, "draw_toggle") { haptic.performHapticFeedback(HapticFeedbackType.LongPress); drawing.onToggle(); toolsOpen = false }
+            if (video != null) ToolModeRow(stringResource(Res.string.input_video), video.active, "video_toggle") { video.onToggle(); toolsOpen = false }
+            if (music != null) ToolModeRow(stringResource(Res.string.input_music), music.active, "music_toggle") { music.onToggle(); toolsOpen = false }
+            Text(stringResource(Res.string.input_assistant_tools), style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(16.dp))
+            extraTools()
+        }
+    }
     BoxWithConstraints(modifier.fillMaxWidth()) {
-        val reservedHeight = (if (music != null) 112.dp else 64.dp) +
+        val reservedHeight = (if (drawing?.active == true || video?.active == true || music?.active == true) 112.dp else 64.dp) +
             (if (attachments.items.isNotEmpty() || attachments.isAttaching) 84.dp else 0.dp)
         val inputMaxHeight = (maxHeight - reservedHeight).coerceIn(48.dp, 180.dp)
         PrismPanel(Modifier.fillMaxWidth(), shape = RoundedCornerShape(28.dp)) {
             Column {
-                if (music != null) MusicButton(music, enabled = !isGenerating)
+                if (musicActive) MusicButton(music, enabled = !isGenerating)
+                if (drawActive) androidx.compose.material3.FilterChip(selected = true, onClick = drawing.onToggle, label = { Text(stringResource(Res.string.input_draw)) }, modifier = Modifier.padding(start = 12.dp))
+                if (videoActive) androidx.compose.material3.FilterChip(selected = true, onClick = video.onToggle, label = { Text(stringResource(Res.string.input_video)) }, modifier = Modifier.padding(start = 12.dp))
                 AnimatedVisibility(visible = attachments.items.isNotEmpty() || attachments.isAttaching) {
                     AttachmentStrip(attachments)
                 }
@@ -215,16 +261,9 @@ fun ChatInputBar(
                     modifier = Modifier.heightIn(min = 56.dp).padding(horizontal = 4.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.Bottom,
                 ) {
-                    IconButton(
-                        onClick = { onPickDocuments?.invoke() },
-                        enabled = onPickDocuments != null && !isGenerating && !drawActive && !videoActive && !musicActive,
-                        modifier = Modifier.testTag("attach_document"),
-                    ) {
-                        Icon(Icons.Outlined.AttachFile, contentDescription = stringResource(Res.string.input_attach_document))
+                    IconButton(onClick = { toolsOpen = true }, enabled = !isGenerating, modifier = Modifier.testTag("input_tools")) {
+                        Icon(Icons.Filled.Add, stringResource(Res.string.input_tools))
                     }
-                    if (drawing != null) DrawButton(drawing, enabled = !isGenerating)
-                    if (video != null) VideoButton(video, enabled = !isGenerating)
-                    ImageButton(attachments, enabled = !isGenerating && attachments.canAttachMore)
                     Spacer(Modifier.weight(1f))
                     if (voice != null) MicButton(voice)
                     AnimatedContent(targetState = isGenerating, label = "sendOrStop") { generating ->
@@ -282,34 +321,6 @@ private fun MicButton(voice: InputVoice) {
 private const val MIC_PULSE = 0.25f
 
 @Composable
-private fun DrawButton(drawing: InputDrawing, enabled: Boolean) {
-    val description = stringResource(Res.string.input_draw)
-    if (drawing.active) {
-        FilledTonalIconButton(onClick = drawing.onToggle, enabled = enabled, modifier = Modifier.testTag("draw_toggle")) {
-            Icon(Icons.Outlined.Brush, contentDescription = description)
-        }
-    } else {
-        IconButton(onClick = drawing.onToggle, enabled = enabled, modifier = Modifier.testTag("draw_toggle")) {
-            Icon(Icons.Outlined.Brush, contentDescription = description)
-        }
-    }
-}
-
-@Composable
-private fun VideoButton(video: InputDrawing, enabled: Boolean) {
-    val description = stringResource(Res.string.input_video)
-    if (video.active) {
-        FilledTonalIconButton(onClick = video.onToggle, enabled = enabled, modifier = Modifier.testTag("video_toggle")) {
-            Icon(Icons.Outlined.Movie, contentDescription = description)
-        }
-    } else {
-        IconButton(onClick = video.onToggle, enabled = enabled, modifier = Modifier.testTag("video_toggle")) {
-            Icon(Icons.Outlined.Movie, contentDescription = description)
-        }
-    }
-}
-
-@Composable
 private fun MusicButton(music: InputDrawing, enabled: Boolean) {
     androidx.compose.material3.FilterChip(
         selected = music.active,
@@ -323,14 +334,14 @@ private fun MusicButton(music: InputDrawing, enabled: Boolean) {
 
 /** Кнопка изображения: сразу открывает выбор фото, а где есть камера — меню «Выбрать фото / Сделать снимок». */
 @Composable
-private fun ImageButton(attachments: InputAttachments, enabled: Boolean) {
+private fun ImageButton(attachments: InputAttachments, enabled: Boolean, onAction: () -> Unit = {}) {
     var menuOpen by remember { mutableStateOf(false) }
     var canPaste by remember { mutableStateOf(false) }
     Box {
         IconButton(
             onClick = {
                 canPaste = attachments.hasClipboardImage()
-                if (attachments.canTakePhoto || canPaste) menuOpen = true else attachments.onPickImages()
+                if (attachments.canTakePhoto || canPaste) menuOpen = true else { onAction(); attachments.onPickImages() }
             },
             enabled = enabled,
             modifier = Modifier.testTag("attach_image"),
@@ -343,6 +354,7 @@ private fun ImageButton(attachments: InputAttachments, enabled: Boolean) {
                 leadingIcon = { Icon(Icons.Outlined.PhotoLibrary, contentDescription = null) },
                 onClick = {
                     menuOpen = false
+                    onAction()
                     attachments.onPickImages()
                 },
             )
@@ -352,7 +364,8 @@ private fun ImageButton(attachments: InputAttachments, enabled: Boolean) {
                     leadingIcon = { Icon(Icons.Outlined.PhotoCamera, contentDescription = null) },
                     onClick = {
                         menuOpen = false
-                        attachments.onTakePhoto()
+                        onAction()
+                    attachments.onTakePhoto()
                     },
                 )
             }
@@ -362,7 +375,8 @@ private fun ImageButton(attachments: InputAttachments, enabled: Boolean) {
                     leadingIcon = { Icon(Icons.Outlined.ContentPaste, contentDescription = null) },
                     onClick = {
                         menuOpen = false
-                        attachments.onPaste()
+                        onAction()
+                    attachments.onPaste()
                     },
                     modifier = Modifier.testTag("paste_image"),
                 )
@@ -373,6 +387,13 @@ private fun ImageButton(attachments: InputAttachments, enabled: Boolean) {
 
 @Composable
 private fun AttachmentStrip(attachments: InputAttachments) {
+    var preview by remember { mutableStateOf<String?>(null) }
+    preview?.let { file ->
+        androidx.compose.material3.AlertDialog(onDismissRequest = { preview = null },
+            text = { StoredImage(fileName = file, load = attachments.load, contentDescription = stringResource(Res.string.image_description), contentScale = androidx.compose.ui.layout.ContentScale.Fit, modifier = Modifier.fillMaxWidth().heightIn(min = 180.dp, max = 340.dp)) },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { preview = null }) { Text(stringResource(Res.string.action_cancel)) } },
+        )
+    }
     val imageDescription = stringResource(Res.string.image_description)
     val attachingDescription = stringResource(Res.string.input_attaching)
     LazyRow(
@@ -388,7 +409,7 @@ private fun AttachmentStrip(attachments: InputAttachments) {
                     contentDescription = imageDescription,
                     modifier = Modifier
                         .size(72.dp)
-                        .clip(RoundedCornerShape(14.dp)),
+                        .clip(RoundedCornerShape(14.dp)).clickable { preview = image.fileName }.testTag("draft_image_preview"),
                 )
                 Surface(
                     onClick = { attachments.onRemove(image.id) },
@@ -398,7 +419,7 @@ private fun AttachmentStrip(attachments: InputAttachments) {
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(4.dp)
-                        .size(24.dp)
+                        .size(44.dp)
                         .testTag("remove_attachment"),
                 ) {
                     Icon(
@@ -423,4 +444,14 @@ private fun AttachmentStrip(attachments: InputAttachments) {
             }
         }
     }
+}
+
+@Composable
+private fun ToolModeRow(title: String, active: Boolean, tag: String, onClick: () -> Unit) {
+    ListItem(
+        headlineContent = { Text(title) },
+        leadingContent = { Icon(when (tag) { "draw_toggle" -> Icons.Outlined.Brush; "video_toggle" -> Icons.Outlined.Movie; "music_toggle" -> Icons.Outlined.MusicNote; "tools_voice" -> Icons.Outlined.Mic; else -> Icons.Outlined.ChatBubbleOutline }, null) },
+        trailingContent = { androidx.compose.material3.RadioButton(selected = active, onClick = null) },
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).testTag(tag),
+    )
 }

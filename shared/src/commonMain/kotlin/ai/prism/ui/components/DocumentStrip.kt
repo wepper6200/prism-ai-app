@@ -5,6 +5,10 @@ import ai.prism.domain.documents.DocumentFormat
 import ai.prism.domain.documents.DocumentStatus
 import ai.prism.domain.documents.MessageSource
 import ai.prism.presentation.chat.DocumentItem
+import ai.prism.resources.*
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.*
 import ai.prism.resources.Res
 import ai.prism.resources.document_error_failed
 import ai.prism.resources.document_error_interrupted
@@ -117,12 +121,20 @@ fun SourcesLine(sources: List<MessageSource>, modifier: Modifier = Modifier) {
         val pages = items.mapNotNull { it.page }.distinct().sorted()
         if (pages.isEmpty()) name else "$name ($pagesLabel ${pages.joinToString(", ")})"
     }
+    var expanded by remember(sources) { mutableStateOf(false) }
+    Column(modifier.testTag("message_sources")) {
+    TextButton(onClick = { expanded = !expanded }, modifier = Modifier.testTag("toggle_sources")) {
+        Text(stringResource(if (expanded) Res.string.document_sources_collapse else Res.string.document_sources_expand) + " (" + sources.map { it.documentName }.distinct().size + ")")
+    }
+    AnimatedVisibility(expanded) {
     Text(
         text = stringResource(Res.string.document_sources, text),
         style = MaterialTheme.typography.labelMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = modifier.testTag("message_sources"),
+        modifier = Modifier,
     )
+    }
+    }
 }
 
 private fun DocumentFormat.icon() = when (this) {

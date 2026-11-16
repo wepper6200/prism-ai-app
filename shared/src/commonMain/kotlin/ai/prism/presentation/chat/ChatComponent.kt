@@ -168,6 +168,8 @@ data class ChatState(
     val attachmentError: AttachmentError? = null,
     /** Название активной модели или `null`, если модель не выбрана. */
     val modelName: String? = null,
+    val modelChoices: List<ai.prism.domain.model.ModelEntry> = emptyList(),
+    val activeModelId: String? = null,
     val modelDownloaded: Boolean = false,
     val vision: VisionSupport = VisionSupport.UNSUPPORTED,
     /** Режим «Нарисовать»: сообщение — описание картинки для модели изображений. */
@@ -285,6 +287,7 @@ sealed interface ChatIntent {
     /** Длительность следующих видео, секунды. */
     data class SelectVideoSeconds(val seconds: Int) : ChatIntent
     data class SelectMusicSeconds(val seconds: Int) : ChatIntent
+    data class SelectModel(val modelId: String) : ChatIntent
     data object Send : ChatIntent
     data object Stop : ChatIntent
 
@@ -324,7 +327,7 @@ class DefaultChatComponent(
     componentContext: ComponentContext,
     private val chatId: String,
     private val chatRepository: ChatRepository,
-    modelRepository: ModelRepository,
+    private val modelRepository: ModelRepository,
     engine: InferenceEngine,
     private val generation: ChatGenerationService,
     private val documentService: DocumentService,
@@ -394,6 +397,8 @@ class DefaultChatComponent(
     )
 
     private data class ModelPart(
+        val choices: List<ai.prism.domain.model.ModelEntry>,
+        val activeId: String?,
         val name: String?,
         val downloaded: Boolean,
         val vision: VisionSupport,
@@ -464,6 +469,8 @@ class DefaultChatComponent(
         val selectedVideo = generation.videoModel()
         val videoEntry = entries.firstOrNull { it.model.id == selectedVideo?.id } ?: entries.firstOrNull { it.model.kind == ModelKind.VIDEO }
         ModelPart(
+            choices = entries.filter { it.model.kind == ModelKind.CHAT },
+            activeId = activeId,
             thinkingSupported = entry?.model?.chatFormat?.let(ThinkingLevel::supports) == true,
             name = entry?.model?.name,
             downloaded = entry?.chatReady == true,
@@ -589,6 +596,8 @@ class DefaultChatComponent(
             isAttaching = images.pending > 0,
             attachmentError = images.error,
             modelName = model.name,
+            modelChoices = model.choices,
+            activeModelId = model.activeId,
             modelDownloaded = model.downloaded,
             vision = model.vision,
             visionModuleBytes = model.visionBytes,
@@ -665,6 +674,9 @@ class DefaultChatComponent(
             }
             is ChatIntent.SelectVideoSeconds -> settingsRepository.setVideoSeconds(intent.seconds)
             is ChatIntent.SelectMusicSeconds -> settingsRepository.setMusicSeconds(intent.seconds)
+            is ChatIntent.SelectModel -> if (!state.value.isGenerating && !state.value.busyInOtherChat &&
+                modelRepository.models.value.any { it.model.id == intent.modelId && it.model.kind == ModelKind.CHAT && it.chatReady }
+            ) modelRepository.setActive(intent.modelId)
             ChatIntent.Send -> send()
             ChatIntent.Stop -> generation.stop()
             ChatIntent.ToggleDictation -> toggleDictation()

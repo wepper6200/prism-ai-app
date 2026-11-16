@@ -10,6 +10,17 @@ import ai.prism.resources.chats_search_close
 import ai.prism.resources.chats_search_clear
 import ai.prism.resources.chats_no_results
 import ai.prism.resources.chats_no_results_hint
+import ai.prism.resources.*
+import androidx.compose.foundation.background
+import androidx.compose.material.icons.outlined.PushPin
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.material3.Snackbar
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import ai.prism.domain.model.ChatSummary
 import ai.prism.presentation.chats.ChatListComponent
 import ai.prism.presentation.chats.ChatListIntent
@@ -98,8 +109,12 @@ fun ChatList(
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(vertical = 4.dp),
     query: String = "",
+    onPin: (String, Boolean) -> Unit = { _, _ -> },
+    onRename: (String, String) -> Unit = { _, _ -> },
 ) {
     var pendingDelete by remember { mutableStateOf<String?>(null) }
+    var renaming by remember { mutableStateOf<ChatSummary?>(null) }
+    val haptic = LocalHapticFeedback.current
     val untitled = stringResource(Res.string.chat_untitled)
     val filtered = chats.filter { (it.title ?: untitled).contains(query.trim(), ignoreCase = true) }
     LazyColumn(
@@ -117,6 +132,23 @@ fun ChatList(
             }
         }
         items(filtered, key = { it.id }) { chat ->
+            val swipe = rememberSwipeToDismissBoxState()
+            LaunchedEffect(swipe.currentValue) {
+                if (swipe.currentValue == SwipeToDismissBoxValue.EndToStart) {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    pendingDelete = chat.id
+                    swipe.reset()
+                }
+            }
+            SwipeToDismissBox(
+                state = swipe,
+                enableDismissFromStartToEnd = false,
+                backgroundContent = {
+                    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.errorContainer).padding(16.dp), contentAlignment = Alignment.CenterEnd) {
+                        Icon(Icons.Outlined.Delete, stringResource(Res.string.action_delete), tint = MaterialTheme.colorScheme.onErrorContainer)
+                    }
+                },
+            ) {
             NavigationDrawerItem(
                 label = {
                     Text(
@@ -127,7 +159,7 @@ fun ChatList(
                 },
                 selected = chat.id == selectedChatId,
                 onClick = { onOpenChat(chat.id) },
-                icon = { Icon(Icons.Outlined.ChatBubbleOutline, contentDescription = null) },
+                icon = { Icon(if (chat.pinned) Icons.Outlined.PushPin else Icons.Outlined.ChatBubbleOutline, contentDescription = if (chat.pinned) stringResource(Res.string.chat_pin) else null) },
                 badge = {
                     if (chat.id == generatingChatId) {
                         val description = stringResource(Res.string.chat_generating)
@@ -136,14 +168,25 @@ fun ChatList(
                             strokeWidth = 2.dp,
                         )
                     } else {
-                        ChatItemMenu(onDelete = { pendingDelete = chat.id })
+                        ChatItemMenu(chat.pinned, onPin = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onPin(chat.id, !chat.pinned) }, onRename = { renaming = chat }, onDelete = { pendingDelete = chat.id })
                     }
                 },
                 modifier = Modifier
                     .animateItem()
                     .testTag("chat_item_${chat.id}"),
             )
+            }
         }
+    }
+    renaming?.let { chat ->
+        var name by remember(chat.id) { mutableStateOf(chat.title.orEmpty()) }
+        AlertDialog(
+            onDismissRequest = { renaming = null },
+            title = { Text(stringResource(Res.string.chat_rename)) },
+            text = { OutlinedTextField(name, { name = it.take(120) }, singleLine = true, label = { Text(stringResource(Res.string.chat_name)) }, modifier = Modifier.testTag("chat_rename_input")) },
+            confirmButton = { TextButton(onClick = { onRename(chat.id, name); renaming = null }, enabled = name.isNotBlank(), modifier = Modifier.testTag("chat_rename_save")) { Text(stringResource(Res.string.action_save)) } },
+            dismissButton = { TextButton(onClick = { renaming = null }) { Text(stringResource(Res.string.action_cancel)) } },
+        )
     }
     pendingDelete?.let { chatId ->
         AlertDialog(
@@ -167,13 +210,25 @@ fun ChatList(
 }
 
 @Composable
-private fun ChatItemMenu(onDelete: () -> Unit) {
+private fun ChatItemMenu(pinned: Boolean, onPin: () -> Unit, onRename: () -> Unit, onDelete: () -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { expanded = true }, modifier = Modifier.size(48.dp).testTag("chat_menu")) {
             Icon(Icons.Outlined.MoreVert, contentDescription = stringResource(Res.string.chat_more), modifier = Modifier.size(18.dp))
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(
+                text = { Text(stringResource(if (pinned) Res.string.chat_unpin else Res.string.chat_pin)) },
+                leadingIcon = { Icon(Icons.Outlined.PushPin, null) },
+                onClick = { expanded = false; onPin() },
+                modifier = Modifier.testTag("chat_pin"),
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(Res.string.chat_rename)) },
+                leadingIcon = { Icon(Icons.Outlined.Edit, null) },
+                onClick = { expanded = false; onRename() },
+                modifier = Modifier.testTag("chat_rename"),
+            )
             DropdownMenuItem(
                 text = { Text(stringResource(Res.string.action_delete)) },
                 leadingIcon = { Icon(Icons.Outlined.Delete, contentDescription = null) },
@@ -240,6 +295,8 @@ fun ChatListScreen(
                 PrismPanel(Modifier.fillMaxWidth().weight(1f)) {
                     ChatList(
                         chats = state.chats,
+                        onPin = { id, pinned -> component.onIntent(ChatListIntent.PinChat(id, pinned)) },
+                        onRename = { id, title -> component.onIntent(ChatListIntent.RenameChat(id, title)) },
                         selectedChatId = null,
                         generatingChatId = state.generatingChatId,
                         onOpenChat = { component.onIntent(ChatListIntent.OpenChat(it)) },
@@ -250,6 +307,9 @@ fun ChatListScreen(
                     )
                 }
             }
+        }
+        if (state.pendingDeleteId != null) {
+            UndoChatNotice(component, Modifier.align(Alignment.BottomCenter).padding(start = 16.dp, end = 16.dp, bottom = 92.dp))
         }
         ExtendedFloatingActionButton(
             onClick = { component.onIntent(ChatListIntent.NewChat) },
@@ -322,6 +382,8 @@ fun Sidebar(
                 } else {
                     ChatList(
                         chats = state.chats,
+                        onPin = { id, pinned -> component.onIntent(ChatListIntent.PinChat(id, pinned)) },
+                        onRename = { id, title -> component.onIntent(ChatListIntent.RenameChat(id, title)) },
                         selectedChatId = selectedChatId,
                         query = query,
                         generatingChatId = state.generatingChatId,
@@ -331,6 +393,7 @@ fun Sidebar(
                     )
                 }
             }
+            if (state.pendingDeleteId != null) UndoChatNotice(component)
             HorizontalDivider(
                 modifier = Modifier.padding(vertical = 8.dp),
                 color = MaterialTheme.colorScheme.outlineVariant,
@@ -370,4 +433,16 @@ private fun ChatSearchField(query: String, onQuery: (String) -> Unit) {
         shape = MaterialTheme.shapes.extraLarge,
         modifier = Modifier.fillMaxWidth().testTag("chat_search"),
     )
+}
+
+@Composable
+private fun UndoChatNotice(component: ChatListComponent, modifier: Modifier = Modifier) {
+    Snackbar(
+        modifier = modifier.testTag("chat_undo_notice"),
+        action = {
+            TextButton(onClick = { component.onIntent(ChatListIntent.UndoDelete) }, modifier = Modifier.testTag("chat_undo")) {
+                Text(stringResource(Res.string.chat_undo))
+            }
+        },
+    ) { Text(stringResource(Res.string.chat_deleted_notice)) }
 }

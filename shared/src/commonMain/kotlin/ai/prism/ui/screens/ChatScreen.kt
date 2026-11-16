@@ -2,10 +2,14 @@ package ai.prism.ui.screens
 
 import ai.prism.ui.components.PromptSuggestions
 import ai.prism.ui.components.rememberTextCopier
+import ai.prism.resources.model_answer_status
+import ai.prism.resources.model_ready_status
+import ai.prism.resources.model_download_status
 import ai.prism.resources.message_copy
 import ai.prism.resources.message_copied
 import ai.prism.resources.message_copy_failed
 import ai.prism.resources.chat_jump_latest
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.material.icons.outlined.ArrowDownward
@@ -246,7 +250,14 @@ fun ChatScreen(
     ) {
         PrismTopBar(
             title = state.title ?: stringResource(Res.string.chat_untitled),
-            subtitle = state.modelName ?: stringResource(Res.string.chat_no_model),
+            subtitle = state.modelName?.let { name ->
+                name + " · " + when {
+                    state.modelLoadingProgress != null -> stringResource(Res.string.chat_model_loading, formatPercent(state.modelLoadingProgress ?: 0f))
+                    state.isGenerating -> stringResource(Res.string.model_answer_status)
+                    state.modelDownloaded -> stringResource(Res.string.model_ready_status)
+                    else -> stringResource(Res.string.model_download_status)
+                }
+            } ?: stringResource(Res.string.chat_no_model),
             onBack = if (expanded) null else ({ component.onIntent(ChatIntent.Back) }),
             actions = {
                 if (state.voice.supported) {
@@ -271,9 +282,7 @@ fun ChatScreen(
                         )
                     }
                 }
-                IconButton(onClick = { component.onIntent(ChatIntent.OpenModels) }) {
-                    Icon(Icons.Outlined.Memory, contentDescription = stringResource(Res.string.nav_models))
-                }
+                ai.prism.ui.components.QuickModelPicker(state, { component.onIntent(ChatIntent.SelectModel(it)) }, { component.onIntent(ChatIntent.OpenModels) })
             },
         )
         Box(
@@ -290,6 +299,7 @@ fun ChatScreen(
                     loadImage = loadImage,
                     onOpenImage = { viewing = it },
                     onRetry = { component.onIntent(ChatIntent.Retry) },
+                    onEdit = { component.onIntent(ChatIntent.DraftChanged(it)) },
                     onResolve = { id, approved -> component.onIntent(ChatIntent.ResolvePending(id, approved)) },
                     onSaveVideo = { fileName ->
                         scope.launch {
@@ -368,18 +378,7 @@ fun ChatScreen(
                     .testTag("draw_needs_translator"),
             )
         }
-        AgentContextRow(
-            workspaceName = state.workspaceName,
-            internetEnabled = state.internetEnabled,
-            onPickWorkspace = folderPicker::pickFolder,
-            onRemoveWorkspace = { component.onIntent(ChatIntent.RemoveWorkspace) },
-            onToggleInternet = { component.onIntent(ChatIntent.ToggleInternet) },
-            computerEnabled = state.computerEnabled,
-            onToggleComputer = { component.onIntent(ChatIntent.ToggleComputer) },
-            thinkingLevel = state.thinkingLevel.takeIf { state.thinkingSupported },
-            onSelectThinking = { component.onIntent(ChatIntent.SetThinkingLevel(it)) },
-            modifier = Modifier.align(Alignment.CenterHorizontally).widthIn(max = 800.dp).fillMaxWidth(),
-        )
+        ChatContextTools(state, component, folderPicker::pickFolder, onlySelected = true, modifier = Modifier.align(Alignment.CenterHorizontally))
         if (state.documents.isNotEmpty()) {
             DocumentStrip(
                 documents = state.documents,
@@ -410,6 +409,7 @@ fun ChatScreen(
         }
         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             ChatInputBar(
+                extraTools = { ChatContextTools(state, component, folderPicker::pickFolder) },
                 text = state.draft,
                 onTextChange = { component.onIntent(ChatIntent.DraftChanged(it)) },
                 canSend = state.canSend,
@@ -722,6 +722,7 @@ private fun MessageList(
     loadImage: ImageBytesLoader,
     onOpenImage: (String) -> Unit,
     onRetry: () -> Unit,
+    onEdit: (String) -> Unit,
     onResolve: (String, Boolean) -> Unit,
     onSaveVideo: (String) -> Unit,
     onSpeak: (String) -> Unit,
@@ -757,7 +758,7 @@ private fun MessageList(
             items(state.messages, key = { it.id }) { message ->
                 Box(Modifier.widthIn(max = 800.dp).fillMaxWidth()) {
                     when (message.role) {
-                        MessageRole.USER -> UserMessage(message, loadImage, onOpenImage)
+                        MessageRole.USER -> UserMessage(message, loadImage, onOpenImage, onEdit)
                         MessageRole.ASSISTANT -> AssistantMessage(
                             message = message,
                             onResolve = onResolve,
@@ -798,7 +799,7 @@ private fun MessageList(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun UserMessage(message: MessageItem, loadImage: ImageBytesLoader, onOpenImage: (String) -> Unit) {
+private fun UserMessage(message: MessageItem, loadImage: ImageBytesLoader, onOpenImage: (String) -> Unit, onEdit: (String) -> Unit) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.End,
@@ -828,12 +829,12 @@ private fun UserMessage(message: MessageItem, loadImage: ImageBytesLoader, onOpe
                 }
             }
         }
-        if (message.text.isNotEmpty()) UserBubble(message)
+        if (message.text.isNotEmpty()) UserBubble(message, onEdit)
     }
 }
 
 @Composable
-private fun UserBubble(message: MessageItem) {
+private fun UserBubble(message: MessageItem, onEdit: (String) -> Unit) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
         Surface(
             shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 20.dp, bottomEnd = 6.dp),
@@ -841,7 +842,7 @@ private fun UserBubble(message: MessageItem) {
             contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
             modifier = Modifier.widthIn(max = 600.dp).padding(start = 48.dp),
         ) {
-            SelectionContainer {
+            ai.prism.ui.components.MessageActions(message.text, onEdit = onEdit) {
                 Text(
                     text = message.text,
                     style = MaterialTheme.typography.bodyLarge,
@@ -885,7 +886,7 @@ private fun AssistantMessage(
                         load = loadImage,
                         onSave = { onSaveVideo(image.fileName) },
                         playAudio = playAudio,
-                        modifier = Modifier.size(width = 320.dp, height = 320.dp / ratio),
+                        modifier = Modifier.widthIn(max = 320.dp).fillMaxWidth().aspectRatio(ratio),
                     )
                     return@forEach
                 }
@@ -895,7 +896,7 @@ private fun AssistantMessage(
                     contentDescription = stringResource(Res.string.image_open),
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
-                        .size(width = 320.dp, height = 320.dp / ratio)
+                        .widthIn(max = 320.dp).fillMaxWidth().aspectRatio(ratio)
                         .clip(RoundedCornerShape(16.dp))
                         .clickable { onOpenImage(image.fileName) }
                         .testTag("generated_image"),
@@ -910,12 +911,12 @@ private fun AssistantMessage(
                 message.drawing != null -> Drawing(message.drawing)
                 loadingProgress != null && message.text.isEmpty() -> ModelLoading(loadingProgress)
                 message.isStreaming && message.text.isEmpty() && message.pending == null && message.running == null -> TypingIndicator()
-                message.text.isNotEmpty() -> SelectionContainer {
-                    Text(
-                        text = if (message.isStreaming) message.text + CURSOR else message.text,
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.testTag("assistant_text"),
-                    )
+                message.text.isNotEmpty() -> {
+                    val visibleText = if (message.isStreaming) message.text + CURSOR else message.text
+                    if (message.isStreaming) ai.prism.ui.components.ReplyContent(visibleText)
+                    else ai.prism.ui.components.MessageActions(message.text, onSpeak = speech?.onSpeak) {
+                        ai.prism.ui.components.ReplyContent(visibleText)
+                    }
                 }
             }
             when (message.status) {
@@ -1104,3 +1105,20 @@ private fun MessageFooter(
 }
 
 private const val CURSOR = " ▍"
+
+@Composable
+private fun ChatContextTools(state: ChatState, component: ChatComponent, onPick: () -> Unit, onlySelected: Boolean = false, modifier: Modifier = Modifier) {
+    AgentContextRow(
+        workspaceName = state.workspaceName,
+        internetEnabled = state.internetEnabled,
+        onPickWorkspace = onPick,
+        onRemoveWorkspace = { component.onIntent(ChatIntent.RemoveWorkspace) },
+        onToggleInternet = { component.onIntent(ChatIntent.ToggleInternet) },
+        computerEnabled = state.computerEnabled,
+        onToggleComputer = { component.onIntent(ChatIntent.ToggleComputer) },
+        thinkingLevel = state.thinkingLevel.takeIf { state.thinkingSupported },
+        onSelectThinking = { component.onIntent(ChatIntent.SetThinkingLevel(it)) },
+        onlySelected = onlySelected,
+        modifier = modifier.widthIn(max = 800.dp).fillMaxWidth(),
+    )
+}

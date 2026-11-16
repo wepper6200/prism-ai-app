@@ -24,6 +24,10 @@ interface ChatRepository {
     /** Удаляет диалог вместе с файлами его изображений и приложенными документами. */
     suspend fun deleteChat(chatId: String)
 
+    suspend fun setTitle(chatId: String, title: String)
+    suspend fun setPinned(chatId: String, pinned: Boolean)
+    suspend fun setTrashed(chatId: String, trashed: Boolean)
+
     /** Ставит заголовок, если у диалога его ещё нет. */
     suspend fun setTitleIfEmpty(chatId: String, title: String)
 

@@ -35,6 +35,8 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performScrollTo
@@ -359,7 +361,8 @@ class PrismAppUiTest {
         setContent { PrismApp(root) }
 
         onNodeWithTag("new_chat").performClick()
-        onNodeWithTag("attach_image").performClick()
+        onNodeWithTag("input_tools").performClick()
+        onNodeWithTag("attach_image").performScrollTo().performClick()
         onNodeWithTag("vision_dialog").assertIsDisplayed()
         screenshot("compact_9_vision_dialog", tag = "vision_dialog")
 
@@ -376,7 +379,8 @@ class PrismAppUiTest {
         setContent { PrismApp(root) }
 
         onNodeWithTag("new_chat").performClick()
-        onNodeWithTag("draw_toggle").performClick()
+        onNodeWithTag("input_tools").performClick()
+        onNodeWithTag("draw_toggle").performScrollTo().performClick()
         onNodeWithTag("message_input").performTextInput("a sunset over the sea")
         screenshot("compact_10_draw_mode")
         onNodeWithTag("send_button").performClick()
@@ -415,6 +419,7 @@ class PrismAppUiTest {
         onNodeWithTag("send_button").performClick()
         waitForIdle()
         onNodeWithTag("message_sources").assertIsDisplayed()
+        onNodeWithTag("toggle_sources").performClick()
         onNodeWithText("Правила отпусков.pdf (с. 1, 2)", substring = true).assertIsDisplayed()
         screenshot("compact_13_answer_with_sources")
     }
@@ -458,7 +463,8 @@ class PrismAppUiTest {
         setContent { PrismApp(root) }
 
         onNodeWithTag("new_chat").performClick()
-        onNodeWithTag("video_toggle").performClick()
+        onNodeWithTag("input_tools").performClick()
+        onNodeWithTag("video_toggle").performScrollTo().performClick()
         onNodeWithTag("message_input").performTextInput("a red sunset over the sea")
         onNodeWithTag("send_button").performClick()
         waitForIdle()
@@ -579,12 +585,113 @@ class PrismAppUiTest {
         lifecycle.resume()
         setContent { PrismApp(root) }
         onNodeWithTag("new_chat").performClick()
-        onNodeWithTag("music_toggle").performClick()
+        onNodeWithTag("input_tools").performClick()
+        onNodeWithTag("music_toggle").performScrollTo().performClick()
         onNodeWithTag("message_input").performTextInput("Calm piano instrumental")
         onNodeWithTag("send_button").performClick()
         waitForIdle()
         onNodeWithTag("generated_music").assertIsDisplayed()
         screenshot("compact_20_music")
+    }
+
+    @Test
+    fun messageMenuEditsCopyWithoutLosingHistoryAndFormatsReplies() = runDesktopComposeUiTest(width = 412, height = 892) {
+        val (app, root) = createApp()
+        app.engine.reply = listOf("## План\n**Важный текст**\n\n" + "```kotlin\nval value = 42\n```\n\n| Имя | Значение |\n| --- | --- |\n| Ответ | 42 |")
+        setContent { PrismApp(root) }
+        onNodeWithTag("new_chat").performClick()
+        sendMessage("Первый запрос")
+        onNodeWithTag("reply_code", useUnmergedTree = true).performScrollTo().assertIsDisplayed()
+        onNodeWithTag("reply_table", useUnmergedTree = true).performScrollTo().assertIsDisplayed()
+        screenshot("compact_25_rich_reply")
+        app.settings.setThemeStyle(ThemeStyle.LIQUID_GLASS)
+        app.settings.setDarkMode(DarkMode.LIGHT)
+        screenshot("compact_25_rich_reply_glass_light")
+        app.settings.setDarkMode(DarkMode.DARK)
+        screenshot("compact_25_rich_reply_glass_dark")
+        onNodeWithTag("message_list").performScrollToIndex(0)
+        onNodeWithTag("user_message_actions").performClick()
+        onNodeWithTag("message_menu_edit").performClick()
+        onNodeWithTag("message_edit_input").performTextReplacement("Уточнённый запрос")
+        onNodeWithTag("message_edit_apply").performClick()
+        val chat = assertIs<RootComponent.Child.Chat>(root.stack.value.active.instance).component
+        assertEquals("Уточнённый запрос", chat.state.value.draft)
+        assertEquals("Первый запрос", chat.state.value.messages.first().text)
+        assertEquals(2, chat.state.value.messages.size)
+    }
+
+    @Test
+    fun quickPickerAndChatManagementWork() = runDesktopComposeUiTest(width = 412, height = 892) {
+        val (_, root) = createApp()
+        setContent { PrismApp(root) }
+        onNodeWithTag("new_chat").performClick()
+        sendMessage("Мои идеи")
+        onNodeWithTag("quick_model_picker").performClick()
+        onNodeWithTag("quick_model_gemma-4-e2b-old").performClick()
+        val chat = assertIs<RootComponent.Child.Chat>(root.stack.value.active.instance).component
+        assertEquals("gemma-4-e2b-old", chat.state.value.activeModelId)
+        onNodeWithTag("back").performClick()
+        onNodeWithTag("chat_menu").performClick()
+        onNodeWithTag("chat_rename").performClick()
+        onNodeWithTag("chat_rename_input").performTextReplacement("Планы на неделю")
+        onNodeWithTag("chat_rename_save").performClick()
+        assertEquals("Планы на неделю", root.chatList.state.value.chats.single().title)
+        onNodeWithTag("chat_menu").performClick()
+        onNodeWithTag("chat_pin").performClick()
+        assertTrue(root.chatList.state.value.chats.single().pinned)
+        onNodeWithTag("chat_menu").performClick()
+        onNodeWithTag("chat_delete").performClick()
+        onNodeWithTag("confirm_delete").performClick()
+        onNodeWithTag("chat_undo").assertIsDisplayed().performClick()
+        assertEquals("Планы на неделю", root.chatList.state.value.chats.single().title)
+        screenshot("compact_26_managed_chats")
+    }
+
+    @Test
+    fun toolsPanelShowsOnlyAvailableModes() = runDesktopComposeUiTest(width = 375, height = 812) {
+        val (_, root) = createApp()
+        setContent { PrismApp(root) }
+        onNodeWithTag("new_chat").performClick()
+        onNodeWithTag("input_tools").performClick()
+        onNodeWithTag("chat_mode").assertIsDisplayed()
+        screenshot("compact_27_tools_panel", tag = "tools_panel")
+        onNodeWithTag("draw_toggle").performScrollTo().performClick()
+        val chat = assertIs<RootComponent.Child.Chat>(root.stack.value.active.instance).component
+        assertTrue(chat.state.value.drawMode)
+        onNodeWithTag("input_tools").performClick()
+        onNodeWithTag("chat_mode").performClick()
+        assertTrue(!chat.state.value.drawMode)
+    }
+
+    @Test
+    fun audioSeekRestartsPlaybackAtSelectedPosition() = runDesktopComposeUiTest(width = 412, height = 400) {
+        val rate = 8000
+        val pcm = ByteArray(rate * 2 * 2)
+        val wav = java.nio.ByteBuffer.allocate(44 + pcm.size).order(java.nio.ByteOrder.LITTLE_ENDIAN).apply {
+            put("RIFF".toByteArray()).putInt(36 + pcm.size).put("WAVEfmt ".toByteArray()).putInt(16)
+            putShort(1).putShort(1).putInt(rate).putInt(rate * 2).putShort(2).putShort(16)
+            put("data".toByteArray()).putInt(pcm.size).put(pcm)
+        }.array()
+        val starts = mutableListOf<Int>()
+        var cancellations = 0
+        setContent {
+            ai.prism.ui.theme.PrismTheme(ai.prism.domain.model.AppSettings()) {
+                ai.prism.ui.components.MusicPlayer("test.wav", { wav }, { sound ->
+                    starts += sound.sampleCount
+                    try { kotlinx.coroutines.awaitCancellation() } finally { cancellations++ }
+                })
+            }
+        }
+        waitUntil(timeoutMillis = 5000) { onNodeWithTag("music_duration").fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsProperties.Text].first().text == "0:02" }
+        onNodeWithTag("music_play_pause").performClick()
+        waitUntil(timeoutMillis = 5000) { starts.size == 1 }
+        onNodeWithTag("music_seek").performSemanticsAction(SemanticsActions.SetProgress) { it(1f) }
+        waitUntil(timeoutMillis = 5000) { starts.size >= 2 }
+        assertEquals(rate * 2, starts.first())
+        assertEquals(rate, starts.last())
+        assertTrue(cancellations >= 1)
+        onNodeWithTag("music_play_pause").performClick()
+        waitUntil(timeoutMillis = 5000) { cancellations >= 2 }
     }
 
 }

@@ -277,10 +277,12 @@ fun AgentContextRow(
     onToggleComputer: () -> Unit = {},
     thinkingLevel: ThinkingLevel? = null,
     onSelectThinking: (ThinkingLevel) -> Unit = {},
+    onlySelected: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
+    if (onlySelected && workspaceName == null && !internetEnabled && computerEnabled != true && (thinkingLevel == null || thinkingLevel == ThinkingLevel.OFF)) return
     Row(modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (workspaceName == null) {
+        if (workspaceName == null && !onlySelected) {
             FilterChip(
                 selected = false,
                 onClick = onPickWorkspace,
@@ -288,7 +290,7 @@ fun AgentContextRow(
                 leadingIcon = { Icon(Icons.Outlined.FolderOpen, contentDescription = null, modifier = Modifier.size(18.dp)) },
                 modifier = Modifier.testTag("workspace_chip"),
             )
-        } else {
+        } else if (workspaceName != null) {
             InputChip(
                 selected = true,
                 onClick = onPickWorkspace,
@@ -304,14 +306,14 @@ fun AgentContextRow(
                 modifier = Modifier.testTag("workspace_chip"),
             )
         }
-        FilterChip(
+        if (!onlySelected || internetEnabled) FilterChip(
             selected = internetEnabled,
             onClick = onToggleInternet,
             label = { Text(stringResource(Res.string.chat_internet)) },
             leadingIcon = { Icon(Icons.Outlined.Public, contentDescription = null, modifier = Modifier.size(18.dp)) },
             modifier = Modifier.testTag("internet_toggle"),
         )
-        if (computerEnabled != null) {
+        if (computerEnabled != null && (!onlySelected || computerEnabled)) {
             FilterChip(
                 selected = computerEnabled,
                 onClick = onToggleComputer,
@@ -320,7 +322,7 @@ fun AgentContextRow(
                 modifier = Modifier.testTag("computer_toggle"),
             )
         }
-        if (thinkingLevel != null) ThinkingChip(thinkingLevel, onSelectThinking)
+        if (thinkingLevel != null && (!onlySelected || thinkingLevel != ThinkingLevel.OFF)) ThinkingChip(thinkingLevel, onSelectThinking)
     }
 }
 
