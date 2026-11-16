@@ -177,6 +177,18 @@ class WorkbenchServiceTest {
     }
 
     @Test
+    fun studioSettingsStayOutOfLyricsPastedInTheOriginalMessage() {
+        val lyrics = "[Verse]\nЭто мои неизменные слова"
+        val original = "Песня на русском\nТекст песни:\n" + lyrics
+        val studio = MusicStudioDraft(style = "piano", language = "ru", structure = "verse chorus")
+        val prompt = studio.prompt(original)
+        assertEquals(lyrics, MusicPromptPolicy.suppliedLyrics(prompt))
+        assertEquals("ru", MusicPromptPolicy.language(prompt))
+        assertEquals("Другие слова песни", MusicPromptPolicy.suppliedLyrics(studio.copy(lyrics = "Другие слова песни").prompt(original)))
+        assertNull(MusicPromptPolicy.suppliedLyrics(studio.copy(instrumental = true).prompt(original)))
+    }
+
+    @Test
     fun musicFieldsPersistAndLyricsStayVerbatimWithExplicitLanguage(): Unit = runBlocking {
         val draft = MusicStudioDraft(style = "piano", language = "ru", lyrics = "[Verse]\nМой неизменный текст", structure = "Verse, chorus")
         val prompt = draft.prompt("A song in English style")
