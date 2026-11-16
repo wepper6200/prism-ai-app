@@ -302,6 +302,9 @@ jobs:
       - name: Build Windows setup installer
         shell: pwsh
         run: ./desktopApp/installer/build.ps1
+      - name: Verify installed launcher auto-start
+        shell: pwsh
+        run: ./desktopApp/installer/test-autolaunch.ps1 -AppDirectory desktopApp/build/compose/binaries/main/app/PrismAI
       - uses: actions/upload-artifact@v6
         with:
           name: PrismAI-windows-setup

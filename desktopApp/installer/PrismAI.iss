@@ -35,6 +35,7 @@ Compression=lzma2/fast
 SolidCompression=yes
 WizardStyle=modern
 DisableWelcomePage=no
+SetupLogging=yes
 CloseApplications=yes
 RestartApplications=no
 
@@ -53,4 +54,4 @@ Name: "{autoprograms}\{#InstallerAppName}"; Filename: "{app}\PrismAI.exe"; Worki
 Name: "{autodesktop}\{#InstallerAppName}"; Filename: "{app}\PrismAI.exe"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\PrismAI.exe"; Description: "{cm:LaunchProgram,Prism AI}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\PrismAI.exe"; WorkingDir: "{app}"; Description: "{cm:LaunchProgram,Prism AI}"; Flags: nowait postinstall skipifsilent shellexec runasoriginaluser
