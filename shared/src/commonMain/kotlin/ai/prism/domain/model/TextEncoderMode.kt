@@ -14,7 +14,7 @@ enum class TextEncoderMode(val weightType: String?) {
     Q8("q8_0"),
 
     /** Q4: примерно вчетверо меньше; так энкодер Gemma для LTX предлагает и stable-diffusion.cpp. */
-    Q4("q4_k"),
+    Q4("q4_K"),
     ;
 
     companion object {
@@ -29,7 +29,8 @@ enum class TextEncoderMode(val weightType: String?) {
 
         /** Путь к сжатой копии файла [path] или сам [path] для полного режима. */
         fun pathFor(path: String, mode: TextEncoderMode): String =
-            mode.weightType?.let { "$path.$it.gguf" } ?: path
+            // Cache names remain stable; the native type name itself is case-sensitive (q4_K).
+            mode.weightType?.let { "$path.${it.lowercase()}.gguf" } ?: path
 
         /** Файл энкодера можно сжать: сжимаются только несжатые веса (safetensors). */
         fun canCompress(fileName: String): Boolean = fileName.endsWith(".safetensors", ignoreCase = true)

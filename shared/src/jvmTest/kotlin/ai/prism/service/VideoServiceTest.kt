@@ -87,7 +87,7 @@ class VideoServiceTest {
         app.generation.animate(chat.id, "Кот спит")
 
         val compressed = "/models/gemma-bf16.safetensors.q4_k.gguf"
-        assertEquals(listOf(Triple("/models/gemma-bf16.safetensors", compressed, "q4_k")), app.imageGenerator.compressions)
+        assertEquals(listOf(Triple("/models/gemma-bf16.safetensors", compressed, "q4_K")), app.imageGenerator.compressions)
         assertEquals(compressed, app.imageGenerator.lastFiles?.get("llm"))
         assertEquals(MessageStatus.COMPLETE, app.chats.messagesSnapshot(chat.id).last().status)
 

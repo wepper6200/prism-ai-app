@@ -88,29 +88,40 @@ internal val PrismDarkColors: ColorScheme = darkColorScheme(
     surfaceDim = Color(0xFF131119),
 )
 
-/**
- * Палитра Liquid Glass: акценты бренда, а фон и контейнеры полупрозрачные,
- * чтобы сквозь них проступал размытый фон.
- */
+/** Neutral graphite and silver glass; semantic errors retain a subdued red cue. */
 internal fun glassColorScheme(base: ColorScheme, darkTheme: Boolean): ColorScheme {
-    val glass = if (darkTheme) Color(0xFF171E27) else Color(0xFFFFFFFF)
+    val glass = if (darkTheme) Color(0xFF1C1C1C) else Color.White
+    val ink = if (darkTheme) Color(0xFFF1F1F1) else Color(0xFF222222)
+    val accent = if (darkTheme) Color(0xFFD0D0D0) else Color(0xFF505050)
+    val container = if (darkTheme) Color(0xFF333333) else Color(0xFFE5E5E5)
+    val onAccent = if (darkTheme) Color(0xFF171717) else Color.White
     return base.copy(
-        primary = if (darkTheme) Color(0xFFF0F3F7) else Color(0xFF1A2632),
-        onPrimary = if (darkTheme) Color(0xFF111821) else Color.White,
-        primaryContainer = if (darkTheme) Color(0xFF303B49) else Color(0xFFE2EAF2),
-        onPrimaryContainer = if (darkTheme) Color(0xFFF0F3F7) else Color(0xFF1A2632),
-        onBackground = if (darkTheme) Color(0xFFEDF1F5) else Color(0xFF19232D),
-        onSurface = if (darkTheme) Color(0xFFEDF1F5) else Color(0xFF19232D),
-        onSurfaceVariant = if (darkTheme) Color(0xFFB5C0CD) else Color(0xFF526171),
-        onSecondaryContainer = if (darkTheme) Color.White else Color(0xFF19232D),
-        background = Color.Transparent,
-        surface = Color.Transparent,
-        surfaceContainerLowest = glass.copy(alpha = 0.20f),
-        surfaceContainerLow = glass.copy(alpha = 0.28f),
-        surfaceContainer = glass.copy(alpha = 0.36f),
-        surfaceContainerHigh = glass.copy(alpha = 0.46f),
-        surfaceContainerHighest = glass.copy(alpha = 0.56f),
-        surfaceVariant = glass.copy(alpha = 0.40f),
-        secondaryContainer = if (darkTheme) Color(0xFF364252).copy(alpha = 0.72f) else Color(0xFFDAE5F0).copy(alpha = 0.82f),
+        primary = ink, onPrimary = onAccent,
+        primaryContainer = container, onPrimaryContainer = ink,
+        inversePrimary = if (darkTheme) Color(0xFF414141) else Color(0xFFD6D6D6),
+        secondary = accent, onSecondary = onAccent,
+        secondaryContainer = container.copy(alpha = 0.82f), onSecondaryContainer = ink,
+        tertiary = accent, onTertiary = onAccent,
+        tertiaryContainer = container.copy(alpha = 0.82f), onTertiaryContainer = ink,
+        onBackground = ink, onSurface = ink,
+        onSurfaceVariant = if (darkTheme) Color(0xFFB8B8B8) else Color(0xFF626262),
+        background = Color.Transparent, surface = Color.Transparent,
+        surfaceTint = accent,
+        inverseSurface = if (darkTheme) Color(0xFFE5E5E5) else Color(0xFF2B2B2B),
+        inverseOnSurface = if (darkTheme) Color(0xFF222222) else Color(0xFFF1F1F1),
+        outline = if (darkTheme) Color(0xFF707070) else Color(0xFF808080),
+        outlineVariant = if (darkTheme) Color(0xFF3B3B3B) else Color(0xFFD4D4D4),
+        surfaceBright = if (darkTheme) Color(0xFF383838) else Color(0xFFFAFAFA),
+        surfaceDim = if (darkTheme) Color(0xFF101010) else Color(0xFFE0E0E0),
+        surfaceContainerLowest = glass.copy(alpha = 0.22f),
+        surfaceContainerLow = glass.copy(alpha = 0.32f),
+        surfaceContainer = glass.copy(alpha = 0.42f),
+        surfaceContainerHigh = glass.copy(alpha = 0.56f),
+        surfaceContainerHighest = glass.copy(alpha = 0.68f),
+        surfaceVariant = glass.copy(alpha = 0.48f),
+        error = if (darkTheme) Color(0xFFE7B4B4) else Color(0xFF944747),
+        onError = if (darkTheme) Color(0xFF361E1E) else Color.White,
+        errorContainer = if (darkTheme) Color(0xFF2C2323) else Color(0xFFF5ECEC),
+        onErrorContainer = if (darkTheme) Color(0xFFF2DADA) else Color(0xFF753A3A),
     )
 }

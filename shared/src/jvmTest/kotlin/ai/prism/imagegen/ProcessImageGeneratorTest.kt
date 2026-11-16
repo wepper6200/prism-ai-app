@@ -72,18 +72,18 @@ class ProcessImageGeneratorTest {
         val output = File(dir, "encoder.safetensors.q4_k.gguf")
         var started = 0
 
-        generator.compressWeights("/models/encoder.safetensors", output.absolutePath, "q4_k") { started++ }
-        generator.compressWeights("/models/encoder.safetensors", output.absolutePath, "q4_k") { started++ }
+        generator.compressWeights("/models/encoder.safetensors", output.absolutePath, "q4_K") { started++ }
+        generator.compressWeights("/models/encoder.safetensors", output.absolutePath, "q4_K") { started++ }
 
         assertTrue(output.isFile)
         assertEquals(1, started, "готовая копия не сжимается заново")
         val command = log.readLines().single { "\"convert\"" in it }
-        assertTrue("\"type\":\"q4_k\"" in command && "/models/encoder.safetensors" in command)
+        assertTrue("\"type\":\"q4_K\"" in command && "/models/encoder.safetensors" in command)
 
         // Сжатие не прерывается командой — отмена завершает процесс.
         val slowOutput = File(dir, "slow.q4_k.gguf")
         val job = async(Dispatchers.Default) {
-            runCatching { generator.compressWeights("/models/slow.safetensors", slowOutput.absolutePath, "q4_k") {} }
+            runCatching { generator.compressWeights("/models/slow.safetensors", slowOutput.absolutePath, "q4_K") {} }
         }
         while (log.readLines().none { "slow.safetensors" in it }) Thread.sleep(20)
         generator.cancel()

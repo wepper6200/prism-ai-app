@@ -456,7 +456,9 @@ public:
         clear_last_error();
         bool ok = false;
         try {
-            ok = convert(input.c_str(), nullptr, temp.c_str(), type, nullptr, false);
+            // The converter builds std::string from tensor_type_rules: null crashes on Windows.
+            // Empty optional strings work with both the loader and the quantization rules parser.
+            ok = convert(input.c_str(), "", temp.c_str(), type, "", false);
         } catch (const std::bad_alloc &) {
             std::filesystem::remove(std::filesystem::u8path(temp), error);
             return emit_error("out_of_memory", "out of memory while converting");

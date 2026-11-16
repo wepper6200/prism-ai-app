@@ -9,6 +9,11 @@ on:
   pull_request:
   workflow_dispatch:
     inputs:
+      packages_only:
+        description: Build signed Android and Windows packages without large model benchmarks
+        type: boolean
+        required: false
+        default: false
       android_only:
         description: Build only signed Android packages
         type: boolean
@@ -149,7 +154,7 @@ jobs:
           if-no-files-found: error
 
   desktop:
-    if: "!inputs.android_only"
+    if: "!inputs.android_only && !inputs.packages_only"
     name: Desktop build, tests and screenshots
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -299,6 +304,9 @@ jobs:
       - name: Check image generator in the Windows app
         shell: bash
         run: test -f desktopApp/build/compose/binaries/main/app/PrismAI/app/resources/prism_imagegen.exe || (find desktopApp/build/compose/binaries -name "prism_imagegen*" ; exit 1)
+      - name: Check real text encoder compression (Q4 and Q8)
+        shell: bash
+        run: python .github/test_encoder_compression.py --binary desktopApp/build/compose/binaries/main/app/PrismAI/app/resources/prism_imagegen.exe
       - name: Build Windows setup installer
         shell: pwsh
         run: ./desktopApp/installer/build.ps1
@@ -329,7 +337,7 @@ jobs:
 
   music:
     name: Music generation (Prism Music 1)
-    if: "!inputs.android_only && github.event_name != 'pull_request' && !startsWith(github.ref, 'refs/tags/')"
+    if: "!inputs.android_only && !inputs.packages_only && github.event_name != 'pull_request' && !startsWith(github.ref, 'refs/tags/')"
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -370,7 +378,7 @@ jobs:
     name: Image generation (FLUX.1 schnell)
     # FLUX весит ~10 ГБ — не помещается в кэш Actions вместе с остальными моделями, качается каждый раз.
     # Для тега релиза не запускается: этот коммит уже проверен сборкой ветки.
-    if: "!inputs.android_only && github.event_name != 'pull_request' && !startsWith(github.ref, 'refs/tags/')"
+    if: "!inputs.android_only && !inputs.packages_only && github.event_name != 'pull_request' && !startsWith(github.ref, 'refs/tags/')"
     runs-on: ubuntu-latest
     timeout-minutes: 75
     env:
@@ -432,7 +440,7 @@ jobs:
   video:
     name: Video generation (Wan 2.1 1.3B)
     # Wan 2.1 1.3B с энкодером umt5 — ~4 ГБ: качается каждый раз, как FLUX. Маленький ролик на процессоре.
-    if: "!inputs.android_only && github.event_name != 'pull_request' && !startsWith(github.ref, 'refs/tags/')"
+    if: "!inputs.android_only && !inputs.packages_only && github.event_name != 'pull_request' && !startsWith(github.ref, 'refs/tags/')"
     runs-on: ubuntu-latest
     timeout-minutes: 75
     env:
