@@ -4,6 +4,9 @@ import ai.prism.domain.agent.AgentTool
 import ai.prism.resources.agent_instructions
 import ai.prism.resources.agent_instructions_qwen_coder
 import ai.prism.resources.agent_workspace_note
+import ai.prism.resources.agent_workspace_action_retry
+import ai.prism.resources.agent_workspace_action_incomplete
+import ai.prism.resources.agent_workspace_action_rejected
 import ai.prism.resources.agent_internet_note
 import ai.prism.resources.agent_computer_note
 import ai.prism.resources.agent_screen_note
@@ -73,6 +76,9 @@ class ResourcePersonaProvider : PersonaProvider {
         agentInstructions = getString(Res.string.agent_instructions),
         agentInstructionsQwenCoder = getString(Res.string.agent_instructions_qwen_coder),
         agentWorkspaceNote = getString(Res.string.agent_workspace_note),
+        agentWorkspaceActionRetry = getString(Res.string.agent_workspace_action_retry),
+        agentWorkspaceActionIncomplete = getString(Res.string.agent_workspace_action_incomplete),
+        agentWorkspaceActionRejected = getString(Res.string.agent_workspace_action_rejected),
         agentInternetNote = getString(Res.string.agent_internet_note),
         agentComputerNote = getString(Res.string.agent_computer_note),
         agentScreenNote = getString(Res.string.agent_screen_note),

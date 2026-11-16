@@ -5,6 +5,7 @@ import ai.prism.core.todayText
 import ai.prism.domain.agent.AgentStep
 import ai.prism.domain.agent.AgentStepStatus
 import ai.prism.domain.agent.AgentTool
+import ai.prism.service.agent.WorkspaceActionPolicy
 import ai.prism.domain.model.ChatFormat
 import ai.prism.domain.agent.CommandRunner
 import ai.prism.domain.agent.Computer
@@ -126,6 +127,9 @@ data class AssistantPersona(
     val agentStepLimit: String = "",
     /** Видимая пользователю подсказка, если модель и после предела шагов не подвела итог. */
     val agentStepLimitNotice: String = "",
+    val agentWorkspaceActionRetry: String = "No successful file write or edit has been recorded for this request. Use the available tools to perform the requested change, reading existing files first. A textual description or code block does not change files. Do not claim success without a successful tool result. If blocked or clarification is needed, explain that honestly.",
+    val agentWorkspaceActionIncomplete: String = "No successful file changes were recorded for this request. The requested change has not been confirmed.",
+    val agentWorkspaceActionRejected: String = "An action was rejected. Further actions for this request were stopped. Earlier successful changes remain; see the tool steps.",
     /** Факты о пользователе в системном промпте; `{facts}` — список. */
     val memoryNote: String = "",
     /** Инструкция: выписать из сообщения пользователя устойчивые факты о нём (или «нет»). */
@@ -527,7 +531,10 @@ class ChatGenerationService(
                         mutableActive.value = ActiveGeneration(chatId, reply.id, live.toString())
                     }
                 } else {
-                    runAgent(chatId, reply.id, request, persona, toolbox, live, steps, qwenCoderTools = model.chatFormat == ChatFormat.CHATML)
+                    val userRequests = messages.filter { it.role == MessageRole.USER }.map { it.content }
+                    runAgent(chatId, reply.id, request, persona, toolbox, live, steps,
+                        writeRequested = WorkspaceActionPolicy.requiresWrite(lastUser?.content.orEmpty(), userRequests.dropLast(1)),
+                        qwenCoderTools = model.chatFormat == ChatFormat.CHATML)
                 }
             }
             val status = if (stopRequested) MessageStatus.STOPPED else MessageStatus.COMPLETE
@@ -806,9 +813,16 @@ class ChatGenerationService(
         toolbox: AgentToolbox,
         live: StringBuilder,
         steps: MutableList<AgentStep>,
+        writeRequested: Boolean,
         qwenCoderTools: Boolean = false,
     ) {
         val workspaceName = chats.workspaceOf(chatId)?.let { location -> workspaces?.open(location)?.name }
+        val requiresWrite = workspaceName != null && writeRequested
+        fun hasWritten() = steps.any {
+            it.status == AgentStepStatus.DONE && it.tool in setOf(AgentTool.WRITE_FILE, AgentTool.EDIT_FILE, AgentTool.DOWNLOAD_FILE)
+        }
+        var textRetries = 0
+        var actionRejected = false
         val context = listOfNotNull(
             workspaceName?.let { persona.agentWorkspaceNote.replace("{name}", it) },
             persona.agentInternetNote.takeIf { AgentTool.WEB_SEARCH in toolbox.tools && it.isNotBlank() },
@@ -861,10 +875,37 @@ class ChatGenerationService(
                     emit(piece)
                     !ToolCallProtocol.isComplete(raw.toString())
                 }
-                .collect { show(ToolCallProtocol.visibleText(raw.toString())) }
+                .collect {
+                    // Do not stream unverified claims of completed edits before a real write succeeds.
+                    if (!requiresWrite || (hasWritten() && !actionRejected)) show(ToolCallProtocol.visibleText(raw.toString()))
+                }
             val visible = ToolCallProtocol.visibleText(raw.toString())
             val call = ToolCallProtocol.parse(raw.toString())
-            parts += visible
+            if (stopRequested) return
+            // Never ask again after a refusal, including when earlier edits already succeeded.
+            if (requiresWrite && actionRejected) {
+                parts.clear()
+                parts += if (hasWritten()) persona.agentWorkspaceActionRejected else persona.agentWorkspaceActionIncomplete
+                show("")
+                return
+            }
+            if (requiresWrite && !hasWritten() && call == null) {
+                if (!finalRound && !actionRejected && textRetries < 2) {
+                    textRetries++
+                    dialog = dialog + PromptMessage(MessageRole.ASSISTANT, raw.toString()) +
+                        PromptMessage(MessageRole.USER, persona.agentWorkspaceActionRetry)
+                    continue
+                }
+                parts.clear()
+                parts += persona.agentWorkspaceActionIncomplete
+                if (finalRound && !loopStopped && maxSteps > 0) {
+                    parts += persona.agentStepLimitNotice.replace("{steps}", maxSteps.toString())
+                }
+                show("")
+                return
+            }
+            // Pre-tool prose can also falsely claim completion. Keep only grounded output.
+            if (!requiresWrite || hasWritten()) parts += visible
             show("")
             if (stopRequested || call == null) return
             if (finalRound) {
@@ -879,6 +920,7 @@ class ChatGenerationService(
             }
             val outcome = runTool(toolbox, call) ?: return
             outcome.step?.let { steps += it }
+            if (outcome.step?.status == AgentStepStatus.REJECTED) actionRejected = true
             executed++
             show("")
             if (stopRequested) return

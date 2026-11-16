@@ -28,6 +28,127 @@ class AgentServiceTest {
     private fun projectFolder(): File = Files.createTempDirectory("prism-project").toFile()
 
     @Test
+    fun unperformedEditIsRetriedUntilRealApprovedWrite(): Unit = runBlocking {
+        val folder = projectFolder()
+        val file = folder.resolve("main.py").apply { writeText("print(1)") }
+        val app = app(
+            "Я внёс правки в main.py.",
+            "<tool name=\"read_file\"><path>main.py</path></tool>",
+            "Я исправил файл.",
+            "<tool name=\"edit_file\"><path>main.py</path><old>print(1)</old><new>print(2)</new></tool>",
+            "Готово.",
+        )
+        val chat = app.chats.createChat()
+        app.chats.setWorkspace(chat.id, folder.path)
+        app.generation.send(chat.id, "сделай правку в самом файле main.py")
+        val pending = assertNotNull(app.generation.active.value?.pending)
+        assertEquals("print(1)", file.readText())
+        assertFalse("Я внёс" in app.generation.active.value!!.text)
+        app.generation.resolvePending(pending.id, approved = true)
+        assertEquals("print(2)", file.readText())
+        val reply = app.chats.messagesSnapshot(chat.id).last()
+        assertEquals("Готово.", reply.content)
+        assertEquals(listOf(AgentTool.READ_FILE, AgentTool.EDIT_FILE), reply.steps.map { it.tool })
+        assertEquals(5, app.engine.requests.size)
+    }
+
+    @Test
+    fun plainCodeAndFalseSuccessCannotLoopOrBecomeCompletedEdits(): Unit = runBlocking {
+        val app = app("```python\nprint(2)\n```", "Изменил файл.", "Всё готово.")
+        val folder = projectFolder()
+        val chat = app.chats.createChat()
+        app.chats.setWorkspace(chat.id, folder.path)
+        app.settings.setAgentSteps(0)
+        app.generation.send(chat.id, "Создай main.py")
+        assertEquals(3, app.engine.requests.size)
+        assertFalse(folder.resolve("main.py").exists())
+        val reply = app.chats.messagesSnapshot(chat.id).last()
+        assertEquals(AssistantPersona("", emptyList()).agentWorkspaceActionIncomplete, reply.content)
+        assertTrue(reply.steps.isEmpty())
+    }
+
+    @Test
+    fun rejectionDoesNotRetryEvenIfModelClaimsSuccessOrCallsWriteAgain(): Unit = runBlocking {
+        for (next in listOf("Готово, записал.", "<tool name=\"write_file\"><path>a.txt</path><content>again</content></tool>")) {
+            val app = app("<tool name=\"write_file\"><path>a.txt</path><content>x</content></tool>", next)
+            val folder = projectFolder()
+            val chat = app.chats.createChat()
+            app.chats.setWorkspace(chat.id, folder.path)
+            app.generation.send(chat.id, "Создай a.txt")
+            app.generation.resolvePending(assertNotNull(app.generation.active.value?.pending).id, approved = false)
+            assertNull(app.generation.active.value)
+            assertEquals(2, app.engine.requests.size)
+            assertFalse(folder.resolve("a.txt").exists())
+            assertEquals(AssistantPersona("", emptyList()).agentWorkspaceActionIncomplete, app.chats.messagesSnapshot(chat.id).last().content)
+        }
+    }
+
+    @Test
+    fun explanationsAndNormalProjectChatDoNotRequireWrites(): Unit = runBlocking {
+        for (question in listOf("Как исправить main.py?", "Объясни, как создать файл", "Не меняй файлы, напиши план", "Что в проекте?", "Привет")) {
+            val app = app("Ответ без правок.")
+            val chat = app.chats.createChat()
+            app.chats.setWorkspace(chat.id, projectFolder().path)
+            app.generation.send(chat.id, question)
+            assertEquals("Ответ без правок.", app.chats.messagesSnapshot(chat.id).last().content)
+            assertEquals(1, app.engine.requests.size)
+        }
+    }
+
+    @Test
+    fun exhaustedToolBudgetCannotBeExtendedByTextRecovery(): Unit = runBlocking {
+        val folder = projectFolder()
+        folder.resolve("a.txt").writeText("old")
+        val app = app(*(List(25) { "<tool name=\"read_file\"><path>a.txt</path></tool>" } + "Записал изменения.").toTypedArray())
+        app.settings.setAgentSteps(25)
+        val chat = app.chats.createChat()
+        app.chats.setWorkspace(chat.id, folder.path)
+        app.generation.send(chat.id, "Измени a.txt")
+        val reply = app.chats.messagesSnapshot(chat.id).last()
+        assertEquals(26, app.engine.requests.size)
+        assertEquals(25, reply.steps.size)
+        assertEquals("old", folder.resolve("a.txt").readText())
+        assertTrue(reply.content.startsWith(AssistantPersona("", emptyList()).agentWorkspaceActionIncomplete))
+        assertTrue(reply.content.endsWith("Сделано 25 шагов."))
+    }
+
+    @Test
+    fun failedAndNoOpEditsDoNotCountAsAppliedChanges(): Unit = runBlocking {
+        val folder = projectFolder()
+        folder.resolve("a.txt").writeText("old")
+        val call = "<tool name=\"edit_file\"><path>a.txt</path><old>old</old><new>old</new></tool>"
+        val app = app(call, "Изменил.", call, "Готово.", call, "Все правки сделаны.")
+        app.settings.setAutoApplyEdits(true)
+        val chat = app.chats.createChat()
+        app.chats.setWorkspace(chat.id, folder.path)
+        app.generation.send(chat.id, "Исправь a.txt")
+        val reply = app.chats.messagesSnapshot(chat.id).last()
+        assertEquals(6, app.engine.requests.size)
+        assertEquals(3, reply.steps.size)
+        assertTrue(reply.steps.all { it.status == AgentStepStatus.FAILED })
+        assertEquals("old", folder.resolve("a.txt").readText())
+        assertEquals(AssistantPersona("", emptyList()).agentWorkspaceActionIncomplete, reply.content)
+    }
+
+    @Test
+    fun rejectionAfterPartialSuccessStopsFurtherWritesAndKeepsEarlierFile(): Unit = runBlocking {
+        val call = "<tool name=\"write_file\"><path>a.txt</path><content>first</content></tool>"
+        val next = "<tool name=\"write_file\"><path>b.txt</path><content>second</content></tool>"
+        val app = app(call, next, next)
+        val folder = projectFolder()
+        val chat = app.chats.createChat()
+        app.chats.setWorkspace(chat.id, folder.path)
+        app.generation.send(chat.id, "Создай два файла")
+        app.generation.resolvePending(assertNotNull(app.generation.active.value?.pending).id, approved = true)
+        app.generation.resolvePending(assertNotNull(app.generation.active.value?.pending).id, approved = false)
+        assertNull(app.generation.active.value)
+        assertEquals("first", folder.resolve("a.txt").readText())
+        assertFalse(folder.resolve("b.txt").exists())
+        assertEquals(2, app.chats.messagesSnapshot(chat.id).last().steps.size)
+        assertEquals(AssistantPersona("", emptyList()).agentWorkspaceActionRejected, app.chats.messagesSnapshot(chat.id).last().content)
+    }
+
+    @Test
     fun withoutToolsTheAnswerIsPlain(): Unit = runBlocking {
         val app = app("Просто ответ.")
         val chat = app.chats.createChat()
@@ -251,6 +372,7 @@ class AgentServiceTest {
             chatFormat = ai.prism.domain.model.ChatFormat.CHATML,
         )
         val engine = FakeInferenceEngine()
+        engine.queuedReplies += listOf("Я уже поменял размер в файле.")
         engine.queuedReplies += listOf(
             "<tool_call>\n<function=edit_file>\n<parameter=path>\nMapGenerator.server.luau\n</parameter>\n<parameter=old>\nlocal size = 10\n</parameter>\n<parameter=new>\nlocal size = 20\n</parameter>\n</function>\n</tool_call>",
         )

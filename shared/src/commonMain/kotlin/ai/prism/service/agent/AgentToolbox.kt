@@ -346,6 +346,9 @@ class AgentToolbox(
         }
         val replaced = effectiveText.replaceFirst(effectiveOld, effectiveNew)
         val updated = if (usesCrLf) replaced.replace("\n", "\r\n") else replaced
+        if (updated == text) {
+            return failed(AgentTool.EDIT_FILE, target.display, "no changes: old and new produce identical file content. Read the file and supply the actual replacement.")
+        }
         val diff = LineDiff.of(effectiveOld, effectiveNew)
         if (!confirm(AgentTool.EDIT_FILE, target, diff)) return rejected(AgentTool.EDIT_FILE, target.display)
         target.folder.write(target.path, updated.encodeToByteArray())
