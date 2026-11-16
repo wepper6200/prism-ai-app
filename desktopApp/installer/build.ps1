@@ -24,6 +24,7 @@ foreach ($required in @("PrismAI.exe", "app/PrismAI.cfg", "runtime/bin/server/jv
         throw "Incomplete Windows application: $required"
     }
 }
+& (Join-Path $PSScriptRoot "verify-runtime.ps1") -AppDirectory $AppDirectory
 $toolRoot = Join-Path $projectRoot "build/tools"
 $compilerDir = Join-Path $toolRoot "inno-$innoVersion"
 $compiler = Join-Path $compilerDir "ISCC.exe"

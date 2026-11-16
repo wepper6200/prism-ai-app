@@ -33,10 +33,14 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeLeft
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performScrollTo
@@ -363,6 +367,10 @@ class PrismAppUiTest {
         onNodeWithTag("new_chat").performClick()
         onNodeWithTag("input_tools").performClick()
         onNodeWithTag("attach_image").performScrollTo().performClick()
+        // A real clipboard image adds a gallery/paste menu; preserve the user clipboard.
+        if (onAllNodesWithText("Выбрать фото").fetchSemanticsNodes().isNotEmpty()) {
+            onNodeWithText("Выбрать фото").performClick()
+        }
         onNodeWithTag("vision_dialog").assertIsDisplayed()
         screenshot("compact_9_vision_dialog", tag = "vision_dialog")
 
@@ -692,6 +700,24 @@ class PrismAppUiTest {
         assertTrue(cancellations >= 1)
         onNodeWithTag("music_play_pause").performClick()
         waitUntil(timeoutMillis = 5000) { cancellations >= 2 }
+    }
+
+    @Test
+    fun restingChatRowsHideDeleteBackgroundAndSwipeStillConfirms() = runDesktopComposeUiTest(width = 412, height = 892) {
+        val (_, root) = createApp()
+        setContent { PrismApp(root) }
+        onNodeWithTag("new_chat").performClick()
+        sendMessage("Сохранённый диалог")
+        onNodeWithTag("back").performClick()
+        val id = root.chatList.state.value.chats.single().id
+        onNodeWithContentDescription("Удалить").assertDoesNotExist()
+        screenshot("compact_29_chat_list_at_rest")
+        onNodeWithTag("chat_item_" + id).performTouchInput { swipeLeft() }
+        onNodeWithTag("confirm_delete").assertIsDisplayed()
+        onNodeWithText("Отмена").performClick()
+        onNodeWithTag("chat_item_" + id).assertIsDisplayed()
+        screenshot("compact_30_chat_list_after_cancel", tag = "chat_item_" + id)
+        onNodeWithContentDescription("Удалить").assertDoesNotExist()
     }
 
 }

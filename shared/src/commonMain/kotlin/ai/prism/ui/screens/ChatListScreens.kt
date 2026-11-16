@@ -1,5 +1,6 @@
 package ai.prism.ui.screens
 
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.material.icons.outlined.Search
@@ -19,6 +20,8 @@ import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.material3.Snackbar
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.collect
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import ai.prism.domain.model.ChatSummary
@@ -133,19 +136,25 @@ fun ChatList(
         }
         items(filtered, key = { it.id }) { chat ->
             val swipe = rememberSwipeToDismissBoxState()
-            LaunchedEffect(swipe.currentValue) {
-                if (swipe.currentValue == SwipeToDismissBoxValue.EndToStart) {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    pendingDelete = chat.id
-                    swipe.reset()
+            var swipeMeasured by remember { mutableStateOf(false) }
+            LaunchedEffect(swipe) {
+                snapshotFlow { swipe.settledValue }.collect { value ->
+                    if (value == SwipeToDismissBoxValue.EndToStart) {
+                        swipe.snapTo(SwipeToDismissBoxValue.Settled)
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        pendingDelete = chat.id
+                    }
                 }
             }
             SwipeToDismissBox(
                 state = swipe,
+                modifier = Modifier.onSizeChanged { swipeMeasured = true },
                 enableDismissFromStartToEnd = false,
                 backgroundContent = {
-                    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.errorContainer).padding(16.dp), contentAlignment = Alignment.CenterEnd) {
-                        Icon(Icons.Outlined.Delete, stringResource(Res.string.action_delete), tint = MaterialTheme.colorScheme.onErrorContainer)
+                    if (swipeMeasured && swipe.requireOffset() < -1f) {
+                        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.errorContainer).padding(16.dp), contentAlignment = Alignment.CenterEnd) {
+                            Icon(Icons.Outlined.Delete, stringResource(Res.string.action_delete), tint = MaterialTheme.colorScheme.onErrorContainer)
+                        }
                     }
                 },
             ) {

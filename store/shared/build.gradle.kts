@@ -21,7 +21,9 @@ kotlin {
         }
     }
 
-    jvm()
+    jvm {
+        compilerOptions.jvmTarget.set(JvmTarget.fromTarget(libs.versions.desktop.java.get()))
+    }
 
     compilerOptions {
         allWarningsAsErrors.set(providers.gradleProperty("prism.werror").map { it.toBoolean() }.orElse(true))
@@ -73,4 +75,9 @@ tasks.withType<Test>().configureEach {
         events("passed", "skipped", "failed")
     }
     systemProperty("prism.screenshotDir", layout.buildDirectory.dir("screenshots").get().asFile.absolutePath)
+}
+
+// Keep Java and Kotlin output compatible with the bundled desktop runtime.
+tasks.withType<JavaCompile>().matching { it.name.startsWith("compileJvm") }.configureEach {
+    options.release.set(libs.versions.desktop.java.get().toInt())
 }

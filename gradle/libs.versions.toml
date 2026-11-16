@@ -1,4 +1,5 @@
 [versions]
+desktop-java = "21"
 inno-setup = "7.1.1"
 inno-setup-sha256 = "8a5a6711c3766a6e5fb74f280ba0e3551e719ce94538d901fdbd1f8f9920b3f0"
 apple-sherpa-url = "https://github.com/k2-fsa/sherpa-onnx/releases/download/xcframework/sherpa-onnx-v1.13.8-ios-static.xcframework.zip"
@@ -7,7 +8,7 @@ apple-onnx-url = "https://github.com/csukuangfj/onnxruntime-libs/releases/downlo
 apple-onnx-sha256 = "992d8a0cc6014cccc3a7815c36bbff5e5a06833ea2c4d47dd43ef071f639cf9d"
 # Версия приложения Prism AI (единый источник для Android, Desktop и экрана «О приложении»).
 prism-versionName = "0.9.8"
-prism-versionCode = "19"
+prism-versionCode = "20"
 # Версия Prism Store (выходит в тех же релизах GitHub, что и Prism AI).
 store-versionName = "1.0.1"
 store-versionCode = "2"

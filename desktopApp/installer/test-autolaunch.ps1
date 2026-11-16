@@ -1,5 +1,6 @@
 param([Parameter(Mandatory)][string]$AppDirectory)
 $ErrorActionPreference = 'Stop'
+& (Join-Path $PSScriptRoot 'verify-runtime.ps1') -AppDirectory $AppDirectory
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $catalog = [IO.File]::ReadAllText((Join-Path $projectRoot 'gradle/libs.versions.toml'))
 function CatalogValue([string]$name) {
@@ -9,6 +10,7 @@ function CatalogValue([string]$name) {
 }
 $version = CatalogValue 'prism-versionName'
 $compilerVersion = CatalogValue 'inno-setup'
+$desktopJava = CatalogValue 'desktop-java'
 $compiler = Join-Path $projectRoot "build/tools/inno-$compilerVersion/ISCC.exe"
 if (-not (Test-Path -LiteralPath $compiler)) { throw 'Run installer/build.ps1 first' }
 $testId = [guid]::NewGuid().ToString('N')
@@ -36,7 +38,7 @@ public final class SetupLaunchProbe {
 '@
 $javaFile = Join-Path $testRoot 'SetupLaunchProbe.java'
 [IO.File]::WriteAllText($javaFile, $java)
-& (Join-Path $env:JAVA_HOME 'bin/javac.exe') --release 21 -d $classes $javaFile
+& (Join-Path $env:JAVA_HOME 'bin/javac.exe') --release $desktopJava -d $classes $javaFile
 if ($LASTEXITCODE -ne 0) { throw 'Probe compilation failed' }
 & (Join-Path $env:JAVA_HOME 'bin/jar.exe') --create --file (Join-Path $source 'app/setup-probe.jar') -C $classes .
 if ($LASTEXITCODE -ne 0) { throw 'Probe packaging failed' }

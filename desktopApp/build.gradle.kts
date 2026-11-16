@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.compose.compiler)
@@ -6,6 +8,7 @@ plugins {
 
 kotlin {
     compilerOptions {
+        jvmTarget.set(JvmTarget.fromTarget(libs.versions.desktop.java.get()))
         allWarningsAsErrors.set(providers.gradleProperty("prism.werror").map { it.toBoolean() }.orElse(true))
     }
 }
@@ -43,4 +46,9 @@ compose.desktop {
 
 tasks.matching { it.name == "prepareAppResources" }.configureEach {
     dependsOn(":native:assembleAppResources")
+}
+
+java {
+    sourceCompatibility = JavaVersion.toVersion(libs.versions.desktop.java.get())
+    targetCompatibility = JavaVersion.toVersion(libs.versions.desktop.java.get())
 }

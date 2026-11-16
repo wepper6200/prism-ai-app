@@ -66,7 +66,9 @@ kotlin {
         }
     }
 
-    jvm()
+    jvm {
+        compilerOptions.jvmTarget.set(JvmTarget.fromTarget(libs.versions.desktop.java.get()))
+    }
 
     // Apple targets are configured by Xcode/macOS CI only; regular Windows builds stay JVM-only.
     if (providers.gradleProperty("prism.ios").orNull == "true") {
@@ -198,4 +200,9 @@ tasks.withType<Test>().configureEach {
         dependsOn(":native:assembleNative")
         systemProperty("prism.native.dir", project(":native").layout.buildDirectory.dir("libs").get().asFile.absolutePath)
     }
+}
+
+// Keep Java and Kotlin output compatible with the bundled desktop runtime.
+tasks.withType<JavaCompile>().matching { it.name.startsWith("compileJvm") }.configureEach {
+    options.release.set(libs.versions.desktop.java.get().toInt())
 }
