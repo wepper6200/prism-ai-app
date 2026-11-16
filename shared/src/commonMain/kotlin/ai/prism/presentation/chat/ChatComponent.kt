@@ -219,6 +219,7 @@ data class ChatState(
     val isGenerating: Boolean = false,
     /** Ответ сейчас генерируется в другом чате. */
     val busyInOtherChat: Boolean = false,
+    val modelChangeBlocked: Boolean = false,
     val voice: ChatVoiceState = ChatVoiceState(),
 ) {
     val canSend: Boolean
@@ -409,6 +410,8 @@ class DefaultChatComponent(
         val messages: List<MessageItem>,
         val isGenerating: Boolean,
         val busyElsewhere: Boolean,
+        val othersActive: Boolean,
+        val anyActive: Boolean,
     )
 
     private data class ModelPart(
@@ -442,9 +445,10 @@ class DefaultChatComponent(
     private val conversation = combine(
         chatRepository.chats.map { chats -> chats.firstOrNull { it.id == chatId }?.title },
         chatRepository.messages(chatId),
-        generation.active,
-    ) { title, messages, active ->
-        val activeHere = active?.takeIf { it.chatId == chatId }
+        generation.activeGenerations,
+        settingsRepository.settings,
+    ) { title, messages, active, _ ->
+        val activeHere = active.values.firstOrNull { it.chatId == chatId }
         ConversationPart(
             title = title,
             messages = messages.map { message ->
@@ -464,8 +468,10 @@ class DefaultChatComponent(
                     running = streaming?.running,
                 )
             },
-            isGenerating = active?.chatId == chatId,
-            busyElsewhere = active != null && active.chatId != chatId,
+            isGenerating = activeHere != null,
+            busyElsewhere = activeHere == null && !generation.canStartChat(chatId),
+            othersActive = active.values.any { it.chatId != chatId },
+            anyActive = active.isNotEmpty(),
         )
     }
 
@@ -644,7 +650,8 @@ class DefaultChatComponent(
             thinkingSupported = model.thinkingSupported,
             modelLoadingProgress = model.loadingProgress?.takeIf { chat.isGenerating },
             isGenerating = chat.isGenerating,
-            busyInOtherChat = chat.busyElsewhere,
+            busyInOtherChat = chat.busyElsewhere || ((extra.drawMode || extra.videoMode || extra.musicMode) && chat.othersActive),
+            modelChangeBlocked = chat.anyActive,
             voice = extra.voice,
         )
     }.stateIn(
@@ -656,12 +663,12 @@ class DefaultChatComponent(
     override fun onIntent(intent: ChatIntent) {
         when (intent) {
             is ChatIntent.DraftChanged -> draft.value = intent.text
-            is ChatIntent.SetProfile -> if (generation.active.value == null) settingsRepository.setGenerationProfile(intent.profile)
+            is ChatIntent.SetProfile -> if (!generation.isRunning()) settingsRepository.setGenerationProfile(intent.profile)
             is ChatIntent.MusicStudioChanged -> studio.value = intent.draft
             is ChatIntent.UndoChanges -> generation.undoChanges(chatId, intent.replyId)
             is ChatIntent.Fork -> generation.forkChat(chatId, intent.messageId, onOpenBranch)
             is ChatIntent.Benchmark -> generation.benchmark(chatId, intent.modelId)
-            is ChatIntent.ApplyBenchmark -> if (generation.active.value == null) {
+            is ChatIntent.ApplyBenchmark -> if (!generation.isRunning()) {
                 val result = generation.workbench.value.benchmarks.firstOrNull { it.modelId == intent.modelId }
                 if (result != null && modelRepository.models.value.any { it.model.id == intent.modelId && it.chatReady && it.fitsInMemory }) {
                     modelRepository.setActive(intent.modelId)
@@ -703,11 +710,11 @@ class DefaultChatComponent(
             }
             is ChatIntent.SelectVideoSeconds -> settingsRepository.setVideoSeconds(intent.seconds)
             is ChatIntent.SelectMusicSeconds -> settingsRepository.setMusicSeconds(intent.seconds)
-            is ChatIntent.SelectModel -> if (!state.value.isGenerating && !state.value.busyInOtherChat &&
+            is ChatIntent.SelectModel -> if (!generation.isRunning() &&
                 modelRepository.models.value.any { it.model.id == intent.modelId && it.model.kind == ModelKind.CHAT && it.chatReady }
             ) modelRepository.setActive(intent.modelId)
             ChatIntent.Send -> send()
-            ChatIntent.Stop -> generation.stop()
+            ChatIntent.Stop -> generation.stop(chatId)
             ChatIntent.ToggleDictation -> toggleDictation()
             ChatIntent.ToggleConversation ->
                 if (voice.state.value.conversationChatId == chatId) voice.stop() else voice.startConversation(chatId)

@@ -23,6 +23,7 @@ data class ChatListState(
     /** Диалог, в котором сейчас генерируется ответ. */
     val generatingChatId: String? = null,
     val pendingDeleteId: String? = null,
+    val generatingChatIds: Set<String> = emptySet(),
 )
 
 sealed interface ChatListIntent {
@@ -65,8 +66,8 @@ class DefaultChatListComponent(
     }
 
     override val state: StateFlow<ChatListState> =
-        combine(chatRepository.chats, generation.active, pendingDelete) { chats, active, pending ->
-            ChatListState(chats = chats, generatingChatId = active?.chatId, pendingDeleteId = pending)
+        combine(chatRepository.chats, generation.activeGenerations, pendingDelete) { chats, active, pending ->
+            ChatListState(chats = chats, generatingChatId = active.values.firstOrNull()?.chatId, pendingDeleteId = pending, generatingChatIds = active.values.mapTo(mutableSetOf()) { it.chatId })
         }.stateIn(scope, SharingStarted.Eagerly, ChatListState())
 
     override fun onIntent(intent: ChatListIntent) {
@@ -78,7 +79,7 @@ class DefaultChatListComponent(
             }
             is ChatListIntent.OpenChat -> onOpenChat(intent.chatId)
             is ChatListIntent.DeleteChat -> scope.launch { deletionLock.withLock {
-                if (generation.active.value?.chatId == intent.chatId) generation.stop()
+                if (generation.activeGenerations.value.values.any { it.chatId == intent.chatId }) generation.stop(intent.chatId)
                 deletion?.cancel()
                 pendingDelete.value?.let { chatRepository.deleteChat(it) }
                 chatRepository.setTrashed(intent.chatId, true)

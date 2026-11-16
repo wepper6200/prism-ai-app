@@ -35,7 +35,7 @@ private fun GenerationProfile.hint(): StringResource = when (this) {
 @Composable
 fun WorkbenchControls(state: ChatState, tools: ChatWorkbench, onIntent: (ChatIntent) -> Unit, open: Boolean, onDismiss: () -> Unit) {
     if (open) ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-        val enabled = !state.isGenerating && !state.busyInOtherChat && !tools.work.busy
+        val enabled = !state.modelChangeBlocked && !state.isGenerating && !state.busyInOtherChat && !tools.work.busy
         Column(Modifier.testTag("workbench_panel").fillMaxWidth().heightIn(max = 640.dp).verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(stringResource(Res.string.work_title), style = MaterialTheme.typography.headlineSmall)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -10,6 +10,11 @@ import kotlinx.coroutines.flow.StateFlow
  * можно подключить Ollama как второй бэкенд на Windows.
  */
 interface InferenceEngine {
+    val supportsParallelSessions: Boolean get() = false
+
+    /** Independent context and cancellation; null if the backend cannot create one. */
+    fun forkForParallelism(parallelism: Int): InferenceEngine? = null
+
     val state: StateFlow<EngineState>
 
     /**

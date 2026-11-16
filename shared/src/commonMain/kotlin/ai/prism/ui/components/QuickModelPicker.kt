@@ -39,7 +39,7 @@ fun QuickModelPicker(state: ChatState, onSelect: (String) -> Unit, onCatalog: ()
             )
             LazyColumn(Modifier.weight(1f, fill = false).heightIn(max = 360.dp)) {
                 items(state.modelChoices, key = { it.model.id }) { entry ->
-                    val enabled = entry.chatReady && !state.isGenerating && !state.busyInOtherChat
+                    val enabled = entry.chatReady && !state.modelChangeBlocked && !state.isGenerating && !state.busyInOtherChat
                     ListItem(
                         headlineContent = { Text(entry.model.name) },
                         supportingContent = {

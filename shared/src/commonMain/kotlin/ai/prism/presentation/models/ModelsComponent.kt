@@ -66,13 +66,12 @@ class DefaultModelsComponent(
         when (intent) {
             is ModelsIntent.Download -> modelRepository.download(intent.modelId)
             is ModelsIntent.Pause -> modelRepository.pause(intent.modelId)
-            is ModelsIntent.Activate -> modelRepository.setActive(intent.modelId)
+            is ModelsIntent.Activate -> if (!generation.isRunning()) modelRepository.setActive(intent.modelId)
             is ModelsIntent.SetInternetEnabled -> settingsRepository.setInternetEnabled(intent.enabled)
             is ModelsIntent.Delete -> scope.launch {
                 // Файл нельзя удалять, пока модель открыта движком.
-                if (engineUses(intent.modelId)) {
-                    generation.stop()
-                    engine.unload()
+                if (engineUses(intent.modelId) || generation.usesModel(intent.modelId)) {
+                    generation.releaseAll()
                 }
                 modelRepository.delete(intent.modelId)
             }

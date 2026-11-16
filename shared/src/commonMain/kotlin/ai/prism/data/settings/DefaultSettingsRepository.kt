@@ -24,6 +24,8 @@ class DefaultSettingsRepository(
 
     override val settings: StateFlow<AppSettings> = state.asStateFlow()
 
+    override fun setMaxParallelReplies(count: Int) = update { it.copy(maxParallelReplies = count.coerceIn(1, 4)) }
+
     override fun setGenerationProfile(profile: ai.prism.domain.model.GenerationProfile) = update { it.copy(generationProfile = profile) }
 
     override fun setThemeStyle(style: ThemeStyle) = update { it.copy(themeStyle = style) }
@@ -75,6 +77,7 @@ class DefaultSettingsRepository(
     private fun load(): AppSettings {
         val defaults = AppSettings()
         return AppSettings(
+            maxParallelReplies = store.getString("max_parallel_replies")?.toIntOrNull()?.coerceIn(1, 4) ?: 1,
             generationProfile = parseEnum(store.getString("generation_profile"), defaults.generationProfile),
             themeStyle = parseEnum(store.getString(KEY_THEME_STYLE), defaults.themeStyle),
             darkMode = parseEnum(store.getString(KEY_DARK_MODE), defaults.darkMode),
@@ -102,6 +105,7 @@ class DefaultSettingsRepository(
     }
 
     private fun save(settings: AppSettings) {
+        store.putString("max_parallel_replies", settings.maxParallelReplies.toString())
         store.putString("generation_profile", settings.generationProfile.name)
         store.putString(KEY_THEME_STYLE, settings.themeStyle.name)
         store.putString(KEY_DARK_MODE, settings.darkMode.name)

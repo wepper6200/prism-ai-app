@@ -159,6 +159,18 @@ class LlamaInferenceEngine(
         }
     }
 
+    override val supportsParallelSessions: Boolean get() = true
+
+    override fun forkForParallelism(parallelism: Int): InferenceEngine {
+        val device = deviceInfo
+        // Additional sessions use CPU: do not duplicate a large GPU allocation in every chat.
+        val secondary = object : DeviceInfo by device {
+            override val preferGpu: Boolean = false
+            override val inferenceThreads: Int get() = (device.inferenceThreads / parallelism.coerceAtLeast(1)).coerceAtLeast(1)
+        }
+        return LlamaInferenceEngine(libraryLoader, secondary, imageCodec)
+    }
+
     override fun modelInfo(): ModelInfo? = (state.value as? EngineState.Ready)?.info
 
     private fun loadLocked(model: CatalogModel, filePath: String, projector: String?) {

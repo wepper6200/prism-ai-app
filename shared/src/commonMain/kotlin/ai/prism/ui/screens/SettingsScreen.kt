@@ -113,6 +113,8 @@ import ai.prism.resources.settings_computer_desc
 import ai.prism.resources.settings_internet_desc
 import ai.prism.resources.settings_safe_mode
 import ai.prism.resources.settings_safe_mode_desc
+import ai.prism.resources.settings_parallel_replies
+import ai.prism.resources.settings_parallel_replies_desc
 import ai.prism.resources.settings_agent_steps
 import ai.prism.resources.settings_by_model
 import ai.prism.resources.settings_context
@@ -530,6 +532,18 @@ private fun AgentLimits(settings: AppSettings, onIntent: (SettingsIntent) -> Uni
         selectedId = settings.contextLength.toString(),
         onSelect = { onIntent(SettingsIntent.SetContextLength(it.toInt())) },
     )
+    SectionLabel(stringResource(Res.string.settings_parallel_replies))
+    Text(
+        text = stringResource(Res.string.settings_parallel_replies_desc),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    VoiceModelChoice(
+        options = (1..4).map { VoiceModelOption(it.toString(), it.toString()) },
+        selectedId = settings.maxParallelReplies.toString(),
+        onSelect = { onIntent(SettingsIntent.SetMaxParallelReplies(it.toInt())) },
+        tagPrefix = "parallel_reply_",
+    )
     SectionLabel(stringResource(Res.string.settings_agent_steps))
     VoiceModelChoice(
         options = AppSettings.AGENT_STEP_OPTIONS.map { VoiceModelOption(it.toString(), if (it == 0) unlimited else it.toString()) },
@@ -695,6 +709,7 @@ private fun VoiceModelChoice(
     options: List<VoiceModelOption>,
     selectedId: String?,
     onSelect: (String) -> Unit,
+    tagPrefix: String = "voice_option_",
 ) {
     if (options.isEmpty()) {
         Text(
@@ -710,7 +725,7 @@ private fun VoiceModelChoice(
                 selected = option.id == selectedId,
                 onClick = { onSelect(option.id) },
                 label = { Text(option.name) },
-                modifier = Modifier.testTag("voice_option_${option.id}"),
+                modifier = Modifier.testTag("$tagPrefix${option.id}"),
             )
         }
     }

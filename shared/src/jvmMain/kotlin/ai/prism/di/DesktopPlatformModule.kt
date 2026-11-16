@@ -99,7 +99,7 @@ fun desktopPlatformModule(): Module = module {
     single<AudioOutput> { JavaSoundAudioOutput() }
     single<AppUpdater> { DesktopAppUpdater() }
     single<ModelFolder> {
-        val engine = get<InferenceEngine>()
+        val generation = get<ai.prism.service.ChatGenerationService>()
         val imageGenerator = get<ImageGenerator>()
         val musicGenerator = get<ai.prism.domain.music.MusicGenerator>()
         val speech = get<SpeechEngine>()
@@ -113,7 +113,7 @@ fun desktopPlatformModule(): Module = module {
             unavailable = ChoosableModelFolder.initialDirectory(get(), defaultModelsDir()).second,
             // Windows не даёт переместить открытый файл: перед переносом модели выгружаются из памяти.
             beforeMove = {
-                engine.unload()
+                generation.releaseAll()
                 imageGenerator.release()
                 musicGenerator.release()
                 speech.release()

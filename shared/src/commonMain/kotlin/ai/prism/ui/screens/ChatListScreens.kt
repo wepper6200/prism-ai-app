@@ -114,6 +114,7 @@ fun ChatList(
     query: String = "",
     onPin: (String, Boolean) -> Unit = { _, _ -> },
     onRename: (String, String) -> Unit = { _, _ -> },
+    generatingChatIds: Set<String> = emptySet(),
 ) {
     var pendingDelete by remember { mutableStateOf<String?>(null) }
     var renaming by remember { mutableStateOf<ChatSummary?>(null) }
@@ -170,7 +171,7 @@ fun ChatList(
                 onClick = { onOpenChat(chat.id) },
                 icon = { Icon(if (chat.pinned) Icons.Outlined.PushPin else Icons.Outlined.ChatBubbleOutline, contentDescription = if (chat.pinned) stringResource(Res.string.chat_pin) else null) },
                 badge = {
-                    if (chat.id == generatingChatId) {
+                    if (chat.id == generatingChatId || chat.id in generatingChatIds) {
                         val description = stringResource(Res.string.chat_generating)
                         CircularProgressIndicator(
                             modifier = Modifier.size(16.dp).semantics { contentDescription = description },
@@ -308,6 +309,7 @@ fun ChatListScreen(
                         onRename = { id, title -> component.onIntent(ChatListIntent.RenameChat(id, title)) },
                         selectedChatId = null,
                         generatingChatId = state.generatingChatId,
+                        generatingChatIds = state.generatingChatIds,
                         onOpenChat = { component.onIntent(ChatListIntent.OpenChat(it)) },
                         onDeleteChat = { component.onIntent(ChatListIntent.DeleteChat(it)) },
                         modifier = Modifier.fillMaxSize(),
@@ -396,6 +398,7 @@ fun Sidebar(
                         selectedChatId = selectedChatId,
                         query = query,
                         generatingChatId = state.generatingChatId,
+                        generatingChatIds = state.generatingChatIds,
                         onOpenChat = { component.onIntent(ChatListIntent.OpenChat(it)) },
                         onDeleteChat = { component.onIntent(ChatListIntent.DeleteChat(it)) },
                         modifier = Modifier.fillMaxSize(),

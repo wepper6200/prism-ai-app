@@ -353,7 +353,7 @@ class VoiceService(
         launch {
             try {
                 var messageId: String? = null
-                generation.active.takeWhile { it != null }.collect { active ->
+                generation.activeFor(chatId).takeWhile { it != null }.collect { active ->
                     if (active != null && active.chatId == chatId && active.messageId.isNotEmpty()) {
                         if (messageId == null) {
                             messageId = active.messageId

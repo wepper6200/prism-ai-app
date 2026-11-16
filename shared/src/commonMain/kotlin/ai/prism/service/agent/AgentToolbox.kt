@@ -29,7 +29,11 @@ import kotlinx.serialization.json.contentOrNull
 import ai.prism.domain.model.AppSettings
 import ai.prism.domain.repository.ImageException
 import ai.prism.domain.repository.ImageStore
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlin.math.roundToInt
+
+private val fileMutationLock = Mutex()
 
 /**
  * Итог вызова инструмента: текст для модели, шаг для показа пользователю (`null` — вызов не распознан)
@@ -358,7 +362,7 @@ class AgentToolbox(
         return done(AgentTool.EDIT_FILE, target.display, "edited ${target.display}; verified by reading the file", diff, verified = true)
     }
 
-    private suspend fun checkedWrite(target: FileTarget, original: ByteArray?, updated: ByteArray) {
+    private suspend fun checkedWrite(target: FileTarget, original: ByteArray?, updated: ByteArray) = fileMutationLock.withLock {
         // Approval can stay open while the user's editor changes the file.
         val current = if (target.folder.exists(target.path)) target.folder.read(target.path) else null
         if (original == null && current != null || original != null && (current == null || !original.contentEquals(current))) {

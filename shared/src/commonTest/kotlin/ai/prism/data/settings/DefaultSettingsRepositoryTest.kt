@@ -35,6 +35,19 @@ class DefaultSettingsRepositoryTest {
     }
 
     @Test
+    fun parallelReplyLimitPersistsAndIsBounded() {
+        val store = MapKeyValueStore()
+        val settings = DefaultSettingsRepository(store)
+        assertEquals(1, settings.settings.value.maxParallelReplies)
+        settings.setMaxParallelReplies(3)
+        assertEquals(3, DefaultSettingsRepository(store).settings.value.maxParallelReplies)
+        settings.setMaxParallelReplies(20)
+        assertEquals(4, settings.settings.value.maxParallelReplies)
+        settings.setMaxParallelReplies(0)
+        assertEquals(1, settings.settings.value.maxParallelReplies)
+    }
+
+    @Test
     fun emptyStoreGivesDefaults() {
         val repository = DefaultSettingsRepository(MapKeyValueStore())
         assertEquals(AppSettings(), repository.settings.value)

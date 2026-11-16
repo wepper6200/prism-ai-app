@@ -70,4 +70,6 @@
     <string name="work_bench_load">Загрузка модели: %1$d мс</string>
     <string name="work_bench_first">Первый текст: %1$d мс</string>
     <string name="work_bench_speed">Скорость: %1$d знаков/с</string>
+    <string name="settings_parallel_replies">Одновременные ответы</string>
+    <string name="settings_parallel_replies_desc">Сколько чатов могут отвечать одновременно: от 1 до 4. По умолчанию — 1. Дополнительные ответы используют процессор и требуют больше оперативной памяти; выбирайте лёгкие модели. Генерация медиа и тест скорости выполняются отдельно от ответов.</string>
 </resources>

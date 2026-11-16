@@ -546,6 +546,17 @@ class PrismAppUiTest {
         screenshot("compact_16_video")
     }
 
+    @Test
+    fun compactSettingsChangesConcurrentReplyLimit() = runDesktopComposeUiTest(width = 412, height = 892) {
+        val (app, root) = createApp(TestApp(models = models))
+        setContent { PrismApp(root) }
+        onNodeWithTag("nav_settings").performClick()
+        onNodeWithTag("parallel_reply_3").performScrollTo().performClick()
+        waitForIdle()
+        assertEquals(3, app.settings.settings.value.maxParallelReplies)
+        screenshot("compact_34_parallel_replies")
+    }
+
     /** Обновление: по кнопке в настройках находится новая версия, затем скачивается и ставится. */
     @Test
     fun compactSettingsInstallsUpdate() = runDesktopComposeUiTest(width = 412, height = 892) {

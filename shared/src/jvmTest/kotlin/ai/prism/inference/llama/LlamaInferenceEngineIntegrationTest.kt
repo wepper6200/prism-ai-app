@@ -16,6 +16,9 @@ import ai.prism.service.MusicPromptPolicy
 import ai.prism.ui.ResourcePersonaProvider
 import ai.prism.testing.FakeDeviceInfo
 import ai.prism.testing.testModel
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -76,6 +79,34 @@ class LlamaInferenceEngineIntegrationTest {
         minRamMb = 1,
         chatFormat = format,
     )
+
+    @Test
+    fun parallelContextsKeepDeterministicOutputWhenAnotherIsCancelled(): Unit = runBlocking {
+        val file = requireModel("PRISM_TEST_MODEL")
+        val secondary = engine.forkForParallelism(2)
+        val model = modelFor(file, ChatFormat.RAW)
+        val request = GenerationRequest("", listOf(PromptMessage(MessageRole.USER, "Once upon a time")),
+            maxTokens = 64, sampling = SamplingParams(temperature = 0f))
+        try {
+            engine.load(model, file.absolutePath)
+            secondary.load(model, file.absolutePath)
+            val expected = secondary.generate(request).toList().joinToString("")
+            val firstToken = kotlinx.coroutines.CompletableDeferred<Unit>()
+            val cancelled = async {
+                engine.generate(request.copy(maxTokens = 400)).collect {
+                    firstToken.complete(Unit)
+                    kotlinx.coroutines.awaitCancellation()
+                }
+            }
+            firstToken.await()
+            val actual = secondary.generate(request).onEach { engine.cancel(); cancelled.cancel() }
+                .toList().joinToString("")
+            cancelled.join()
+            assertTrue(expected.isNotBlank())
+            assertEquals(expected, actual, "Stopping one native context changed another answer")
+            assertEquals("CPU", secondary.modelInfo()?.accelerator)
+        } finally { engine.unload(); secondary.unload() }
+    }
 
     @Test
     fun tinyModelGeneratesTextAndStops(): Unit = runBlocking {

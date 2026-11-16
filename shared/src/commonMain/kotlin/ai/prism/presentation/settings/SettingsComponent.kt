@@ -98,6 +98,7 @@ sealed interface SettingsIntent {
     data class SelectVoiceSpeaker(val speaker: Int) : SettingsIntent
     data class SelectTextEncoder(val mode: TextEncoderMode) : SettingsIntent
     data class SetContextLength(val tokens: Int) : SettingsIntent
+    data class SetMaxParallelReplies(val count: Int) : SettingsIntent
     data class SetAgentSteps(val steps: Int) : SettingsIntent
     data class SetFolderDepth(val depth: Int) : SettingsIntent
     data class SetThinkingLevel(val level: ThinkingLevel) : SettingsIntent
@@ -242,6 +243,7 @@ class DefaultSettingsComponent(
             is SettingsIntent.SelectVoiceSpeaker -> settingsRepository.setVoiceSpeaker(intent.speaker)
             is SettingsIntent.SelectTextEncoder -> settingsRepository.setTextEncoderMode(intent.mode)
             is SettingsIntent.SetContextLength -> settingsRepository.setContextLength(intent.tokens)
+            is SettingsIntent.SetMaxParallelReplies -> settingsRepository.setMaxParallelReplies(intent.count)
             is SettingsIntent.SetAgentSteps -> settingsRepository.setAgentSteps(intent.steps)
             is SettingsIntent.SetFolderDepth -> settingsRepository.setFolderDepth(intent.depth)
             is SettingsIntent.SetThinkingLevel -> settingsRepository.setThinkingLevel(intent.level)

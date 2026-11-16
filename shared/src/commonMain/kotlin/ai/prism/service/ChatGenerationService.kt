@@ -66,6 +66,9 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -201,7 +204,7 @@ data class ActiveGeneration(
 
 /**
  * Генерация ответов в области приложения: переживает уход с экрана чата и пересоздание Activity.
- * Одновременно идёт не больше одной генерации.
+ * Независимые текстовые сессии ограничены настройкой; операции с медиа выполняются отдельно.
  */
 class ChatGenerationService(
     private val engine: InferenceEngine,
@@ -237,6 +240,7 @@ class ChatGenerationService(
     private val changeJournal: ai.prism.service.agent.WorkspaceChangeJournal = ai.prism.service.agent.WorkspaceChangeJournal(),
     private val benchmarkHistory: ModelBenchmarkHistory = ModelBenchmarkHistory(),
     private val branchDocuments: ai.prism.domain.repository.DocumentRepository? = null,
+    private val coordinator: ChatGenerationService? = null,
 ) {
     private val mutableActive = MutableStateFlow<ActiveGeneration?>(null)
     val active: StateFlow<ActiveGeneration?> = mutableActive.asStateFlow()
@@ -246,11 +250,116 @@ class ChatGenerationService(
 
     fun dismissWorkbenchNotice() { mutableWorkbench.update { it.copy(notice = null) } }
 
-    fun undoChanges(chatId: String, replyId: String): Boolean {
+    private enum class OperationKind { TEXT, EXCLUSIVE }
+    private val manager: ChatGenerationService get() = coordinator ?: this
+    private val workerId = newId()
+    private val children = MutableStateFlow<List<ChatGenerationService>>(emptyList())
+    private val running = MutableStateFlow<Map<String, ActiveGeneration>>(emptyMap())
+    private val admission = kotlinx.coroutines.sync.Mutex()
+    private val maintenance = kotlinx.coroutines.sync.Mutex()
+    private val releasing = MutableStateFlow(false)
+    private var operationKind = OperationKind.TEXT
+    private var operationJob: Job? = null
+
+    /** Every live answer, keyed by its independent session. */
+    val activeGenerations: StateFlow<Map<String, ActiveGeneration>> get() = manager.running.asStateFlow()
+    fun activeFor(chatId: String): kotlinx.coroutines.flow.Flow<ActiveGeneration?> = activeGenerations
+        .map { states -> states.values.firstOrNull { it.chatId == chatId } }.distinctUntilChanged()
+    fun isRunning(): Boolean = manager.workers().any { it.mutableActive.value != null }
+    fun canStartChat(chatId: String): Boolean {
+        val owner = manager
+        if (owner.releasing.value) return false
+        val busy = owner.workers().filter { it.mutableActive.value != null }
+        return busy.none { it.mutableActive.value?.chatId == chatId || it.operationKind == OperationKind.EXCLUSIVE } &&
+            busy.size < if (owner.engine.supportsParallelSessions) owner.settings.settings.value.maxParallelReplies else 1
+    }
+    private fun workers(): List<ChatGenerationService> = listOf(this) + children.value
+    private fun publishActive() {
+        manager.running.update { before ->
+            val latest = mutableActive.value
+            if (latest == null) before - workerId else before + (workerId to latest)
+        }
+    }
+    private fun setActive(value: ActiveGeneration?) { mutableActive.value = value; publishActive() }
+    private fun updateActive(transform: (ActiveGeneration?) -> ActiveGeneration?) { mutableActive.update(transform); publishActive() }
+    private fun launchOperation(block: suspend CoroutineScope.() -> Unit) {
+        val job = scope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY, block = block)
+        operationJob = job
+        job.invokeOnCompletion { if (operationJob === job) operationJob = null }
+        job.start()
+    }
+    private suspend fun finishOperation() {
+        try {
+            if (coordinator != null) withContext(NonCancellable) { engine.unload() }
+        } finally { setActive(null) }
+    }
+    private fun newWorker(): ChatGenerationService? {
+        val fork = engine.forkForParallelism(settings.settings.value.maxParallelReplies) ?: return null
+        return ChatGenerationService(fork, chats, models, personaProvider, images, imageGenerator, settings, scope,
+            documents, web, workspaces, commands, computer, screen, mcp, today, totalRamBytes, drafts, memories,
+            musicGenerator, changeJournal, benchmarkHistory, branchDocuments, coordinator = this)
+    }
+    private fun dispatch(chatId: String, kind: OperationKind, action: (ChatGenerationService) -> Boolean): Boolean {
+        val owner = manager
+        if (owner !== this) return owner.dispatch(chatId, kind, action)
+        if (!admission.tryLock()) return false
+        try {
+            if (releasing.value) return false
+            val busy = workers().filter { it.mutableActive.value != null }
+            if (busy.any { it.mutableActive.value?.chatId == chatId }) return false
+            if (kind == OperationKind.EXCLUSIVE && busy.isNotEmpty()) return false
+            if (busy.any { it.operationKind == OperationKind.EXCLUSIVE }) return false
+            val limit = if (engine.supportsParallelSessions) settings.settings.value.maxParallelReplies else 1
+            if (busy.size >= limit) return false
+            val worker = workers().firstOrNull { it.mutableActive.value == null }
+                ?: newWorker()?.also { children.value = children.value + it } ?: return false
+            worker.operationKind = kind
+            return action(worker)
+        } finally { admission.unlock() }
+    }
+    fun send(chatId: String, text: String, attachments: List<ImageAttachment> = emptyList(), verification: Boolean = false): Boolean =
+        dispatch(chatId, OperationKind.TEXT) { it.sendHere(chatId, text, attachments, verification) }
+    fun draw(chatId: String, text: String, source: ImageAttachment? = null): Boolean =
+        dispatch(chatId, OperationKind.EXCLUSIVE) { it.drawHere(chatId, text, source) }
+    fun animate(chatId: String, text: String, source: ImageAttachment? = null): Boolean =
+        dispatch(chatId, OperationKind.EXCLUSIVE) { it.animateHere(chatId, text, source) }
+    fun composeMusic(chatId: String, text: String): Boolean =
+        dispatch(chatId, OperationKind.EXCLUSIVE) { it.composeMusicHere(chatId, text) }
+    fun retry(chatId: String): Boolean = dispatch(chatId, OperationKind.EXCLUSIVE) { it.retryHere(chatId) }
+    fun undoChanges(chatId: String, replyId: String): Boolean = dispatch(chatId, OperationKind.EXCLUSIVE) { it.undoChangesHere(chatId, replyId) }
+    fun forkChat(chatId: String, messageId: String, onCreated: (String) -> Unit): Boolean =
+        dispatch(chatId, OperationKind.EXCLUSIVE) { it.forkChatHere(chatId, messageId, onCreated) }
+    fun benchmark(chatId: String, modelId: String): Boolean = dispatch(chatId, OperationKind.EXCLUSIVE) { it.benchmarkHere(chatId, modelId) }
+    fun stop(chatId: String? = null) {
+        manager.workers().filter { chatId == null || it.mutableActive.value?.chatId == chatId }.forEach { it.stopHere() }
+    }
+    suspend fun releaseAll() {
+        val owner = manager
+        owner.maintenance.withLock {
+            val jobs = owner.admission.withLock {
+                owner.releasing.value = true
+                owner.stop()
+                owner.workers().mapNotNull { it.operationJob }
+            }
+            try {
+                jobs.forEach { it.join() }
+                owner.workers().forEach { it.engine.unload() }
+            } finally { owner.releasing.value = false }
+        }
+    }
+    fun usesModel(modelId: String): Boolean = manager.workers().any { worker ->
+        when (val value = worker.engine.state.value) {
+            is ai.prism.domain.inference.EngineState.Ready -> value.info.modelId == modelId
+            is ai.prism.domain.inference.EngineState.Loading -> value.modelId == modelId
+            else -> false
+        }
+    }
+
+    private fun undoChangesHere(chatId: String, replyId: String): Boolean {
         val provider = workspaces ?: return false
         if (!reserve(chatId)) return false
         mutableWorkbench.update { it.copy(busy = true, notice = null) }
-        scope.launch {
+        launchOperation {
             try {
                 changeJournal.undo(chatId, replyId, provider)
                 chats.messagesSnapshot(chatId).firstOrNull { it.id == replyId }?.let { message ->
@@ -265,16 +374,16 @@ class ChatGenerationService(
             } catch (e: Exception) { mutableWorkbench.update { it.copy(notice = WorkbenchNotice.FAILED) }
             } finally {
                 mutableWorkbench.update { it.copy(busy = false) }
-                mutableActive.value = null
+                finishOperation()
             }
         }
         return true
     }
 
-    fun forkChat(chatId: String, messageId: String, onCreated: (String) -> Unit): Boolean {
+    private fun forkChatHere(chatId: String, messageId: String, onCreated: (String) -> Unit): Boolean {
         if (!reserve(chatId)) return false
         mutableWorkbench.update { it.copy(busy = true, notice = null) }
-        scope.launch {
+        launchOperation {
             try {
                 val title = chats.chats.first().firstOrNull { it.id == chatId }?.title.orEmpty()
                 val name = personaProvider.persona().branchTitle.replace("{title}", title)
@@ -285,7 +394,7 @@ class ChatGenerationService(
                 mutableWorkbench.update { it.copy(notice = WorkbenchNotice.BRANCH_FAILED) }
             } finally {
                 mutableWorkbench.update { it.copy(busy = false) }
-                mutableActive.value = null
+                finishOperation()
             }
         }
         return true
@@ -295,12 +404,12 @@ class ChatGenerationService(
         scope.launch { send(chatId, personaProvider.persona().verificationRequest, verification = true) }
     }
 
-    fun benchmark(chatId: String, modelId: String): Boolean {
+    private fun benchmarkHere(chatId: String, modelId: String): Boolean {
         val model = models.models.value.firstOrNull { it.model.id == modelId && it.model.kind == ModelKind.CHAT && it.chatReady && it.fitsInMemory }?.model ?: return false
         val path = models.downloadedFilePath(modelId) ?: return false
         if (!reserve(chatId)) return false
         mutableWorkbench.update { it.copy(busy = true, benchmarking = modelId, notice = null) }
-        scope.launch {
+        launchOperation {
             try {
                 imageGenerator.release()
                 engine.unload()
@@ -333,7 +442,7 @@ class ChatGenerationService(
             } finally {
                 try { withContext(NonCancellable) { engine.unload() } } finally {
                     mutableWorkbench.update { it.copy(busy = false, benchmarking = null) }
-                    mutableActive.value = null
+                    finishOperation()
                 }
             }
         }
@@ -352,7 +461,7 @@ class ChatGenerationService(
 
     init {
         scope.launch { changeJournal.replies.collect { ids -> mutableWorkbench.update { it.copy(undoReplies = ids) } } }
-        scope.launch {
+        if (coordinator == null) scope.launch {
             chats.markInterruptedGenerations()
             // Черновики удалённых диалогов больше не нужны.
             drafts.retainChats(chats.chats.first().mapTo(mutableSetOf()) { it.id })
@@ -365,16 +474,16 @@ class ChatGenerationService(
      * Отправляет сообщение (текст и/или изображения) и запускает ответ.
      * `false` — уже идёт другая генерация или сообщение пустое.
      */
-    fun send(chatId: String, text: String, attachments: List<ImageAttachment> = emptyList(), verification: Boolean = false): Boolean {
+    private fun sendHere(chatId: String, text: String, attachments: List<ImageAttachment> = emptyList(), verification: Boolean = false): Boolean {
         val content = text.trim()
         if ((content.isEmpty() && attachments.isEmpty()) || !reserve(chatId)) return false
-        scope.launch {
+        launchOperation {
             try {
                 chats.addMessage(chatId, MessageRole.USER, content, MessageStatus.COMPLETE, modelId = null, images = attachments)
                 if (content.isNotEmpty()) chats.setTitleIfEmpty(chatId, titleFrom(content))
                 generateReply(chatId, verification)
             } finally {
-                mutableActive.value = null
+                finishOperation()
             }
         }
         return true
@@ -384,16 +493,16 @@ class ChatGenerationService(
      * Просит модель изображений нарисовать картинку по описанию [text]; с [source] — перерисовать это фото.
      * `false` — уже идёт другая генерация или описание пустое.
      */
-    fun draw(chatId: String, text: String, source: ImageAttachment? = null): Boolean {
+    private fun drawHere(chatId: String, text: String, source: ImageAttachment? = null): Boolean {
         val prompt = text.trim()
         if (prompt.isEmpty() || !reserve(chatId)) return false
-        scope.launch {
+        launchOperation {
             try {
                 chats.addMessage(chatId, MessageRole.USER, prompt, MessageStatus.COMPLETE, modelId = null, images = listOfNotNull(source))
                 chats.setTitleIfEmpty(chatId, titleFrom(prompt))
                 drawReply(chatId, prompt, source)
             } finally {
-                mutableActive.value = null
+                finishOperation()
             }
         }
         return true
@@ -403,40 +512,40 @@ class ChatGenerationService(
      * Просит модель видео (Wan) снять ролик по описанию [text]; с [source] — оживить это фото.
      * `false` — уже идёт другая генерация или описание пустое.
      */
-    fun animate(chatId: String, text: String, source: ImageAttachment? = null): Boolean {
+    private fun animateHere(chatId: String, text: String, source: ImageAttachment? = null): Boolean {
         val prompt = text.trim()
         if (prompt.isEmpty() || !reserve(chatId)) return false
-        scope.launch {
+        launchOperation {
             try {
                 chats.addMessage(chatId, MessageRole.USER, prompt, MessageStatus.COMPLETE, modelId = null, images = listOfNotNull(source))
                 chats.setTitleIfEmpty(chatId, titleFrom(prompt))
                 videoReply(chatId, prompt, source)
             } finally {
-                mutableActive.value = null
+                finishOperation()
             }
         }
         return true
     }
 
-    fun composeMusic(chatId: String, text: String): Boolean {
+    private fun composeMusicHere(chatId: String, text: String): Boolean {
         val prompt = text.trim()
         if (prompt.isEmpty() || !reserve(chatId)) return false
-        scope.launch {
+        launchOperation {
             try {
                 chats.addMessage(chatId, MessageRole.USER, prompt, MessageStatus.COMPLETE, modelId = null)
                 chats.setTitleIfEmpty(chatId, titleFrom(prompt))
                 musicReply(chatId, prompt)
             } finally {
-                mutableActive.value = null
+                finishOperation()
             }
         }
         return true
     }
 
     /** Повторяет последний неудачный или остановленный ответ. */
-    fun retry(chatId: String): Boolean {
+    private fun retryHere(chatId: String): Boolean {
         if (!reserve(chatId)) return false
-        scope.launch {
+        launchOperation {
             try {
                 val messages = chats.messagesSnapshot(chatId)
                 val last = messages.lastOrNull()
@@ -458,13 +567,13 @@ class ChatGenerationService(
                     generateReply(chatId)
                 }
             } finally {
-                mutableActive.value = null
+                finishOperation()
             }
         }
         return true
     }
 
-    fun stop() {
+    private fun stopHere() {
         stopRequested = true
         decision?.complete(false)
         toolJob?.cancel()
@@ -475,7 +584,7 @@ class ChatGenerationService(
 
     /** Ответ пользователя на запрос разрешения [actionId] (изменение файлов, скачивание, команда). */
     fun resolvePending(actionId: String, approved: Boolean) {
-        if (mutableActive.value?.pending?.id == actionId) decision?.complete(approved)
+        manager.workers().firstOrNull { it.mutableActive.value?.pending?.id == actionId }?.decision?.complete(approved)
     }
 
     /** На этой платформе есть программа генерации изображений. */
@@ -490,7 +599,7 @@ class ChatGenerationService(
         val model = musicModel() ?: models.models.value.firstOrNull { it.model.kind == ModelKind.MUSIC }?.model
         val reply = chats.addMessage(chatId, MessageRole.ASSISTANT, "", MessageStatus.GENERATING, model?.id)
         fun progress(stage: DrawingStage, step: Int = 0, steps: Int = 0) {
-            mutableActive.value = ActiveGeneration(chatId, reply.id, "", DrawingProgress(stage, step, steps, music = true))
+            setActive(ActiveGeneration(chatId, reply.id, "", DrawingProgress(stage, step, steps, music = true)))
         }
         val files = model?.let { models.imageModelFiles(it.id) }
         if (files == null || !musicGenerator.isSupported) {
@@ -567,8 +676,9 @@ class ChatGenerationService(
         ?.model
 
     private fun reserve(chatId: String): Boolean {
-        if (!mutableActive.compareAndSet(null, ActiveGeneration(chatId = chatId, messageId = "", text = ""))) return false
         stopRequested = false
+        if (!mutableActive.compareAndSet(null, ActiveGeneration(chatId = chatId, messageId = "", text = ""))) return false
+        publishActive()
         return true
     }
 
@@ -576,7 +686,7 @@ class ChatGenerationService(
         val messages = chats.messagesSnapshot(chatId)
         val modelId = models.activeModelId.value
         val reply = chats.addMessage(chatId, MessageRole.ASSISTANT, "", MessageStatus.GENERATING, modelId)
-        mutableActive.value = ActiveGeneration(chatId, reply.id, "")
+        setActive(ActiveGeneration(chatId, reply.id, ""))
 
         val model = modelId?.let(models::catalogModel)
         if (model == null) {
@@ -640,7 +750,7 @@ class ChatGenerationService(
                 if (toolbox == null) {
                     engine.generate(request).collect { piece ->
                         live.append(piece)
-                        mutableActive.value = ActiveGeneration(chatId, reply.id, live.toString())
+                        setActive(ActiveGeneration(chatId, reply.id, live.toString()))
                     }
                 } else {
                     val userRequests = messages.filter { it.role == MessageRole.USER }.map { it.content }
@@ -766,7 +876,7 @@ class ChatGenerationService(
         val model = videoModel()
         val reply = chats.addMessage(chatId, MessageRole.ASSISTANT, "", MessageStatus.GENERATING, model?.id)
         fun progress(drawing: DrawingProgress) {
-            mutableActive.value = ActiveGeneration(chatId, reply.id, "", drawing.copy(video = true))
+            setActive(ActiveGeneration(chatId, reply.id, "", drawing.copy(video = true)))
         }
         progress(DrawingProgress(DrawingStage.TRANSLATING))
         val files = model?.let { models.imageModelFiles(it.id) }
@@ -909,7 +1019,7 @@ class ChatGenerationService(
             imageStore = images,
             mcpTools = mcpTools,
             callMcp = { tool, arguments -> checkNotNull(mcp).call(tool, arguments) },
-            onRunning = { running -> mutableActive.update { it?.copy(running = running) } },
+            onRunning = { running -> updateActive { it?.copy(running = running) } },
             approve = { action -> askApproval(chatId, replyId, action) },
             newId = ::newId,
         ).takeIf { it.tools.isNotEmpty() || it.mcpTools.isNotEmpty() }
@@ -973,7 +1083,7 @@ class ChatGenerationService(
         fun show(current: String) {
             live.setLength(0)
             live.append((parts + current).filter { it.isNotBlank() }.joinToString("\n\n"))
-            mutableActive.value = ActiveGeneration(chatId, replyId, live.toString(), steps = steps.toList())
+            setActive(ActiveGeneration(chatId, replyId, live.toString(), steps = steps.toList()))
         }
         // Предел шагов из настроек; 0 — без ограничения (ответ останавливает только пользователь).
         val maxSteps = settings.settings.value.agentSteps
@@ -1099,14 +1209,14 @@ class ChatGenerationService(
         if (stopRequested) return false
         val waiting = CompletableDeferred<Boolean>()
         decision = waiting
-        mutableActive.update { current ->
+        updateActive { current ->
             (current ?: ActiveGeneration(chatId, replyId, "")).copy(pending = action)
         }
         return try {
             waiting.await()
         } finally {
             decision = null
-            mutableActive.update { it?.copy(pending = null) }
+            updateActive { it?.copy(pending = null) }
         }
     }
 
@@ -1114,7 +1224,7 @@ class ChatGenerationService(
         val model = imageModel()
         val reply = chats.addMessage(chatId, MessageRole.ASSISTANT, "", MessageStatus.GENERATING, model?.id)
         fun progress(drawing: DrawingProgress) {
-            mutableActive.value = ActiveGeneration(chatId, reply.id, "", drawing)
+            setActive(ActiveGeneration(chatId, reply.id, "", drawing))
         }
         progress(DrawingProgress(DrawingStage.TRANSLATING))
         val files = model?.let { models.imageModelFiles(it.id) }

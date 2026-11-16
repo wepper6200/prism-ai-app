@@ -748,7 +748,7 @@ private fun MessageList(
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
-    val actionsEnabled = !state.isGenerating && !state.busyInOtherChat && !tools.work.busy
+    val actionsEnabled = !state.modelChangeBlocked && !state.isGenerating && !state.busyInOtherChat && !tools.work.busy
     val taskIds = remember(state.messages) {
         val requests = mutableListOf<String>()
         buildSet { state.messages.forEach { message ->
@@ -800,7 +800,7 @@ private fun MessageList(
                             loadImage = loadImage,
                             onOpenImage = onOpenImage,
                             loadingProgress = state.modelLoadingProgress.takeIf { message.isStreaming },
-                            canRetry = message.id == lastId && !state.isGenerating && !state.busyInOtherChat,
+                            canRetry = message.id == lastId && !state.modelChangeBlocked && !state.isGenerating && !state.busyInOtherChat,
                             onRetry = onRetry,
                             speech = if (state.voice.supported && !message.isStreaming && message.text.isNotBlank() &&
                                 message.status == MessageStatus.COMPLETE
