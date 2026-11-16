@@ -43,6 +43,12 @@ class FileWorkspace(root: File, private val ioContext: CoroutineContext = Dispat
         file.writeBytes(bytes)
     }
 
+    override suspend fun deleteFile(path: String) = io {
+        val file = resolve(path)
+        if (file == root || !file.isFile) throw WorkspaceException("not a file: $path")
+        if (!file.delete()) throw WorkspaceException("cannot delete: $path")
+    }
+
     override suspend fun search(query: String, limit: Int): List<WorkspaceHit> = io {
         val hits = mutableListOf<WorkspaceHit>()
         root.walkTopDown()

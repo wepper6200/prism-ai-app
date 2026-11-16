@@ -48,6 +48,7 @@ enum class AgentStepStatus {
     /** Пользователь не разрешил действие. */
     REJECTED,
     FAILED,
+    UNDONE,
 }
 
 /** Шаг работы ассистента: вызов инструмента и его итог (для показа под ответом). */
@@ -58,6 +59,7 @@ data class AgentStep(
     /** Подробности: результат, разница «было/стало», вывод команды (сокращённые). */
     val detail: String,
     val status: AgentStepStatus,
+    val verified: Boolean = false,
 )
 
 /** Действие, которое ждёт разрешения пользователя: изменение файлов, скачивание или команда. */
@@ -100,6 +102,9 @@ interface Workspace {
 
     /** Создаёт или перезаписывает файл (вместе с недостающими папками). */
     suspend fun write(path: String, bytes: ByteArray)
+
+    /** Deletes a single file only, used to undo creation. */
+    suspend fun deleteFile(path: String) { throw WorkspaceException("File removal is unavailable") }
 
     /** Строки текстовых файлов, содержащие [query] (без учёта регистра). */
     suspend fun search(query: String, limit: Int): List<WorkspaceHit>

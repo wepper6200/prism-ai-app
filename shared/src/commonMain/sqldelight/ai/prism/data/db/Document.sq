@@ -88,3 +88,10 @@ DELETE FROM message_source WHERE message_id = ?;
 
 deleteSourcesOfChat:
 DELETE FROM message_source WHERE chat_id = ?;
+
+copyDocumentToChat:
+INSERT INTO document(id, chat_id, name, format, size_bytes, status, error, chunk_count, embedding_model, added_at)
+SELECT ?, ?, name, format, size_bytes, status, error, chunk_count, embedding_model, added_at FROM document WHERE id = ?;
+copyChunksToChat:
+INSERT INTO document_chunk(document_id, chat_id, position, page, text, embedding)
+SELECT ?, ?, position, page, text, embedding FROM document_chunk WHERE document_id = ?;

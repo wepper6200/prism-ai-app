@@ -8,7 +8,7 @@ apple-onnx-url = "https://github.com/csukuangfj/onnxruntime-libs/releases/downlo
 apple-onnx-sha256 = "992d8a0cc6014cccc3a7815c36bbff5e5a06833ea2c4d47dd43ef071f639cf9d"
 # Версия приложения Prism AI (единый источник для Android, Desktop и экрана «О приложении»).
 prism-versionName = "0.9.8"
-prism-versionCode = "21"
+prism-versionCode = "22"
 # Версия Prism Store (выходит в тех же релизах GitHub, что и Prism AI).
 store-versionName = "1.0.1"
 store-versionCode = "2"

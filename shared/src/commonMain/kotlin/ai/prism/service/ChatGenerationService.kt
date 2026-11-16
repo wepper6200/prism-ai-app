@@ -84,6 +84,13 @@ data class AssistantPersona(
     val primer: List<PromptMessage>,
     /** Короткое напоминание о личности в конце последнего сообщения пользователя. */
     val reminder: String = "",
+    val profileInstructions: Map<ai.prism.domain.model.GenerationProfile, String> = emptyMap(),
+    val benchmarkPrompt: String = "Кратко объясни, почему сменяются времена года.",
+    val verificationRetry: String = "No successful test/build command has run. Read the project configuration and use run_command for a suitable verification. Wait for permission. Do not invent a successful check.",
+    val verificationIncomplete: String = "Project verification was not confirmed successful. Check the tool results.",
+    val branchTitle: String = "Ветка: {title}",
+    val verificationRequest: String = "Проверь результат последних изменений в проекте. Прочитай изменённые файлы. Найди подходящую команду тестов или сборки и предложи её запуск. Не меняй файлы; сообщи, какие проверки действительно выполнены и что не удалось проверить.",
+
     /**
      * Сегодняшняя дата и справка о свежих версиях (`{date}` — дата на устройстве). Модели знают мир только
      * до конца своего обучения и без этого считают текущим его год. Пусто — не добавляется.
@@ -227,9 +234,111 @@ class ChatGenerationService(
     /** Память о пользователе между диалогами. */
     private val memories: MemoryRepository = MemoryRepository.None,
     private val musicGenerator: MusicGenerator = MusicGenerator.None,
+    private val changeJournal: ai.prism.service.agent.WorkspaceChangeJournal = ai.prism.service.agent.WorkspaceChangeJournal(),
+    private val benchmarkHistory: ModelBenchmarkHistory = ModelBenchmarkHistory(),
+    private val branchDocuments: ai.prism.domain.repository.DocumentRepository? = null,
 ) {
     private val mutableActive = MutableStateFlow<ActiveGeneration?>(null)
     val active: StateFlow<ActiveGeneration?> = mutableActive.asStateFlow()
+
+    private val mutableWorkbench = MutableStateFlow(WorkbenchState(benchmarks = benchmarkHistory.load()))
+    val workbench: StateFlow<WorkbenchState> = mutableWorkbench.asStateFlow()
+
+    fun dismissWorkbenchNotice() { mutableWorkbench.update { it.copy(notice = null) } }
+
+    fun undoChanges(chatId: String, replyId: String): Boolean {
+        val provider = workspaces ?: return false
+        if (!reserve(chatId)) return false
+        mutableWorkbench.update { it.copy(busy = true, notice = null) }
+        scope.launch {
+            try {
+                changeJournal.undo(chatId, replyId, provider)
+                chats.messagesSnapshot(chatId).firstOrNull { it.id == replyId }?.let { message ->
+                    chats.attachSteps(chatId, replyId, message.steps.map { step ->
+                        if (step.status == AgentStepStatus.DONE && step.tool in setOf(AgentTool.WRITE_FILE, AgentTool.EDIT_FILE)) step.copy(status = AgentStepStatus.UNDONE, verified = false) else step
+                    })
+                }
+                mutableWorkbench.update { it.copy(notice = WorkbenchNotice.UNDONE) }
+            } catch (e: ai.prism.domain.agent.WorkspaceException) {
+                mutableWorkbench.update { it.copy(notice = WorkbenchNotice.CONFLICT) }
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) { mutableWorkbench.update { it.copy(notice = WorkbenchNotice.FAILED) }
+            } finally {
+                mutableWorkbench.update { it.copy(busy = false) }
+                mutableActive.value = null
+            }
+        }
+        return true
+    }
+
+    fun forkChat(chatId: String, messageId: String, onCreated: (String) -> Unit): Boolean {
+        if (!reserve(chatId)) return false
+        mutableWorkbench.update { it.copy(busy = true, notice = null) }
+        scope.launch {
+            try {
+                val title = chats.chats.first().firstOrNull { it.id == chatId }?.title.orEmpty()
+                val name = personaProvider.persona().branchTitle.replace("{title}", title)
+                val id = ChatBranchService(chats, images, branchDocuments).fork(chatId, messageId, name)
+                onCreated(id)
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) {
+                mutableWorkbench.update { it.copy(notice = WorkbenchNotice.BRANCH_FAILED) }
+            } finally {
+                mutableWorkbench.update { it.copy(busy = false) }
+                mutableActive.value = null
+            }
+        }
+        return true
+    }
+
+    fun verifyProject(chatId: String) {
+        scope.launch { send(chatId, personaProvider.persona().verificationRequest, verification = true) }
+    }
+
+    fun benchmark(chatId: String, modelId: String): Boolean {
+        val model = models.models.value.firstOrNull { it.model.id == modelId && it.model.kind == ModelKind.CHAT && it.chatReady && it.fitsInMemory }?.model ?: return false
+        val path = models.downloadedFilePath(modelId) ?: return false
+        if (!reserve(chatId)) return false
+        mutableWorkbench.update { it.copy(busy = true, benchmarking = modelId, notice = null) }
+        scope.launch {
+            try {
+                imageGenerator.release()
+                engine.unload()
+                val loadStart = kotlin.time.TimeSource.Monotonic.markNow()
+                val context = model.contextLength.takeIf { it > 0 }?.coerceAtMost(4096) ?: 4096
+                engine.load(model.copy(contextLength = context), path, null)
+                val measuredContext = engine.modelInfo()?.contextSize?.takeIf { it > 0 } ?: context
+                val loadMillis = loadStart.elapsedNow().inWholeMilliseconds
+                val started = kotlin.time.TimeSource.Monotonic.markNow()
+                var first: Long? = null
+                var characters = 0
+                if (!stopRequested) engine.generate(GenerationRequest(
+                    systemPrompt = personaProvider.persona().systemPrompt,
+                    messages = listOf(PromptMessage(MessageRole.USER, personaProvider.persona().benchmarkPrompt)),
+                    maxTokens = 64, sampling = SamplingParams(temperature = 0f, seed = 42), thinkingBudget = 0,
+                )).collect { piece ->
+                    if (piece.isNotBlank() && first == null) first = started.elapsedNow().inWholeMilliseconds
+                    characters += piece.length
+                }
+                if (stopRequested) mutableWorkbench.update { it.copy(notice = WorkbenchNotice.CANCELLED) }
+                else if (characters == 0 || first == null) mutableWorkbench.update { it.copy(notice = WorkbenchNotice.BENCHMARK_FAILED) }
+                else {
+                    val result = ModelBenchmarkResult(modelId, loadMillis, first, started.elapsedNow().inWholeMilliseconds.coerceAtLeast(1), characters, model.minRamMb, ai.prism.core.currentTimeMillis(), measuredContext)
+                    val results = (mutableWorkbench.value.benchmarks.filterNot { it.modelId == modelId } + result).takeLast(12)
+                    benchmarkHistory.save(results)
+                    mutableWorkbench.update { it.copy(benchmarks = results) }
+                }
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) { mutableWorkbench.update { it.copy(notice = WorkbenchNotice.BENCHMARK_FAILED) }
+            } finally {
+                try { withContext(NonCancellable) { engine.unload() } } finally {
+                    mutableWorkbench.update { it.copy(busy = false, benchmarking = null) }
+                    mutableActive.value = null
+                }
+            }
+        }
+        return true
+    }
 
     @Volatile
     private var stopRequested = false
@@ -242,6 +351,7 @@ class ChatGenerationService(
     private var toolJob: Job? = null
 
     init {
+        scope.launch { changeJournal.replies.collect { ids -> mutableWorkbench.update { it.copy(undoReplies = ids) } } }
         scope.launch {
             chats.markInterruptedGenerations()
             // Черновики удалённых диалогов больше не нужны.
@@ -255,14 +365,14 @@ class ChatGenerationService(
      * Отправляет сообщение (текст и/или изображения) и запускает ответ.
      * `false` — уже идёт другая генерация или сообщение пустое.
      */
-    fun send(chatId: String, text: String, attachments: List<ImageAttachment> = emptyList()): Boolean {
+    fun send(chatId: String, text: String, attachments: List<ImageAttachment> = emptyList(), verification: Boolean = false): Boolean {
         val content = text.trim()
         if ((content.isEmpty() && attachments.isEmpty()) || !reserve(chatId)) return false
         scope.launch {
             try {
                 chats.addMessage(chatId, MessageRole.USER, content, MessageStatus.COMPLETE, modelId = null, images = attachments)
                 if (content.isNotEmpty()) chats.setTitleIfEmpty(chatId, titleFrom(content))
-                generateReply(chatId)
+                generateReply(chatId, verification)
             } finally {
                 mutableActive.value = null
             }
@@ -462,7 +572,7 @@ class ChatGenerationService(
         return true
     }
 
-    private suspend fun generateReply(chatId: String) {
+    private suspend fun generateReply(chatId: String, verification: Boolean = false) {
         val messages = chats.messagesSnapshot(chatId)
         val modelId = models.activeModelId.value
         val reply = chats.addMessage(chatId, MessageRole.ASSISTANT, "", MessageStatus.GENERATING, modelId)
@@ -517,11 +627,13 @@ class ChatGenerationService(
                 val memoryNote = if (current.memoryEnabled) memoryNote(persona) else null
                 val digestNote = digest?.let { persona.summaryNote.takeIf { note -> note.isNotBlank() }?.replace("{summary}", it.text) }
                 val request = GenerationRequest(
-                    systemPrompt = listOfNotNull(persona.systemPrompt, dateNote(persona), safeRule, memoryNote, digestNote)
+                    systemPrompt = listOfNotNull(persona.systemPrompt, persona.profileInstructions[current.generationProfile], dateNote(persona), safeRule, memoryNote, digestNote)
                         .joinToString("\n\n"),
                     messages = history,
                     primer = persona.primer,
                     reminder = persona.reminder,
+                    sampling = current.generationProfile.sampling,
+                    maxTokens = if (current.generationProfile == ai.prism.domain.model.GenerationProfile.STANDARD) 2048 else minOf(current.generationProfile.maxTokens, (withChosenContext(model).contextLength / 2).coerceAtLeast(256)),
                     thinkingBudget = settings.settings.value.thinkingLevel.budgetTokens,
                 )
                 val toolbox = agentToolbox(chatId, reply.id, vision = projectorPath != null)
@@ -534,7 +646,7 @@ class ChatGenerationService(
                     val userRequests = messages.filter { it.role == MessageRole.USER }.map { it.content }
                     runAgent(chatId, reply.id, request, persona, toolbox, live, steps,
                         writeRequested = WorkspaceActionPolicy.requiresWrite(lastUser?.content.orEmpty(), userRequests.dropLast(1)),
-                        qwenCoderTools = model.chatFormat == ChatFormat.CHATML)
+                        verificationRequested = verification, qwenCoderTools = model.chatFormat == ChatFormat.CHATML)
                 }
             }
             val status = if (stopRequested) MessageStatus.STOPPED else MessageStatus.COMPLETE
@@ -774,7 +886,8 @@ class ChatGenerationService(
     private suspend fun agentToolbox(chatId: String, replyId: String, vision: Boolean): AgentToolbox? {
         val current = settings.settings.value
         val internet = web?.takeIf { current.internetEnabled }
-        val folder = chats.workspaceOf(chatId)?.let { location -> workspaces?.open(location) }
+        val location = chats.workspaceOf(chatId)
+        val folder = location?.let { workspaces?.open(it) }
         val pc = computer?.takeIf { current.computerEnabled }
         val mcpTools = mcp?.tools(current.internetEnabled).orEmpty()
         if (internet == null && folder == null && pc == null && mcpTools.isEmpty()) return null
@@ -783,6 +896,12 @@ class ChatGenerationService(
             web = internet,
             commands = commands,
             autoApplyEdits = current.autoApplyEdits,
+            beforeProjectWrite = { path, before, after ->
+                try { changeJournal.record(chatId, replyId, checkNotNull(location), path, before, after) }
+                catch (e: CancellationException) { throw e }
+                catch (e: ai.prism.domain.agent.WorkspaceException) { throw e }
+                catch (e: Exception) { throw ai.prism.domain.agent.WorkspaceException("Cannot save undo backup", e) }
+            },
             folderDepth = current.folderDepth,
             computer = pc,
             // Экран без зрения модели бесполезен: она не увидит снимок.
@@ -814,12 +933,16 @@ class ChatGenerationService(
         live: StringBuilder,
         steps: MutableList<AgentStep>,
         writeRequested: Boolean,
+        verificationRequested: Boolean = false,
         qwenCoderTools: Boolean = false,
     ) {
         val workspaceName = chats.workspaceOf(chatId)?.let { location -> workspaces?.open(location)?.name }
-        val requiresWrite = workspaceName != null && writeRequested
+        val requiresWrite = workspaceName != null && (writeRequested || verificationRequested)
+        val retryNote = if (verificationRequested) persona.verificationRetry else persona.agentWorkspaceActionRetry
+        val incompleteNote = if (verificationRequested) persona.verificationIncomplete else persona.agentWorkspaceActionIncomplete
         fun hasWritten() = steps.any {
-            it.status == AgentStepStatus.DONE && it.tool in setOf(AgentTool.WRITE_FILE, AgentTool.EDIT_FILE, AgentTool.DOWNLOAD_FILE)
+            it.status == AgentStepStatus.DONE && if (verificationRequested) it.tool == AgentTool.RUN_COMMAND
+                else it.tool in setOf(AgentTool.WRITE_FILE, AgentTool.EDIT_FILE, AgentTool.DOWNLOAD_FILE)
         }
         var textRetries = 0
         var actionRejected = false
@@ -885,7 +1008,7 @@ class ChatGenerationService(
             // Never ask again after a refusal, including when earlier edits already succeeded.
             if (requiresWrite && actionRejected) {
                 parts.clear()
-                parts += if (hasWritten()) persona.agentWorkspaceActionRejected else persona.agentWorkspaceActionIncomplete
+                parts += if (verificationRequested) incompleteNote else if (hasWritten()) persona.agentWorkspaceActionRejected else incompleteNote
                 show("")
                 return
             }
@@ -893,11 +1016,11 @@ class ChatGenerationService(
                 if (!finalRound && !actionRejected && textRetries < 2) {
                     textRetries++
                     dialog = dialog + PromptMessage(MessageRole.ASSISTANT, raw.toString()) +
-                        PromptMessage(MessageRole.USER, persona.agentWorkspaceActionRetry)
+                        PromptMessage(MessageRole.USER, retryNote)
                     continue
                 }
                 parts.clear()
-                parts += persona.agentWorkspaceActionIncomplete
+                parts += incompleteNote
                 if (finalRound && !loopStopped && maxSteps > 0) {
                     parts += persona.agentStepLimitNotice.replace("{steps}", maxSteps.toString())
                 }
@@ -920,7 +1043,7 @@ class ChatGenerationService(
             }
             val outcome = runTool(toolbox, call) ?: return
             outcome.step?.let { steps += it }
-            if (outcome.step?.status == AgentStepStatus.REJECTED) actionRejected = true
+            if (outcome.step?.status == AgentStepStatus.REJECTED || (verificationRequested && outcome.step?.tool == AgentTool.RUN_COMMAND && outcome.step.status == AgentStepStatus.FAILED)) actionRejected = true
             executed++
             show("")
             if (stopRequested) return
@@ -1221,7 +1344,7 @@ class ChatGenerationService(
 
     /** Модель чата с контекстом из настроек (если выбран); движок уменьшит его до обученного предела модели. */
     private fun withChosenContext(model: CatalogModel): CatalogModel {
-        val chosen = settings.settings.value.contextLength
+        val chosen = settings.settings.value.contextLength.takeIf { it > 0 } ?: settings.settings.value.generationProfile.defaultContext
         return if (chosen > 0 && model.kind == ModelKind.CHAT) model.copy(contextLength = chosen) else model
     }
 

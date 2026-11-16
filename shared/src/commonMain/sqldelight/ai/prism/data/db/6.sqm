@@ -1,0 +1,13 @@
+CREATE TABLE workspace_change (
+ id TEXT NOT NULL PRIMARY KEY,
+ chat_id TEXT NOT NULL,
+ message_id TEXT NOT NULL,
+ location TEXT NOT NULL,
+ path TEXT NOT NULL,
+ before_bytes BLOB,
+ after_bytes BLOB NOT NULL,
+ created_at INTEGER NOT NULL
+);
+CREATE INDEX change_by_message ON workspace_change(message_id, created_at);
+
+ALTER TABLE message_step ADD COLUMN verified INTEGER NOT NULL DEFAULT 0;

@@ -24,6 +24,8 @@ class DefaultSettingsRepository(
 
     override val settings: StateFlow<AppSettings> = state.asStateFlow()
 
+    override fun setGenerationProfile(profile: ai.prism.domain.model.GenerationProfile) = update { it.copy(generationProfile = profile) }
+
     override fun setThemeStyle(style: ThemeStyle) = update { it.copy(themeStyle = style) }
 
     override fun setDarkMode(mode: DarkMode) = update { it.copy(darkMode = mode) }
@@ -73,6 +75,7 @@ class DefaultSettingsRepository(
     private fun load(): AppSettings {
         val defaults = AppSettings()
         return AppSettings(
+            generationProfile = parseEnum(store.getString("generation_profile"), defaults.generationProfile),
             themeStyle = parseEnum(store.getString(KEY_THEME_STYLE), defaults.themeStyle),
             darkMode = parseEnum(store.getString(KEY_DARK_MODE), defaults.darkMode),
             dynamicColor = store.getString(KEY_DYNAMIC_COLOR)?.toBooleanStrictOrNull() ?: defaults.dynamicColor,
@@ -99,6 +102,7 @@ class DefaultSettingsRepository(
     }
 
     private fun save(settings: AppSettings) {
+        store.putString("generation_profile", settings.generationProfile.name)
         store.putString(KEY_THEME_STYLE, settings.themeStyle.name)
         store.putString(KEY_DARK_MODE, settings.darkMode.name)
         store.putString(KEY_DYNAMIC_COLOR, settings.dynamicColor.toString())

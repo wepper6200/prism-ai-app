@@ -20,13 +20,13 @@ import org.jetbrains.compose.resources.stringResource
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun QuickModelPicker(state: ChatState, onSelect: (String) -> Unit, onCatalog: () -> Unit) {
+fun QuickModelPicker(state: ChatState, onSelect: (String) -> Unit, onCatalog: () -> Unit, onWorkbench: (() -> Unit)? = null) {
     var open by remember { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
     IconButton(onClick = { open = true }, modifier = Modifier.testTag("quick_model_picker")) {
         Icon(Icons.Outlined.Memory, stringResource(Res.string.model_quick_select))
     }
-    if (open) ModalBottomSheet(onDismissRequest = { open = false }) {
+    if (open) ModalBottomSheet(onDismissRequest = { open = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.fillMaxWidth().heightIn(max = 620.dp).padding(bottom = 24.dp).testTag("quick_models_panel")) {
             Text(stringResource(Res.string.model_quick_select), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(20.dp))
             state.modelLoadingProgress?.let {
@@ -55,6 +55,7 @@ fun QuickModelPicker(state: ChatState, onSelect: (String) -> Unit, onCatalog: ()
                     )
                 }
             }
+            if (onWorkbench != null) TextButton(onClick = { open = false; onWorkbench() }, modifier = Modifier.padding(horizontal = 12.dp).testTag("workbench_open")) { Text(stringResource(Res.string.work_title)) }
             TextButton(onClick = { open = false; onCatalog() }, modifier = Modifier.padding(horizontal = 12.dp).testTag("quick_model_catalog")) {
                 Text(stringResource(Res.string.nav_models))
             }

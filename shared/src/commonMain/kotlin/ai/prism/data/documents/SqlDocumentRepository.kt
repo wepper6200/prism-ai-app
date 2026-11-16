@@ -27,6 +27,16 @@ class SqlDocumentRepository(
 
     private val queries get() = database.documentQueries
 
+    override suspend fun copyToChat(sourceChatId: String, targetChatId: String, throughMillis: Long) = withContext(ioContext) {
+        queries.transaction {
+            queries.selectDocumentsOfChat(sourceChatId).executeAsList().filter { it.status == DocumentStatus.READY.name && it.added_at <= throughMillis }.forEach { document ->
+                val id = newId()
+                queries.copyDocumentToChat(id, targetChatId, document.id)
+                queries.copyChunksToChat(id, targetChatId, document.id)
+            }
+        }
+    }
+
     override fun documents(chatId: String): Flow<List<ChatDocument>> =
         queries.selectDocumentsOfChat(chatId).asFlow().mapToList(ioContext).map { rows -> rows.map { it.toDomain() } }
 

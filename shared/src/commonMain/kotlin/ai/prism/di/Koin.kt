@@ -63,6 +63,8 @@ val sharedModule: Module = module {
             platform = get<PlatformCapabilities>().platform,
         )
     }
+    single { ai.prism.service.agent.WorkspaceChangeJournal(database = get()) }
+    single { ai.prism.service.ModelBenchmarkHistory(store = get()) }
     single<PersonaProvider> { ResourcePersonaProvider() }
     single<DocumentRepository> { SqlDocumentRepository(database = get()) }
     single<MemoryRepository> { SqlMemoryRepository(database = get()) }
@@ -106,6 +108,9 @@ val sharedModule: Module = module {
             drafts = get(),
             memories = get(),
             musicGenerator = get(),
+            changeJournal = get(),
+            benchmarkHistory = get(),
+            branchDocuments = get(),
         )
     }
     single {

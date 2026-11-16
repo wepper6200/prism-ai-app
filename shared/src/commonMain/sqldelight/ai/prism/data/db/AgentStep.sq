@@ -8,13 +8,14 @@ CREATE TABLE message_step (
     title TEXT NOT NULL,
     detail TEXT NOT NULL,
     status TEXT NOT NULL,
+    verified INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (message_id, position)
 );
 
 CREATE INDEX message_step_by_chat ON message_step(chat_id);
 
 insertStep:
-INSERT OR REPLACE INTO message_step(message_id, chat_id, position, tool, title, detail, status) VALUES (?, ?, ?, ?, ?, ?, ?);
+INSERT OR REPLACE INTO message_step(message_id, chat_id, position, tool, title, detail, status, verified) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
 
 selectStepsOfChat:
 SELECT * FROM message_step WHERE chat_id = ? ORDER BY message_id, position;

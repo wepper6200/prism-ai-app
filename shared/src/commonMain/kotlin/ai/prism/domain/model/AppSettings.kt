@@ -18,6 +18,7 @@ enum class DarkMode {
 
 /** Пользовательские настройки, которые сохраняются между запусками. */
 data class AppSettings(
+    val generationProfile: GenerationProfile = GenerationProfile.STANDARD,
     val themeStyle: ThemeStyle = ThemeStyle.EXPRESSIVE,
     val darkMode: DarkMode = DarkMode.SYSTEM,
     val dynamicColor: Boolean = true,

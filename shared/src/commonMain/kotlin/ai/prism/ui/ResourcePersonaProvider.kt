@@ -1,5 +1,7 @@
 package ai.prism.ui
 
+import ai.prism.resources.*
+import ai.prism.domain.model.GenerationProfile
 import ai.prism.domain.agent.AgentTool
 import ai.prism.resources.agent_instructions
 import ai.prism.resources.agent_instructions_qwen_coder
@@ -59,6 +61,16 @@ import org.jetbrains.compose.resources.getString
 class ResourcePersonaProvider : PersonaProvider {
     override suspend fun persona(): AssistantPersona = AssistantPersona(
         systemPrompt = getString(Res.string.system_prompt),
+        profileInstructions = mapOf(
+            GenerationProfile.CODING to getString(Res.string.work_profile_coding_instruction),
+            GenerationProfile.CONVERSATION to getString(Res.string.work_profile_conversation_instruction),
+            GenerationProfile.CREATIVE to getString(Res.string.work_profile_creative_instruction),
+        ),
+        benchmarkPrompt = getString(Res.string.work_bench_prompt),
+        branchTitle = getString(Res.string.work_branch_name),
+        verificationRequest = getString(Res.string.work_verify_request),
+        verificationRetry = getString(Res.string.work_verify_retry),
+        verificationIncomplete = getString(Res.string.work_verify_incomplete),
         primer = listOf(
             PromptMessage(MessageRole.USER, getString(Res.string.persona_question)),
             PromptMessage(MessageRole.ASSISTANT, getString(Res.string.persona_answer)),

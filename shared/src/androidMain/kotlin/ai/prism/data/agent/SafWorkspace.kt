@@ -68,6 +68,14 @@ class SafWorkspace(private val context: Context, private val tree: Uri) : Worksp
         Unit
     }
 
+    override suspend fun deleteFile(path: String) = io {
+        val node = find(path)?.takeIf { !it.isDirectory } ?: throw WorkspaceException("not a file: $path")
+        if (!DocumentsContract.deleteDocument(resolver, DocumentsContract.buildDocumentUriUsingTree(tree, node.id))) {
+            throw WorkspaceException("cannot delete: $path")
+        }
+        Unit
+    }
+
     override suspend fun search(query: String, limit: Int): List<WorkspaceHit> = io {
         val hits = mutableListOf<WorkspaceHit>()
         fun walk(id: String, prefix: String) {

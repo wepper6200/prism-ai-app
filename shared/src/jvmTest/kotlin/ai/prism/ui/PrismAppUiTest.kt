@@ -1,5 +1,7 @@
 package ai.prism.ui
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
@@ -148,6 +150,68 @@ class PrismAppUiTest {
         onNodeWithTag("message_input").performTextInput(text)
         onNodeWithTag("send_button").performClick()
         waitForIdle()
+    }
+
+    @Test
+    fun projectPlanVerificationAndUndoAreVisibleAndRestoreTheFile() = runDesktopComposeUiTest(width = 1100, height = 820) {
+        val app = TestApp(models = models)
+        app.settings.setThemeStyle(ThemeStyle.LIQUID_GLASS)
+        app.settings.setAutoApplyEdits(true)
+        val folder = Files.createTempDirectory("prism-ui-undo").toFile()
+        val file = folder.resolve("main.py").apply { writeText("print(1)") }
+        app.engine.queuedReplies += listOf("<tool name=\"read_file\"><path>main.py</path></tool>")
+        app.engine.queuedReplies += listOf("<tool name=\"edit_file\"><path>main.py</path><old>print(1)</old><new>print(2)</new></tool>")
+        app.engine.queuedReplies += listOf("Готово.")
+        val (_, root) = createApp(app)
+        setContent { PrismApp(root) }
+        onNodeWithTag("new_chat").performClick()
+        val chat = assertIs<RootComponent.Child.Chat>(root.stack.value.active.instance).component
+        chat.onIntent(ChatIntent.ChooseWorkspace(folder.path))
+        sendMessage("Измени main.py")
+        onNodeWithTag("project_plan").performScrollTo().assertIsDisplayed()
+        assertEquals("print(2)", file.readText())
+        screenshot("wide_8_project_plan")
+        onNodeWithTag("project_undo").performScrollTo().performClick()
+        onNodeWithTag("project_undo_confirm").performClick()
+        waitForIdle()
+        assertEquals("print(1)", file.readText())
+        onNodeWithTag("workbench_notice").assertIsDisplayed()
+        screenshot("wide_9_project_undo", "chat_screen")
+    }
+
+    @Test
+    fun profilesBenchmarksAndBranchingAreReachableOnPhone() = runDesktopComposeUiTest(width = 375, height = 812) {
+        val (app, root) = createApp()
+        setContent { PrismApp(root) }
+        onNodeWithTag("new_chat").performClick()
+        onNodeWithTag("quick_model_picker").performClick()
+        onNodeWithTag("workbench_open").performClick()
+        onNodeWithTag("profile_CODING").performClick()
+        assertEquals(ai.prism.domain.model.GenerationProfile.CODING, app.settings.settings.value.generationProfile)
+        onNodeWithTag("benchmark_test-model").performScrollTo().performClick()
+        waitForIdle()
+        assertTrue(app.generation.workbench.value.benchmarks.isNotEmpty())
+        screenshot("compact_31_workbench", "workbench_panel")
+        onNodeWithTag("benchmark_apply").performScrollTo().performClick()
+        sendMessage("Привет")
+        onNodeWithText("Привет! Я Prism AI.").performClick()
+        onNodeWithTag("message_menu_branch").performClick()
+        onNodeWithTag("message_branch_confirm").performClick()
+        waitForIdle()
+        val current = assertIs<RootComponent.Child.Chat>(root.stack.value.active.instance).component
+        assertEquals(2, current.state.value.messages.size)
+        screenshot("compact_32_branch", "chat_screen")
+    }
+
+    @Test
+    fun musicStudioPreservesRussianLyricsAndUsesWideFields() = runDesktopComposeUiTest(width = 375, height = 812) {
+        val draft = ai.prism.domain.music.MusicStudioDraft(style = "Фортепиано", language = "ru", lyrics = "[Verse]\nЭто мой текст песни")
+        var selected by androidx.compose.runtime.mutableStateOf(draft)
+        setContent { ai.prism.ui.theme.PrismTheme(ai.prism.domain.model.AppSettings()) { ai.prism.ui.components.MusicStudio(selected, true) { selected = it } } }
+        onNodeWithTag("music_studio_open").performClick()
+        onNodeWithTag("music_studio_lyrics").performScrollTo().performTextReplacement("[Verse]\nНовый русский текст")
+        assertEquals("[Verse]\nНовый русский текст", selected.lyrics)
+        screenshot("compact_33_music_studio", "music_studio_panel")
     }
 
     @Test

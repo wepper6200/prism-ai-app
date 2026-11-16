@@ -60,6 +60,7 @@ class AgentToolbox(
     private val callMcp: suspend (McpTool, JsonObject) -> McpCallResult = { _, _ -> McpCallResult("error: MCP is not available", true) },
     /** Ход долгой команды: последние строки вывода; `null` — команда закончилась. */
     private val onRunning: (RunningTool?) -> Unit = {},
+    private val beforeProjectWrite: suspend (String, ByteArray?, ByteArray) -> Unit = { _, _, _ -> },
     private val approve: suspend (PendingAction) -> Boolean,
     private val newId: () -> String,
 ) {
@@ -304,7 +305,8 @@ class AgentToolbox(
 
     private suspend fun writeFile(path: String, content: String): ToolOutcome {
         val target = target(path)
-        val old = if (target.folder.exists(target.path)) textOf(target.folder.read(target.path)) else null
+        val original = if (target.folder.exists(target.path)) target.folder.read(target.path) else null
+        val old = original?.let(::textOf)
         if (old != null && old.replace("\r\n", "\n") == content.replace("\r\n", "\n")) {
             return failed(
                 AgentTool.WRITE_FILE,
@@ -314,8 +316,8 @@ class AgentToolbox(
         }
         val diff = if (old == null) LineDiff.added(content) else LineDiff.of(old, content)
         if (!confirm(AgentTool.WRITE_FILE, target, diff)) return rejected(AgentTool.WRITE_FILE, target.display)
-        target.folder.write(target.path, content.encodeToByteArray())
-        return done(AgentTool.WRITE_FILE, target.display, "written ${target.display} (${content.lines().size} lines, ${content.length} chars)", diff)
+        checkedWrite(target, original, content.encodeToByteArray())
+        return done(AgentTool.WRITE_FILE, target.display, "written ${target.display} (${content.lines().size} lines, ${content.length} chars); verified by reading the file", diff, verified = true)
     }
 
     private suspend fun editFile(
@@ -333,7 +335,8 @@ class AgentToolbox(
                 "missing <old> (received tags: $got): pass exact non-empty text from ${target.display} in old and replacement text in new",
             )
         }
-        val text = textOf(target.folder.read(target.path)) ?: return failed(AgentTool.EDIT_FILE, target.display, "binary file, cannot be edited")
+        val original = target.folder.read(target.path)
+        val text = textOf(original) ?: return failed(AgentTool.EDIT_FILE, target.display, "binary file, cannot be edited")
         val (effectiveText, effectiveOld, effectiveNew, usesCrLf) = if (text.windowedCount(old) == 0 && ("\r\n" in text || "\r\n" in old)) {
             EditStrings(text.replace("\r\n", "\n"), old.replace("\r\n", "\n"), new.replace("\r\n", "\n"), "\r\n" in text)
         } else {
@@ -351,8 +354,19 @@ class AgentToolbox(
         }
         val diff = LineDiff.of(effectiveOld, effectiveNew)
         if (!confirm(AgentTool.EDIT_FILE, target, diff)) return rejected(AgentTool.EDIT_FILE, target.display)
-        target.folder.write(target.path, updated.encodeToByteArray())
-        return done(AgentTool.EDIT_FILE, target.display, "edited ${target.display}", diff)
+        checkedWrite(target, original, updated.encodeToByteArray())
+        return done(AgentTool.EDIT_FILE, target.display, "edited ${target.display}; verified by reading the file", diff, verified = true)
+    }
+
+    private suspend fun checkedWrite(target: FileTarget, original: ByteArray?, updated: ByteArray) {
+        // Approval can stay open while the user's editor changes the file.
+        val current = if (target.folder.exists(target.path)) target.folder.read(target.path) else null
+        if (original == null && current != null || original != null && (current == null || !original.contentEquals(current))) {
+            throw WorkspaceException("file changed while waiting for approval; read it again: " + target.display)
+        }
+        if (!target.outside) beforeProjectWrite(target.path, original, updated)
+        target.folder.write(target.path, updated)
+        if (!target.folder.read(target.path).contentEquals(updated)) throw WorkspaceException("write verification failed: " + target.display)
     }
 
     private data class EditStrings(val text: String, val old: String, val new: String, val usesCrLf: Boolean)
@@ -508,8 +522,8 @@ class AgentToolbox(
     private suspend fun ask(tool: AgentTool, title: String, detail: String): Boolean =
         approve(PendingAction(newId(), tool, title, detail.take(APPROVAL_CHARS)))
 
-    private fun done(tool: AgentTool, title: String, result: String, detail: String) =
-        ToolOutcome(result, AgentStep(tool, title, detail, AgentStepStatus.DONE))
+    private fun done(tool: AgentTool, title: String, result: String, detail: String, verified: Boolean = false) =
+        ToolOutcome(result, AgentStep(tool, title, detail, AgentStepStatus.DONE, verified))
 
     private fun failed(tool: AgentTool, title: String, reason: String) =
         ToolOutcome("error: $reason", AgentStep(tool, title, reason, AgentStepStatus.FAILED))

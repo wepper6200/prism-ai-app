@@ -6,6 +6,8 @@ import ai.prism.domain.agent.AgentTool
 import ai.prism.domain.agent.PendingAction
 import ai.prism.domain.agent.RunningTool
 import ai.prism.domain.model.ThinkingLevel
+import ai.prism.resources.work_undone
+import ai.prism.resources.work_verified
 import ai.prism.resources.Res
 import ai.prism.resources.agent_allow
 import ai.prism.resources.agent_apply
@@ -149,7 +151,8 @@ private fun StepRow(step: AgentStep) {
                 modifier = Modifier.weight(1f, fill = false),
             )
             when (step.status) {
-                AgentStepStatus.DONE -> Unit
+                AgentStepStatus.UNDONE -> Text(stringResource(ai.prism.resources.Res.string.work_undone), style = MaterialTheme.typography.labelMedium)
+                AgentStepStatus.DONE -> if (step.verified) Text(stringResource(ai.prism.resources.Res.string.work_verified), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                 AgentStepStatus.REJECTED -> Text(
                     stringResource(Res.string.agent_status_rejected),
                     style = MaterialTheme.typography.labelMedium,

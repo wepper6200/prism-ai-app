@@ -8,6 +8,8 @@ import ai.prism.domain.model.ThinkingLevel
 import kotlinx.coroutines.flow.StateFlow
 
 interface SettingsRepository {
+    fun setGenerationProfile(profile: ai.prism.domain.model.GenerationProfile)
+
     val settings: StateFlow<AppSettings>
 
     fun setThemeStyle(style: ThemeStyle)

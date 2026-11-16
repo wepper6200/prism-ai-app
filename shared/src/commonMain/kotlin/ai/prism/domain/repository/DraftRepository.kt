@@ -8,8 +8,9 @@ import kotlinx.serialization.Serializable
 data class ChatDraft(
     val text: String = "",
     val images: List<ImageAttachment> = emptyList(),
+    val music: ai.prism.domain.music.MusicStudioDraft = ai.prism.domain.music.MusicStudioDraft(),
 ) {
-    val isEmpty: Boolean get() = text.isBlank() && images.isEmpty()
+    val isEmpty: Boolean get() = text.isBlank() && images.isEmpty() && music.isEmpty
 }
 
 /**

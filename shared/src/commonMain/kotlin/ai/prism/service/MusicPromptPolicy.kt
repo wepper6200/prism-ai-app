@@ -16,6 +16,7 @@ internal object MusicPromptPolicy {
         ?.let { source.substring(it.range.last + 1).trim() }?.takeIf { it.isNotEmpty() }
 
     fun language(source: String): String {
+        Regex("(?m)^language: *([a-z]{2}) *$", RegexOption.IGNORE_CASE).findAll(source.take(lyricsHeader.find(source)?.range?.first ?: source.length)).lastOrNull()?.groupValues?.get(1)?.lowercase()?.takeIf { it in listOf("ru", "en", "es", "fr", "de") }?.let { return it }
         val explicit = listOf(
             "en" to "на английском|in english|(?:язык|language)\\s*:\\s*en\\b",
             "ru" to "на русском|in russian|(?:язык|language)\\s*:\\s*ru\\b",

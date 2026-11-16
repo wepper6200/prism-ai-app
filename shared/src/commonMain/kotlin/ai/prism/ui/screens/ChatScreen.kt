@@ -1,5 +1,6 @@
 package ai.prism.ui.screens
 
+import ai.prism.resources.work_branch
 import ai.prism.ui.components.PromptSuggestions
 import ai.prism.ui.components.rememberTextCopier
 import ai.prism.resources.model_answer_status
@@ -194,14 +195,18 @@ import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ChatScreen(
     component: ChatComponent,
     modifier: Modifier = Modifier,
 ) {
     val state by component.state.collectAsState()
+    val workbench by component.workbench.collectAsState()
     val expanded = LocalExpandedLayout.current
     val loadImage: ImageBytesLoader = component::imageBytes
+    var workbenchOpen by remember { mutableStateOf(false) }
+    ai.prism.ui.components.WorkbenchControls(state, workbench, component::onIntent, workbenchOpen) { workbenchOpen = false }
     var visionDialog by remember { mutableStateOf(false) }
     var drawDialog by remember { mutableStateOf(false) }
     var videoDialog by remember { mutableStateOf(false) }
@@ -282,7 +287,7 @@ fun ChatScreen(
                         )
                     }
                 }
-                ai.prism.ui.components.QuickModelPicker(state, { component.onIntent(ChatIntent.SelectModel(it)) }, { component.onIntent(ChatIntent.OpenModels) })
+                ai.prism.ui.components.QuickModelPicker(state, { component.onIntent(ChatIntent.SelectModel(it)) }, { component.onIntent(ChatIntent.OpenModels) }, onWorkbench = { workbenchOpen = true })
             },
         )
         Box(
@@ -300,6 +305,10 @@ fun ChatScreen(
                     onOpenImage = { viewing = it },
                     onRetry = { component.onIntent(ChatIntent.Retry) },
                     onEdit = { component.onIntent(ChatIntent.DraftChanged(it)) },
+                    tools = workbench,
+                    onFork = { component.onIntent(ChatIntent.Fork(it)) },
+                    onUndo = { component.onIntent(ChatIntent.UndoChanges(it)) },
+                    onVerify = { component.onIntent(ChatIntent.VerifyProject) },
                     onResolve = { id, approved -> component.onIntent(ChatIntent.ResolvePending(id, approved)) },
                     onSaveVideo = { fileName ->
                         scope.launch {
@@ -346,12 +355,14 @@ fun ChatScreen(
             )
         }
         if (state.musicMode) {
+            FlowRow(Modifier.align(Alignment.CenterHorizontally).widthIn(max = 800.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)) {
             MusicDurationSelector(
                 selected = state.musicSeconds,
                 enabled = !state.isGenerating && !state.busyInOtherChat,
                 onSelect = { component.onIntent(ChatIntent.SelectMusicSeconds(it)) },
-                modifier = Modifier.align(Alignment.CenterHorizontally),
             )
+            ai.prism.ui.components.MusicStudio(workbench.music, !state.isGenerating && !state.busyInOtherChat) { component.onIntent(ChatIntent.MusicStudioChanged(it)) }
+            }
             Text(
                 text = stringResource(if (state.attachments.isEmpty()) Res.string.music_mode_hint else Res.string.music_remove_photos),
                 modifier = Modifier.align(Alignment.CenterHorizontally).padding(8.dp),
@@ -377,6 +388,9 @@ fun ChatScreen(
                     .padding(horizontal = 16.dp)
                     .testTag("draw_needs_translator"),
             )
+        }
+        workbench.work.notice?.let { notice ->
+            ai.prism.ui.components.WorkbenchNoticeBanner(notice, onDismiss = { component.onIntent(ChatIntent.DismissWorkbenchNotice) })
         }
         ChatContextTools(state, component, folderPicker::pickFolder, onlySelected = true, modifier = Modifier.align(Alignment.CenterHorizontally))
         if (state.documents.isNotEmpty()) {
@@ -412,8 +426,8 @@ fun ChatScreen(
                 extraTools = { ChatContextTools(state, component, folderPicker::pickFolder) },
                 text = state.draft,
                 onTextChange = { component.onIntent(ChatIntent.DraftChanged(it)) },
-                canSend = state.canSend,
-                isGenerating = state.isGenerating,
+                canSend = state.canSend || (state.musicMode && workbench.music.hasContent && !state.isGenerating && !state.busyInOtherChat && state.music == DrawSupport.READY && state.canTranslateDrawing && state.attachments.isEmpty() && !state.isAttaching),
+                isGenerating = state.isGenerating && (!workbench.work.busy || workbench.work.benchmarking != null),
                 onSend = { component.onIntent(ChatIntent.Send) },
                 onStop = { component.onIntent(ChatIntent.Stop) },
                 drawing = if (state.draw == DrawSupport.UNAVAILABLE) {
@@ -723,6 +737,10 @@ private fun MessageList(
     onOpenImage: (String) -> Unit,
     onRetry: () -> Unit,
     onEdit: (String) -> Unit,
+    tools: ai.prism.presentation.chat.ChatWorkbench,
+    onFork: (String) -> Unit,
+    onUndo: (String) -> Unit,
+    onVerify: () -> Unit,
     onResolve: (String, Boolean) -> Unit,
     onSaveVideo: (String) -> Unit,
     onSpeak: (String) -> Unit,
@@ -730,6 +748,14 @@ private fun MessageList(
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
+    val actionsEnabled = !state.isGenerating && !state.busyInOtherChat && !tools.work.busy
+    val taskIds = remember(state.messages) {
+        val requests = mutableListOf<String>()
+        buildSet { state.messages.forEach { message ->
+            if (message.role == MessageRole.USER) requests += message.text
+            else if (requests.isNotEmpty() && ai.prism.service.agent.WorkspaceActionPolicy.requiresWrite(requests.last(), requests.dropLast(1))) add(message.id)
+        } }
+    }
     // Следуем за ответом, пока пользователь сам не прокрутил историю вверх.
     var follow by remember { mutableStateOf(true) }
     LaunchedEffect(listState.isScrollInProgress) {
@@ -758,9 +784,16 @@ private fun MessageList(
             items(state.messages, key = { it.id }) { message ->
                 Box(Modifier.widthIn(max = 800.dp).fillMaxWidth()) {
                     when (message.role) {
-                        MessageRole.USER -> UserMessage(message, loadImage, onOpenImage, onEdit)
+                        MessageRole.USER -> UserMessage(message, loadImage, onOpenImage, onEdit, if (actionsEnabled) ({ onFork(message.id) }) else null)
                         MessageRole.ASSISTANT -> AssistantMessage(
                             message = message,
+                            onFork = if (actionsEnabled) ({ onFork(message.id) }) else null,
+                            projectActions = {
+                                if ((state.workspaceName != null && message.id in taskIds) || message.id in tools.work.undoReplies) {
+                                    ai.prism.ui.components.ProjectTaskCard(message, actionsEnabled, message.id in tools.work.undoReplies, state.computerEnabled != null,
+                                        onUndo = { onUndo(message.id) }, onVerify = onVerify)
+                                }
+                            },
                             onResolve = onResolve,
                             onSaveVideo = onSaveVideo,
                             playAudio = playAudio,
@@ -799,7 +832,7 @@ private fun MessageList(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun UserMessage(message: MessageItem, loadImage: ImageBytesLoader, onOpenImage: (String) -> Unit, onEdit: (String) -> Unit) {
+private fun UserMessage(message: MessageItem, loadImage: ImageBytesLoader, onOpenImage: (String) -> Unit, onEdit: (String) -> Unit, onFork: (() -> Unit)?) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.End,
@@ -829,12 +862,13 @@ private fun UserMessage(message: MessageItem, loadImage: ImageBytesLoader, onOpe
                 }
             }
         }
-        if (message.text.isNotEmpty()) UserBubble(message, onEdit)
+        if (message.text.isNotEmpty()) UserBubble(message, onEdit, onFork)
+        else if (onFork != null) TextButton(onClick = onFork) { Text(stringResource(ai.prism.resources.Res.string.work_branch)) }
     }
 }
 
 @Composable
-private fun UserBubble(message: MessageItem, onEdit: (String) -> Unit) {
+private fun UserBubble(message: MessageItem, onEdit: (String) -> Unit, onFork: (() -> Unit)?) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
         Surface(
             shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 20.dp, bottomEnd = 6.dp),
@@ -842,7 +876,7 @@ private fun UserBubble(message: MessageItem, onEdit: (String) -> Unit) {
             contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
             modifier = Modifier.widthIn(max = 600.dp).padding(start = 48.dp),
         ) {
-            ai.prism.ui.components.MessageActions(message.text, onEdit = onEdit) {
+            ai.prism.ui.components.MessageActions(message.text, onEdit = onEdit, onFork = onFork) {
                 Text(
                     text = message.text,
                     style = MaterialTheme.typography.bodyLarge,
@@ -865,6 +899,8 @@ private fun AssistantMessage(
     canRetry: Boolean,
     onRetry: () -> Unit,
     speech: MessageSpeech?,
+    onFork: (() -> Unit)?,
+    projectActions: @Composable () -> Unit,
 ) {
     Row(Modifier.fillMaxWidth().padding(end = 24.dp)) {
         Image(
@@ -902,6 +938,7 @@ private fun AssistantMessage(
                         .testTag("generated_image"),
                 )
             }
+            projectActions()
             if (message.steps.isNotEmpty()) AgentSteps(message.steps)
             message.running?.let { running -> RunningToolCard(running) }
             message.pending?.let { action ->
@@ -914,7 +951,7 @@ private fun AssistantMessage(
                 message.text.isNotEmpty() -> {
                     val visibleText = if (message.isStreaming) message.text + CURSOR else message.text
                     if (message.isStreaming) ai.prism.ui.components.ReplyContent(visibleText)
-                    else ai.prism.ui.components.MessageActions(message.text, onSpeak = speech?.onSpeak) {
+                    else ai.prism.ui.components.MessageActions(message.text, onSpeak = speech?.onSpeak, onFork = onFork) {
                         ai.prism.ui.components.ReplyContent(visibleText)
                     }
                 }

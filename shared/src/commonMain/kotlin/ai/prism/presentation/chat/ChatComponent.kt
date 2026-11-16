@@ -254,6 +254,14 @@ class PickedDocument(val name: String, val bytes: ByteArray)
 
 sealed interface ChatIntent {
     data class DraftChanged(val text: String) : ChatIntent
+    data class SetProfile(val profile: ai.prism.domain.model.GenerationProfile) : ChatIntent
+    data class MusicStudioChanged(val draft: ai.prism.domain.music.MusicStudioDraft) : ChatIntent
+    data class UndoChanges(val replyId: String) : ChatIntent
+    data class Fork(val messageId: String) : ChatIntent
+    data class Benchmark(val modelId: String) : ChatIntent
+    data class ApplyBenchmark(val modelId: String) : ChatIntent
+    data object VerifyProject : ChatIntent
+    data object DismissWorkbenchNotice : ChatIntent
 
     /** Пользователь выбрал папку проекта (адрес от выбора папки платформы). */
     data class ChooseWorkspace(val location: String) : ChatIntent
@@ -312,6 +320,7 @@ sealed interface ChatIntent {
 }
 
 interface ChatComponent {
+    val workbench: StateFlow<ChatWorkbench> get() = EmptyChatWorkbench
     val state: StateFlow<ChatState>
 
     fun onIntent(intent: ChatIntent)
@@ -343,6 +352,7 @@ class DefaultChatComponent(
     mainContext: CoroutineContext,
     private val onOpenModels: () -> Unit,
     private val onBack: () -> Unit,
+    private val onOpenBranch: (String) -> Unit = {},
 ) : ChatComponent, ComponentContext by componentContext {
 
     private val scope = componentScope(mainContext)
@@ -357,6 +367,11 @@ class DefaultChatComponent(
         val pending: Int = 0,
         val error: AttachmentError? = null,
     )
+
+    private val studio = MutableStateFlow(saved.music)
+    override val workbench: StateFlow<ChatWorkbench> = combine(generation.workbench, settingsRepository.settings, studio) { work, settings, music ->
+        ChatWorkbench(work, settings.generationProfile, music)
+    }.stateIn(scope, SharingStarted.Eagerly, ChatWorkbench(music = saved.music))
 
     private val drawMode = MutableStateFlow(stateKeeper.consume(KEY_DRAW_MODE, Boolean.serializer()) ?: false)
     private val videoMode = MutableStateFlow(stateKeeper.consume(KEY_VIDEO_MODE, Boolean.serializer()) ?: false)
@@ -373,7 +388,7 @@ class DefaultChatComponent(
             if (current.conversationChatId == chatId || current.dictationChatId == chatId) voice.stop()
         }
         scope.launch {
-            combine(draft, draftImages) { text, images -> ChatDraft(text, images.items) }
+            combine(draft, draftImages, studio) { text, images, music -> ChatDraft(text, images.items, music) }
                 .distinctUntilChanged()
                 .collectLatest { current ->
                     // Пока пользователь печатает, черновик не пишется на диск после каждой буквы.
@@ -381,7 +396,7 @@ class DefaultChatComponent(
                     drafts.save(chatId, current)
                 }
         }
-        lifecycle.doOnDestroy { drafts.save(chatId, ChatDraft(draft.value, draftImages.value.items)) }
+        lifecycle.doOnDestroy { drafts.save(chatId, ChatDraft(draft.value, draftImages.value.items, studio.value)) }
         stateKeeper.register(KEY_DRAFT, String.serializer()) { draft.value }
         stateKeeper.register(KEY_ATTACHMENTS, ATTACHMENTS_SERIALIZER) { draftImages.value.items }
         stateKeeper.register(KEY_DRAW_MODE, Boolean.serializer()) { drawMode.value }
@@ -641,6 +656,20 @@ class DefaultChatComponent(
     override fun onIntent(intent: ChatIntent) {
         when (intent) {
             is ChatIntent.DraftChanged -> draft.value = intent.text
+            is ChatIntent.SetProfile -> if (generation.active.value == null) settingsRepository.setGenerationProfile(intent.profile)
+            is ChatIntent.MusicStudioChanged -> studio.value = intent.draft
+            is ChatIntent.UndoChanges -> generation.undoChanges(chatId, intent.replyId)
+            is ChatIntent.Fork -> generation.forkChat(chatId, intent.messageId, onOpenBranch)
+            is ChatIntent.Benchmark -> generation.benchmark(chatId, intent.modelId)
+            is ChatIntent.ApplyBenchmark -> if (generation.active.value == null) {
+                val result = generation.workbench.value.benchmarks.firstOrNull { it.modelId == intent.modelId }
+                if (result != null && modelRepository.models.value.any { it.model.id == intent.modelId && it.chatReady && it.fitsInMemory }) {
+                    modelRepository.setActive(intent.modelId)
+                    settingsRepository.setContextLength(result.context)
+                }
+            }
+            ChatIntent.VerifyProject -> generation.verifyProject(chatId)
+            ChatIntent.DismissWorkbenchNotice -> generation.dismissWorkbenchNotice()
             is ChatIntent.AttachDocuments -> intent.files.forEach { file ->
                 scope.launch { documentService.add(chatId, file.name, file.bytes) }
             }
@@ -706,9 +735,9 @@ class DefaultChatComponent(
 
     private fun send() {
         val current = state.value
-        if (!current.canSend) return
+        if (!current.canSend && !(current.musicMode && studio.value.hasContent && !current.isGenerating && !current.busyInOtherChat && current.music == DrawSupport.READY && current.canTranslateDrawing && current.attachments.isEmpty() && !current.isAttaching)) return
         if (current.musicMode) {
-            if (generation.composeMusic(chatId, draft.value)) draft.value = ""
+            if (generation.composeMusic(chatId, if (studio.value.isEmpty) draft.value else studio.value.prompt(draft.value))) draft.value = ""
             return
         }
         if (current.drawMode) {

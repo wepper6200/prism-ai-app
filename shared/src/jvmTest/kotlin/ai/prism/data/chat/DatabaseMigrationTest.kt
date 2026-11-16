@@ -31,7 +31,7 @@ class DatabaseMigrationTest {
         ).forEach { driver.execute(null, it, 0) }
 
         PrismDatabase.Schema.migrate(driver, 1, PrismDatabase.Schema.version)
-        assertEquals(6L, PrismDatabase.Schema.version)
+        assertEquals(7L, PrismDatabase.Schema.version)
 
         val repository = SqlChatRepository(PrismDatabase(driver), MemoryImageStore(), Dispatchers.Unconfined)
         assertEquals(listOf("Привет"), repository.messagesSnapshot("c1").map { it.content })

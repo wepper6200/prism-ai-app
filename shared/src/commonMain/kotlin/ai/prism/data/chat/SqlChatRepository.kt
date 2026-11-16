@@ -102,6 +102,7 @@ class SqlChatRepository(
                     title = step.title,
                     detail = step.detail,
                     status = step.status.name,
+                    verified = if (step.verified) 1L else 0L,
                 )
             }
         }
@@ -143,6 +144,7 @@ class SqlChatRepository(
                 stepQueries.deleteStepsOfChat(chatId)
                 documentQueries.deleteChunksOfChat(chatId)
                 documentQueries.deleteDocumentsOfChat(chatId)
+                database.workspaceChangeQueries.deleteForChat(chatId)
                 queries.deleteMessagesOfChat(chatId)
                 queries.deleteChat(chatId)
                 files
@@ -249,6 +251,7 @@ class SqlChatRepository(
             imageQueries.deleteImagesOfMessage(messageId)
             documentQueries.deleteSourcesOfMessage(messageId)
             stepQueries.deleteStepsOfMessage(messageId)
+            database.workspaceChangeQueries.deleteForMessage(messageId)
             queries.deleteMessage(messageId)
         }
     }
@@ -290,6 +293,7 @@ class SqlChatRepository(
                             title = step.title,
                             detail = step.detail,
                             status = AgentStepStatus.entries.firstOrNull { it.name == step.status } ?: AgentStepStatus.DONE,
+                            verified = step.verified != 0L,
                         )
                     },
             )

@@ -8,6 +8,10 @@ import kotlinx.coroutines.flow.Flow
 
 /** Файлы диалогов и их фрагменты для поиска. Удаляются вместе с диалогом ([ChatRepository.deleteChat]). */
 interface DocumentRepository {
+    suspend fun copyToChat(sourceChatId: String, targetChatId: String, throughMillis: Long = Long.MAX_VALUE) {
+        check(documentsSnapshot(sourceChatId).isEmpty()) { "Document copying is unavailable" }
+    }
+
     fun documents(chatId: String): Flow<List<ChatDocument>>
 
     suspend fun documentsSnapshot(chatId: String): List<ChatDocument>

@@ -1,0 +1,25 @@
+CREATE TABLE workspace_change (
+ id TEXT NOT NULL PRIMARY KEY,
+ chat_id TEXT NOT NULL,
+ message_id TEXT NOT NULL,
+ location TEXT NOT NULL,
+ path TEXT NOT NULL,
+ before_bytes BLOB,
+ after_bytes BLOB NOT NULL,
+ created_at INTEGER NOT NULL
+);
+CREATE INDEX change_by_message ON workspace_change(message_id, created_at);
+
+selectChanges:
+SELECT * FROM workspace_change ORDER BY created_at, rowid;
+insertChange:
+INSERT INTO workspace_change VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+deleteChange:
+DELETE FROM workspace_change WHERE id = ?;
+deleteForChat:
+DELETE FROM workspace_change WHERE chat_id = ?;
+deleteForMessage:
+DELETE FROM workspace_change WHERE message_id = ?;
+
+selectReplyIds:
+SELECT DISTINCT message_id FROM workspace_change;

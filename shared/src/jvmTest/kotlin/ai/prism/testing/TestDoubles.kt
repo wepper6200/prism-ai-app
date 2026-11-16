@@ -631,6 +631,7 @@ class TestApp(
         scope = scope,
         workContext = Dispatchers.Unconfined,
     )
+    val changes = ai.prism.service.agent.WorkspaceChangeJournal(database, Dispatchers.Unconfined)
     val generation = ChatGenerationService(
         engine = engine,
         chats = chats,
@@ -668,6 +669,8 @@ class TestApp(
         images = images,
         imageGenerator = imageGenerator,
         musicGenerator = musicGenerator,
+        changeJournal = changes,
+        branchDocuments = documentRepository,
         settings = settings,
         scope = scope,
         documents = documents,

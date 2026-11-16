@@ -17,10 +17,11 @@ import org.jetbrains.compose.resources.stringResource
 
 /** The same actions are reachable by touch, long press, keyboard and accessibility. */
 @Composable
-fun MessageActions(text: String, onEdit: ((String) -> Unit)? = null, onSpeak: (() -> Unit)? = null, content: @Composable () -> Unit) {
+fun MessageActions(text: String, onEdit: ((String) -> Unit)? = null, onSpeak: (() -> Unit)? = null, onFork: (() -> Unit)? = null, content: @Composable () -> Unit) {
     var menu by remember { mutableStateOf(false) }
     var select by remember { mutableStateOf(false) }
     var edit by remember { mutableStateOf(false) }
+    var branch by remember { mutableStateOf(false) }
     val copy = rememberTextCopier()
     val haptic = LocalHapticFeedback.current
     Box {
@@ -33,9 +34,14 @@ fun MessageActions(text: String, onEdit: ((String) -> Unit)? = null, onSpeak: ((
             DropdownMenuItem(text = { Text(stringResource(Res.string.message_copy_text)) }, onClick = { copy(text); menu = false }, modifier = Modifier.testTag("message_menu_copy"))
             DropdownMenuItem(text = { Text(stringResource(Res.string.message_select)) }, onClick = { menu = false; select = true }, modifier = Modifier.testTag("message_menu_select"))
             if (onSpeak != null) DropdownMenuItem(text = { Text(stringResource(Res.string.message_speak)) }, onClick = { menu = false; onSpeak() })
+            if (onFork != null) DropdownMenuItem(text = { Text(stringResource(Res.string.work_branch)) }, onClick = { menu = false; branch = true }, modifier = Modifier.testTag("message_menu_branch"))
             if (onEdit != null) DropdownMenuItem(text = { Text(stringResource(Res.string.message_edit_copy)) }, onClick = { menu = false; edit = true }, modifier = Modifier.testTag("message_menu_edit"))
         }
     }
+    if (branch) AlertDialog(onDismissRequest = { branch = false }, title = { Text(stringResource(Res.string.work_branch_title)) },
+        text = { Text(stringResource(Res.string.work_branch_hint)) },
+        confirmButton = { TextButton(onClick = { branch = false; onFork?.invoke() }, modifier = Modifier.testTag("message_branch_confirm")) { Text(stringResource(Res.string.work_branch)) } },
+        dismissButton = { TextButton(onClick = { branch = false }) { Text(stringResource(Res.string.action_cancel)) } })
     if (select) AlertDialog(
         onDismissRequest = { select = false },
         title = { Text(stringResource(Res.string.message_select)) },

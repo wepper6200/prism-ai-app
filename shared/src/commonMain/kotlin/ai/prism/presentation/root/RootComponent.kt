@@ -158,6 +158,7 @@ class DefaultRootComponent(
                     drafts = deps.drafts,
                     computerSupported = deps.capabilities.supportsComputer,
                     mainContext = mainContext,
+                    onOpenBranch = { openScreen(Config.Chat(it)) },
                     onOpenModels = { openScreen(Config.Models) },
                     onBack = ::onBack,
                 ),
