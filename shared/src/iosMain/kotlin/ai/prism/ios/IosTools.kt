@@ -37,10 +37,6 @@ internal class IosWebClient(private val host: IosHost) : WebClient {
             }
             continuation.invokeOnCancellation { task.cancel() }
         }
-    override suspend fun deleteFile(path: String) {
-        val full = resolve(path)
-        if (full == root || host.isDirectory(full) || !host.remove(full)) throw WorkspaceException("Cannot delete file")
-    }
     override suspend fun search(query: String): List<WebResult> {
         val encoded = buildString {
             query.encodeToByteArray().forEach { byte ->
@@ -87,6 +83,10 @@ private class AppleWorkspace(private val host: IosHost, private val root: String
     override suspend fun write(path: String, bytes: ByteArray) {
         val full = resolve(path)
         if (!host.makeDirectory(full.substringBeforeLast('/')) || !host.write(full, bytes.toNativeData())) throw WorkspaceException("Cannot write file")
+    }
+    override suspend fun deleteFile(path: String) {
+        val full = resolve(path)
+        if (full == root || host.isDirectory(full) || !host.remove(full)) throw WorkspaceException("Cannot delete file")
     }
     override suspend fun search(query: String, limit: Int): List<WorkspaceHit> {
         val found = mutableListOf<WorkspaceHit>()

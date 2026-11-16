@@ -125,7 +125,7 @@ object ToolCallProtocol {
         }
         parameterTag.findAll(body).forEach { match ->
             val key = match.groupValues[1].ifEmpty { match.groupValues[2] }
-            putIfAbsent(key, trimValue(match.groupValues[3]))
+            if (!containsKey(key)) put(key, trimValue(match.groupValues[3]))
         }
     }
 

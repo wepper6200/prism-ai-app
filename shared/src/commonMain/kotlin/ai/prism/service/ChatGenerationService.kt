@@ -1051,7 +1051,11 @@ class ChatGenerationService(
             val failedKey = if (step?.status == AgentStepStatus.FAILED) "${step.tool}:${step.title}" else null
             failedStreak = if (failedKey != null && failedKey == lastFailedKey) failedStreak + 1 else if (failedKey != null) 1 else 0
             lastFailedKey = failedKey
-            val failedTotal = if (failedKey != null) failedCounts.merge(failedKey, 1, Int::plus) ?: 1 else 0
+            val failedTotal = if (failedKey != null) {
+                val count = (failedCounts[failedKey] ?: 0) + 1
+                failedCounts[failedKey] = count
+                count
+            } else 0
             val identicalCount = recentCalls.count { it == call }
             recentCalls.addLast(call)
             if (recentCalls.size > 6) recentCalls.removeFirst()
