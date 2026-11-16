@@ -59,6 +59,11 @@ class DefaultChatListComponent(
     private var deletion: Job? = null
     private val deletionLock = Mutex()
 
+    init {
+        // Android may recreate this component while the app-wide generation service survives.
+        scope.launch { deletionLock.withLock { chatRepository.restoreTrashedChats() } }
+    }
+
     override val state: StateFlow<ChatListState> =
         combine(chatRepository.chats, generation.active, pendingDelete) { chats, active, pending ->
             ChatListState(chats = chats, generatingChatId = active?.chatId, pendingDeleteId = pending)

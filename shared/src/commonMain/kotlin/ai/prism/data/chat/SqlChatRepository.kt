@@ -28,6 +28,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlin.coroutines.CoroutineContext
 
 /** Диалоги и сообщения в SQLite (SQLDelight). */
@@ -37,6 +39,7 @@ class SqlChatRepository(
     private val ioContext: CoroutineContext = Dispatchers.IO,
 ) : ChatRepository {
 
+    private val trashLock = Mutex()
     private val queries get() = database.chatQueries
     private val imageQueries get() = database.messageImageQueries
     private val documentQueries get() = database.documentQueries
@@ -122,7 +125,12 @@ class SqlChatRepository(
     }
 
     override suspend fun setTrashed(chatId: String, trashed: Boolean) = withContext(ioContext) {
-        queries.setTrashed(if (trashed) 1L else 0L, chatId)
+        trashLock.withLock { queries.setTrashed(if (trashed) 1L else 0L, chatId) }
+        Unit
+    }
+
+    override suspend fun restoreTrashedChats() = withContext(ioContext) {
+        trashLock.withLock { queries.restoreTrashed() }
         Unit
     }
 
@@ -252,7 +260,7 @@ class SqlChatRepository(
     override suspend fun markInterruptedGenerations() = withContext(ioContext) {
         queries.markInterrupted()
         // An interrupted undo window never silently destroys a conversation.
-        queries.selectTrashed().executeAsList().forEach { queries.setTrashed(0L, it) }
+        trashLock.withLock { queries.restoreTrashed() }
         Unit
     }
 

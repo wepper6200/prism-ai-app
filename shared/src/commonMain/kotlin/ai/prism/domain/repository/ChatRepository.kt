@@ -27,6 +27,7 @@ interface ChatRepository {
     suspend fun setTitle(chatId: String, title: String)
     suspend fun setPinned(chatId: String, pinned: Boolean)
     suspend fun setTrashed(chatId: String, trashed: Boolean)
+    suspend fun restoreTrashedChats()
 
     /** Ставит заголовок, если у диалога его ещё нет. */
     suspend fun setTitleIfEmpty(chatId: String, title: String)

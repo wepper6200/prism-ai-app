@@ -30,7 +30,7 @@ fun MessageActions(text: String, onEdit: ((String) -> Unit)? = null, onSpeak: ((
             onLongClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); menu = true },
         ).testTag(if (onEdit == null) "assistant_message_actions" else "user_message_actions")) { content() }
         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-            DropdownMenuItem(text = { Text(stringResource(Res.string.message_copy)) }, onClick = { copy(text); menu = false }, modifier = Modifier.testTag("message_menu_copy"))
+            DropdownMenuItem(text = { Text(stringResource(Res.string.message_copy_text)) }, onClick = { copy(text); menu = false }, modifier = Modifier.testTag("message_menu_copy"))
             DropdownMenuItem(text = { Text(stringResource(Res.string.message_select)) }, onClick = { menu = false; select = true }, modifier = Modifier.testTag("message_menu_select"))
             if (onSpeak != null) DropdownMenuItem(text = { Text(stringResource(Res.string.message_speak)) }, onClick = { menu = false; onSpeak() })
             if (onEdit != null) DropdownMenuItem(text = { Text(stringResource(Res.string.message_edit_copy)) }, onClick = { menu = false; edit = true }, modifier = Modifier.testTag("message_menu_edit"))
@@ -54,7 +54,7 @@ fun MessageActions(text: String, onEdit: ((String) -> Unit)? = null, onSpeak: ((
             text = {
                 Column(Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(stringResource(Res.string.message_edit_hint), style = MaterialTheme.typography.bodySmall)
-                    OutlinedTextField(revised, { revised = it }, modifier = Modifier.fillMaxWidth().heightIn(max = 260.dp).testTag("message_edit_input"))
+                    OutlinedTextField(revised, { revised = it }, label = { Text(stringResource(Res.string.input_placeholder)) }, modifier = Modifier.fillMaxWidth().heightIn(max = 260.dp).testTag("message_edit_input"))
                 }
             },
             confirmButton = { TextButton(onClick = { onEdit?.invoke(revised); edit = false }, enabled = revised.isNotBlank(), modifier = Modifier.testTag("message_edit_apply")) { Text(stringResource(Res.string.message_to_draft)) } },

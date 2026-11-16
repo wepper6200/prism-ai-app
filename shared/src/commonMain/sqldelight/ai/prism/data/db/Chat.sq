@@ -84,3 +84,6 @@ UPDATE chat SET trashed = ? WHERE id = ?;
 
 selectTrashed:
 SELECT id FROM chat WHERE trashed = 1;
+
+restoreTrashed:
+UPDATE chat SET trashed = 0 WHERE trashed = 1;

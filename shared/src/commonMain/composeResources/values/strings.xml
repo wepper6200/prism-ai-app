@@ -484,4 +484,5 @@
     <string name="input_photo_short">Фото</string>
     <string name="input_file_short">Документ</string>
     <string name="input_assistant_tools">Возможности ассистента</string>
+    <string name="message_copy_text">Скопировать текст</string>
 </resources>

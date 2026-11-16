@@ -61,4 +61,28 @@ class ChatManagementTest {
         app.chats.markInterruptedGenerations()
         assertEquals(first, app.chats.chats.first().first().id)
     }
+    @Test
+    fun componentRecreationRestoresInterruptedUndoWithoutChangingMessages() = runTest {
+        val app = TestApp()
+        val id = app.chats.createChat().id
+        app.chats.addMessage(id, MessageRole.USER, "Сохранить при повороте", MessageStatus.COMPLETE, null)
+        fun component(lifecycle: LifecycleRegistry) = DefaultChatListComponent(
+            DefaultComponentContext(lifecycle = lifecycle), app.chats, app.generation,
+            UnconfinedTestDispatcher(testScheduler), {}, {}, {}, {},
+        )
+        val firstLifecycle = LifecycleRegistry().apply { resume() }
+        val first = component(firstLifecycle)
+        first.onIntent(ChatListIntent.DeleteChat(id))
+        assertTrue(app.chats.chats.first().isEmpty())
+        firstLifecycle.destroy()
+        val secondLifecycle = LifecycleRegistry().apply { resume() }
+        component(secondLifecycle)
+        try {
+            advanceTimeBy(7000)
+            runCurrent()
+            assertEquals(id, app.chats.chats.first().single().id)
+            assertEquals("Сохранить при повороте", app.chats.messagesSnapshot(id).single().content)
+        } finally { secondLifecycle.destroy() }
+    }
+
 }
