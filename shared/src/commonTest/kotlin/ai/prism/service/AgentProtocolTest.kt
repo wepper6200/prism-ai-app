@@ -41,7 +41,38 @@ class AgentProtocolTest {
     fun partialMarkupIsHiddenWhileStreaming() {
         assertEquals("Смотрю", ToolCallProtocol.visibleText("Смотрю\n<to"))
         assertEquals("Смотрю", ToolCallProtocol.visibleText("Смотрю\n```xml\n<tool name=\"list_files\">"))
+        assertEquals("Смотрю", ToolCallProtocol.visibleText("Смотрю\n<tool_ca"))
+        assertEquals("Смотрю", ToolCallProtocol.visibleText("Смотрю\n<func"))
         assertEquals("a < b", ToolCallProtocol.visibleText("a < b"))
+    }
+
+    @Test
+    fun qwenCoderNativeFormatIsParsedAndFormatted() {
+        val reply = """Поправлю скрипт.
+            |<tool_call>
+            |<function=edit_file>
+            |<parameter=path>
+            |src/MapGenerator.server.luau
+            |</parameter>
+            |<parameter=old>
+            |local size = 10
+            |</parameter>
+            |<parameter=new>
+            |local size = 20
+            |</parameter>
+            |</function>
+            |</tool_call>""".trimMargin()
+
+        assertTrue(ToolCallProtocol.isComplete(reply))
+        assertFalse(ToolCallProtocol.isComplete("Поправлю.\n<tool_call>\n<function=edit_file>\n</function>"))
+        val call = ToolCallProtocol.parse(reply)!!
+        assertEquals("edit_file", call.name)
+        assertEquals("src/MapGenerator.server.luau", call.args["path"])
+        assertEquals("local size = 10", call.args["old"])
+        assertEquals("local size = 20", call.args["new"])
+        assertEquals("Поправлю скрипт.", ToolCallProtocol.visibleText(reply))
+        assertTrue(ToolCallProtocol.callText(reply + "\nлишнее").endsWith("</tool_call>"))
+        assertEquals("<tool_response>\nedited\n</tool_response>", ToolCallProtocol.result("edit_file", "edited", qwenCoderFormat = true))
     }
 
     @Test
@@ -78,6 +109,7 @@ class AgentProtocolTest {
     fun diffShowsOnlyChangedLines() {
         val diff = LineDiff.of("a\nb\nc\nd", "a\nB\nc\nd")
         assertEquals("@@ line 2\n- b\n+ B", diff)
+        assertEquals("(no changes)", LineDiff.of("a\nb\nc", "a\nb\nc"))
         assertEquals("+ x\n+ y", LineDiff.added("x\ny"))
     }
 }

@@ -3,7 +3,9 @@ package ai.prism.service
 import ai.prism.core.newId
 import ai.prism.core.todayText
 import ai.prism.domain.agent.AgentStep
+import ai.prism.domain.agent.AgentStepStatus
 import ai.prism.domain.agent.AgentTool
+import ai.prism.domain.model.ChatFormat
 import ai.prism.domain.agent.CommandRunner
 import ai.prism.domain.agent.Computer
 import ai.prism.domain.agent.PendingAction
@@ -106,6 +108,8 @@ data class AssistantPersona(
     val pageLabel: String = "p.",
     /** Как пользоваться инструментами: `{context}` — папка проекта и интернет, `{tools}` — список инструментов. */
     val agentInstructions: String = "{context}\n\n{tools}",
+    /** Инструкция инструментов в родном формате Qwen3-Coder (`<tool_call><function=…><parameter=…>`). */
+    val agentInstructionsQwenCoder: String = "",
     /** Про папку проекта: `{name}` — имя папки. */
     val agentWorkspaceNote: String = "{name}",
     /** Про включённый интернет. */
@@ -523,7 +527,7 @@ class ChatGenerationService(
                         mutableActive.value = ActiveGeneration(chatId, reply.id, live.toString())
                     }
                 } else {
-                    runAgent(chatId, reply.id, request, persona, toolbox, live, steps)
+                    runAgent(chatId, reply.id, request, persona, toolbox, live, steps, qwenCoderTools = model.chatFormat == ChatFormat.CHATML)
                 }
             }
             val status = if (stopRequested) MessageStatus.STOPPED else MessageStatus.COMPLETE
@@ -802,6 +806,7 @@ class ChatGenerationService(
         toolbox: AgentToolbox,
         live: StringBuilder,
         steps: MutableList<AgentStep>,
+        qwenCoderTools: Boolean = false,
     ) {
         val workspaceName = chats.workspaceOf(chatId)?.let { location -> workspaces?.open(location)?.name }
         val context = listOfNotNull(
@@ -819,7 +824,12 @@ class ChatGenerationService(
                     "- ${tool.callName} ($parameters) — " + tool.description.lineSequence().firstOrNull().orEmpty().take(MCP_DESCRIPTION_CHARS)
                 }
             ).joinToString("\n")
-        val instructions = persona.agentInstructions.replace("{context}", context).replace("{tools}", tools)
+        val template = if (qwenCoderTools && persona.agentInstructionsQwenCoder.isNotBlank()) {
+            persona.agentInstructionsQwenCoder
+        } else {
+            persona.agentInstructions
+        }
+        val instructions = template.replace("{context}", context).replace("{tools}", tools)
         // Напоминание о личности остаётся у вопроса пользователя: так при следующих шагах кэш промпта не теряется.
         var dialog = ChatPromptFormatter.withReminder(base.messages, base.reminder)
         val parts = mutableListOf<String>()
@@ -831,9 +841,14 @@ class ChatGenerationService(
         // Предел шагов из настроек; 0 — без ограничения (ответ останавливает только пользователь).
         val maxSteps = settings.settings.value.agentSteps
         var executed = 0
+        val recentCalls = ArrayDeque<ToolCall>()
+        val failedCounts = mutableMapOf<String, Int>()
+        var lastFailedKey: String? = null
+        var failedStreak = 0
+        var loopStopped = false
         while (true) {
-            // После последнего разрешённого шага модель только подводит итог: её новый вызов не выполняется.
-            val finalRound = maxSteps > 0 && executed == maxSteps
+            // После последнего разрешённого шага или при зацикливании модель только подводит итог: новый вызов не выполняется.
+            val finalRound = loopStopped || (maxSteps > 0 && executed == maxSteps)
             val raw = StringBuilder()
             val request = base.copy(
                 systemPrompt = base.systemPrompt + "\n\n" + instructions,
@@ -854,9 +869,11 @@ class ChatGenerationService(
             if (stopRequested || call == null) return
             if (finalRound) {
                 // Модель не остановилась: говорим пользователю, что работу можно продолжить следующим сообщением.
-                persona.agentStepLimitNotice.takeIf { it.isNotBlank() }?.let { notice ->
-                    parts += notice.replace("{steps}", maxSteps.toString())
-                    show("")
+                if (!loopStopped) {
+                    persona.agentStepLimitNotice.takeIf { it.isNotBlank() }?.let { notice ->
+                        parts += notice.replace("{steps}", maxSteps.toString())
+                        show("")
+                    }
                 }
                 return
             }
@@ -865,14 +882,32 @@ class ChatGenerationService(
             executed++
             show("")
             if (stopRequested) return
-            val limitNote = if (maxSteps > 0 && executed == maxSteps && persona.agentStepLimit.isNotBlank()) {
+            val step = outcome.step
+            val failedKey = if (step?.status == AgentStepStatus.FAILED) "${step.tool}:${step.title}" else null
+            failedStreak = if (failedKey != null && failedKey == lastFailedKey) failedStreak + 1 else if (failedKey != null) 1 else 0
+            lastFailedKey = failedKey
+            val failedTotal = if (failedKey != null) failedCounts.merge(failedKey, 1, Int::plus) ?: 1 else 0
+            val identicalCount = recentCalls.count { it == call }
+            recentCalls.addLast(call)
+            if (recentCalls.size > 6) recentCalls.removeFirst()
+            val atLimit = maxSteps > 0 && executed == maxSteps
+            val editOrWriteRepeated = (call.name == AgentTool.WRITE_FILE.toolName || call.name == AgentTool.EDIT_FILE.toolName) && identicalCount >= 2
+            loopStopped = !atLimit && (failedStreak >= 3 || failedTotal >= 3 || editOrWriteRepeated)
+            val repeatNote = when {
+                atLimit -> ""
+                loopStopped -> "\n\n[Note: tools are disabled because the same call or error repeated. Do not call any tool — summarize what was done and reply to the user in plain text.]"
+                failedStreak >= 2 || failedTotal >= 2 -> "\n\n[Note: this tool failed repeatedly. Fix the arguments, read the needed lines with read_file(start_line=...), or move to the next step.]"
+                identicalCount >= 1 -> "\n\n[Note: you already made this exact tool call. Do not repeat identical calls — continue with the next step or reply to the user.]"
+                else -> ""
+            }
+            val limitNote = if (atLimit && persona.agentStepLimit.isNotBlank()) {
                 "\n\n" + persona.agentStepLimit
             } else {
                 ""
             }
             dialog = dialog +
                 PromptMessage(MessageRole.ASSISTANT, ToolCallProtocol.callText(raw.toString())) +
-                PromptMessage(MessageRole.USER, ToolCallProtocol.result(call.name, outcome.result) + limitNote, outcome.images)
+                PromptMessage(MessageRole.USER, ToolCallProtocol.result(call.name, outcome.result, qwenCoderFormat = qwenCoderTools) + repeatNote + limitNote, outcome.images)
         }
     }
 

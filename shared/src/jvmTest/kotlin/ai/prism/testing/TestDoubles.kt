@@ -652,6 +652,7 @@ class TestApp(
                 documentContext = "Фрагменты:\n{fragments}\n\nВопрос: {question}",
                 pageLabel = "с.",
                 agentInstructions = "Инструменты.\n{context}\n{tools}",
+                agentInstructionsQwenCoder = "Инструменты QwenCoder.\n{context}\n{tools}",
                 agentWorkspaceNote = "Папка: {name}",
                 agentInternetNote = "Интернет включён",
                 agentComputerNote = "Компьютер: {home}",

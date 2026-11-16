@@ -241,4 +241,108 @@ class AgentServiceTest {
         assertEquals(AgentStepStatus.FAILED, step.status)
         assertTrue("outside" in app.engine.requests.last().messages.last().content)
     }
+
+    @Test
+    fun qwenCoderModelUsesNativeToolCallAndToolResponseFormat(): Unit = runBlocking {
+        val folder = projectFolder()
+        val script = folder.resolve("MapGenerator.server.luau")
+        script.writeText("local size = 10\n")
+        val coderModel = ai.prism.testing.testModel(id = "prism-1.5-onyx").copy(
+            chatFormat = ai.prism.domain.model.ChatFormat.CHATML,
+        )
+        val engine = FakeInferenceEngine()
+        engine.queuedReplies += listOf(
+            "<tool_call>\n<function=edit_file>\n<parameter=path>\nMapGenerator.server.luau\n</parameter>\n<parameter=old>\nlocal size = 10\n</parameter>\n<parameter=new>\nlocal size = 20\n</parameter>\n</function>\n</tool_call>",
+        )
+        engine.queuedReplies += listOf("Готово, обновил размер.")
+        val models = ai.prism.testing.FakeModelRepository(
+            listOf(
+                ai.prism.domain.model.ModelEntry(
+                    model = coderModel,
+                    status = ai.prism.domain.model.ModelStatus.Downloaded,
+                    fitsInMemory = true,
+                ),
+            ),
+        )
+        val app = TestApp(engine = engine, models = models)
+        app.settings.setAutoApplyEdits(true)
+        val chat = app.chats.createChat()
+        app.chats.setWorkspace(chat.id, folder.path)
+
+        app.generation.send(chat.id, "Поменяй размер")
+
+        assertEquals("local size = 20\n", script.readText())
+        assertTrue("Инструменты QwenCoder." in engine.requests.first().systemPrompt)
+        assertTrue(engine.requests.last().messages.last().content.startsWith("<tool_response>"))
+        assertEquals("Готово, обновил размер.", app.chats.messagesSnapshot(chat.id).last().content)
+    }
+
+    @Test
+    fun editFilePreservesIndentationSupportsCrLfAndMissingOldHint(): Unit = runBlocking {
+        val folder = projectFolder()
+        val script = folder.resolve("MapGenerator.server.luau")
+        script.writeText("local function build()\r\n\tlocal size = 10\r\n\treturn size\r\nend\r\n")
+        val app = app(
+            "<tool name=\"edit_file\">\n<path>MapGenerator.server.luau</path>\n<old></old>\n<new>x</new>\n</tool>",
+            "<tool name=\"edit_file\">\n<path>MapGenerator.server.luau</path>\n<new>x</new>\n</tool>",
+            "<tool name=\"edit_file\">\n<path>MapGenerator.server.luau</path>\n<old_text>\tlocal size = 10</old_text>\n<new_text>\tlocal size = 20</new_text>\n</tool>",
+            "Готово.",
+        )
+        app.settings.setAutoApplyEdits(true)
+        val chat = app.chats.createChat()
+        app.chats.setWorkspace(chat.id, folder.path)
+
+        app.generation.send(chat.id, "Обнови размер")
+
+        assertEquals("local function build()\r\n\tlocal size = 20\r\n\treturn size\r\nend\r\n", script.readText())
+        val firstResult = app.engine.requests[1].messages.last().content
+        assertTrue("missing <old>" in firstResult, firstResult)
+        val secondResult = app.engine.requests[2].messages.last().content
+        assertTrue("failed repeatedly" in secondResult, secondResult)
+        val steps = app.chats.messagesSnapshot(chat.id).last().steps
+        assertEquals(listOf(AgentStepStatus.FAILED, AgentStepStatus.FAILED, AgentStepStatus.DONE), steps.map { it.status })
+    }
+
+    @Test
+    fun readFileSupportsLineRangeAndTruncatedHint(): Unit = runBlocking {
+        val folder = projectFolder()
+        val bigFile = folder.resolve("Big.luau")
+        val lines = (1..500).map { "local line_$it = '${"x".repeat(40)}'" }
+        bigFile.writeText(lines.joinToString("\n"))
+        val app = app(
+            "<tool name=\"read_file\">\n<path>Big.luau</path>\n</tool>",
+            "<tool name=\"read_file\">\n<path>Big.luau</path>\n<start_line>495</start_line>\n<end_line>500</end_line>\n</tool>",
+            "Прочитал.",
+        )
+        val chat = app.chats.createChat()
+        app.chats.setWorkspace(chat.id, folder.path)
+
+        app.generation.send(chat.id, "Проверь конец файла")
+
+        val truncatedResult = app.engine.requests[1].messages.last().content
+        assertTrue("start_line=" in truncatedResult, truncatedResult)
+        val rangeResult = app.engine.requests[2].messages.last().content
+        assertTrue("local line_495" in rangeResult && "local line_500" in rangeResult, rangeResult)
+        assertTrue("lines 495–500 of 500" in rangeResult, rangeResult)
+    }
+
+    @Test
+    fun repeatedIdenticalWriteFileStopsLoop(): Unit = runBlocking {
+        val folder = projectFolder()
+        val call = "<tool name=\"write_file\">\n<path>MapConstants.luau</path>\n<content>return { SIZE = 100 }</content>\n</tool>"
+        val engine = FakeInferenceEngine(reply = listOf(call))
+        val app = TestApp(engine = engine)
+        app.settings.setAutoApplyEdits(true)
+        app.settings.setAgentSteps(50)
+        val chat = app.chats.createChat()
+        app.chats.setWorkspace(chat.id, folder.path)
+
+        app.generation.send(chat.id, "Создай MapConstants.luau")
+
+        val reply = app.chats.messagesSnapshot(chat.id).last()
+        assertEquals(3, reply.steps.size)
+        assertEquals(listOf(AgentStepStatus.DONE, AgentStepStatus.FAILED, AgentStepStatus.FAILED), reply.steps.map { it.status })
+        assertTrue("no changes" in app.engine.requests[2].messages.last().content)
+        assertTrue("tools are disabled" in app.engine.requests.last().messages.last().content)
+    }
 }

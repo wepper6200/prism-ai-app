@@ -93,10 +93,22 @@ class AgentToolbox(
                 AgentTool.FETCH_PAGE -> fetchPage(call.arg("url"))
                 AgentTool.DOWNLOAD_FILE -> download(call.arg("url"), call.arg("path"))
                 AgentTool.LIST_FILES -> listFiles(call.optional("path") ?: ".")
-                AgentTool.READ_FILE -> readFile(call.arg("path"))
+                AgentTool.READ_FILE -> readFile(
+                    path = call.arg("path"),
+                    startLine = call.optionalInt("start_line"),
+                    endLine = call.optionalInt("end_line"),
+                )
                 AgentTool.SEARCH_FILES -> searchFiles(call.arg("query"), call.optional("path"))
-                AgentTool.WRITE_FILE -> writeFile(call.arg("path"), call.args["content"].orEmpty())
-                AgentTool.EDIT_FILE -> editFile(call.arg("path"), call.arg("old"), call.args["new"].orEmpty())
+                AgentTool.WRITE_FILE -> writeFile(
+                    path = call.arg("path"),
+                    content = call.rawOptional("content", "text", "code").orEmpty(),
+                )
+                AgentTool.EDIT_FILE -> editFile(
+                    path = call.arg("path"),
+                    old = call.rawOptional("old", "old_text", "old_string", "old_code", "old_content", "original", "before", "from", "search", "find"),
+                    new = call.rawOptional("new", "new_text", "new_string", "new_code", "new_content", "replacement", "after", "to", "replace").orEmpty(),
+                    receivedArgs = call.args.keys,
+                )
                 AgentTool.RUN_COMMAND -> runCommand(
                     command = call.arg("command"),
                     shell = if (call.optional("shell")?.lowercase()?.startsWith("power") == true) Shell.POWERSHELL else Shell.DEFAULT,
@@ -233,12 +245,44 @@ class AgentToolbox(
         return done(AgentTool.LIST_FILES, target.display, text, text.take(DETAIL_CHARS))
     }
 
-    private suspend fun readFile(path: String): ToolOutcome {
+    private suspend fun readFile(path: String, startLine: Int? = null, endLine: Int? = null): ToolOutcome {
         val target = target(path)
         if (target.outside && !mayRead(target.display, folder = false)) return rejected(AgentTool.READ_FILE, target.display)
         val text = textOf(target.folder.read(target.path))
             ?: return failed(AgentTool.READ_FILE, target.display, "binary file, cannot be read as text")
-        val shown = if (text.length <= FILE_CHARS) text else text.take(FILE_CHARS) + "\n… (file truncated, ${text.length} characters total)"
+        val shown = if (startLine != null || endLine != null) {
+            val lines = text.lines()
+            val totalLines = lines.size
+            val from = (startLine ?: 1).coerceIn(1, totalLines.coerceAtLeast(1))
+            val to = (endLine ?: totalLines).coerceIn(from, totalLines.coerceAtLeast(1))
+            val slice = StringBuilder()
+            var lastShown = from - 1
+            for (lineIndex in (from - 1) until to) {
+                val line = lines[lineIndex]
+                val addition = if (slice.isEmpty()) line else "\n$line"
+                if (slice.isNotEmpty() && slice.length + addition.length > FILE_CHARS) break
+                if (slice.isEmpty() && addition.length > FILE_CHARS) {
+                    slice.append(addition.take(FILE_CHARS))
+                    lastShown = lineIndex + 1
+                    break
+                }
+                slice.append(addition)
+                lastShown = lineIndex + 1
+            }
+            val suffix = if (lastShown < totalLines) {
+                "\n… (lines $from–$lastShown of $totalLines; use read_file with start_line=${lastShown + 1} to read more)"
+            } else {
+                "\n… (lines $from–$lastShown of $totalLines)"
+            }
+            slice.toString() + suffix
+        } else if (text.length <= FILE_CHARS) {
+            text
+        } else {
+            val prefix = text.take(FILE_CHARS)
+            val shownLines = prefix.count { it == '\n' } + 1
+            val totalLines = text.count { it == '\n' } + 1
+            prefix + "\n… (file truncated at line $shownLines of $totalLines, ${text.length} characters total; use read_file with start_line=${shownLines + 1} to read more)"
+        }
         return done(AgentTool.READ_FILE, target.display, shown, shown.take(DETAIL_CHARS))
     }
 
@@ -261,26 +305,54 @@ class AgentToolbox(
     private suspend fun writeFile(path: String, content: String): ToolOutcome {
         val target = target(path)
         val old = if (target.folder.exists(target.path)) textOf(target.folder.read(target.path)) else null
+        if (old != null && old.replace("\r\n", "\n") == content.replace("\r\n", "\n")) {
+            return failed(
+                AgentTool.WRITE_FILE,
+                target.display,
+                "no changes: ${target.display} already has this exact content. Do not call write_file with unchanged content — either edit only the lines that need to change, or move to the next task.",
+            )
+        }
         val diff = if (old == null) LineDiff.added(content) else LineDiff.of(old, content)
         if (!confirm(AgentTool.WRITE_FILE, target, diff)) return rejected(AgentTool.WRITE_FILE, target.display)
         target.folder.write(target.path, content.encodeToByteArray())
-        return done(AgentTool.WRITE_FILE, target.display, "written ${target.display} (${content.lines().size} lines)", diff)
+        return done(AgentTool.WRITE_FILE, target.display, "written ${target.display} (${content.lines().size} lines, ${content.length} chars)", diff)
     }
 
-    private suspend fun editFile(path: String, old: String, new: String): ToolOutcome {
+    private suspend fun editFile(
+        path: String,
+        old: String?,
+        new: String,
+        receivedArgs: Set<String> = emptySet(),
+    ): ToolOutcome {
         val target = target(path)
+        if (old.isNullOrEmpty()) {
+            val got = receivedArgs.takeIf { it.isNotEmpty() }?.joinToString() ?: "none"
+            return failed(
+                AgentTool.EDIT_FILE,
+                target.display,
+                "missing <old> (received tags: $got): pass exact non-empty text from ${target.display} in old and replacement text in new",
+            )
+        }
         val text = textOf(target.folder.read(target.path)) ?: return failed(AgentTool.EDIT_FILE, target.display, "binary file, cannot be edited")
-        val count = text.windowedCount(old)
+        val (effectiveText, effectiveOld, effectiveNew, usesCrLf) = if (text.windowedCount(old) == 0 && ("\r\n" in text || "\r\n" in old)) {
+            EditStrings(text.replace("\r\n", "\n"), old.replace("\r\n", "\n"), new.replace("\r\n", "\n"), "\r\n" in text)
+        } else {
+            EditStrings(text, old, new, false)
+        }
+        val count = effectiveText.windowedCount(effectiveOld)
         if (count != 1) {
             val reason = if (count == 0) "<old> text was not found in ${target.display}" else "<old> text occurs $count times in ${target.display}, add more context"
             return failed(AgentTool.EDIT_FILE, target.display, reason)
         }
-        val updated = text.replaceFirst(old, new)
-        val diff = LineDiff.of(old, new)
+        val replaced = effectiveText.replaceFirst(effectiveOld, effectiveNew)
+        val updated = if (usesCrLf) replaced.replace("\n", "\r\n") else replaced
+        val diff = LineDiff.of(effectiveOld, effectiveNew)
         if (!confirm(AgentTool.EDIT_FILE, target, diff)) return rejected(AgentTool.EDIT_FILE, target.display)
         target.folder.write(target.path, updated.encodeToByteArray())
         return done(AgentTool.EDIT_FILE, target.display, "edited ${target.display}", diff)
     }
+
+    private data class EditStrings(val text: String, val old: String, val new: String, val usesCrLf: Boolean)
 
     private suspend fun runCommand(command: String, shell: Shell, folder: String?, timeoutSeconds: Long?): ToolOutcome {
         val root = workspace?.localPath
@@ -448,6 +520,12 @@ class AgentToolbox(
 
     private fun ToolCall.optional(name: String): String? = args[name]?.trim()?.takeIf { it.isNotEmpty() }
 
+    private fun ToolCall.optionalInt(name: String): Int? = optional(name)?.toIntOrNull()
+
+    /** Значение аргумента без обрезки пробелов/отступов — для содержимого и фрагментов кода. */
+    private fun ToolCall.rawOptional(vararg names: String): String? =
+        names.firstNotNullOfOrNull { name -> args[name]?.takeIf { it.isNotEmpty() } }
+
     /** Полный путь к [relative] внутри папки цели (для файлов вне проекта модель видит полные пути). */
     private fun FileTarget.folderPath(relative: String): String {
         val separator = if ('\\' in display) '\\' else '/'
@@ -514,7 +592,8 @@ object LineDiff {
         while (suffix < a.size - prefix && suffix < b.size - prefix && a[a.size - 1 - suffix] == b[b.size - 1 - suffix]) suffix++
         val removed = a.subList(prefix, a.size - suffix).map { "- $it" }
         val added = b.subList(prefix, b.size - suffix).map { "+ $it" }
+        if (removed.isEmpty() && added.isEmpty()) return "(no changes)"
         val header = if (prefix > 0) listOf("@@ line ${prefix + 1}") else emptyList()
-        return (header + removed + added).joinToString("\n").ifEmpty { "(no changes)" }
+        return (header + removed + added).joinToString("\n")
     }
 }

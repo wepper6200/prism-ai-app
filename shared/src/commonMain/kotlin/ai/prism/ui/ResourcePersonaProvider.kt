@@ -2,6 +2,7 @@ package ai.prism.ui
 
 import ai.prism.domain.agent.AgentTool
 import ai.prism.resources.agent_instructions
+import ai.prism.resources.agent_instructions_qwen_coder
 import ai.prism.resources.agent_workspace_note
 import ai.prism.resources.agent_internet_note
 import ai.prism.resources.agent_computer_note
@@ -70,6 +71,7 @@ class ResourcePersonaProvider : PersonaProvider {
         documentContext = getString(Res.string.document_context),
         pageLabel = getString(Res.string.document_page_label),
         agentInstructions = getString(Res.string.agent_instructions),
+        agentInstructionsQwenCoder = getString(Res.string.agent_instructions_qwen_coder),
         agentWorkspaceNote = getString(Res.string.agent_workspace_note),
         agentInternetNote = getString(Res.string.agent_internet_note),
         agentComputerNote = getString(Res.string.agent_computer_note),
