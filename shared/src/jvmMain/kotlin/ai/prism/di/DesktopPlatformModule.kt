@@ -92,6 +92,9 @@ fun desktopPlatformModule(): Module = module {
     single<CommandRunner> { ProcessCommandRunner() }
     single<Computer> { DesktopComputer() }
     single<ScreenControl> { RobotScreenControl() }
+    if (System.getProperty("os.name").startsWith("Windows")) {
+        single<ai.prism.domain.agent.WindowControl> { ai.prism.data.agent.WindowsWindowControl() }
+    }
     single<McpTransportFactory> { DesktopMcpTransportFactory() }
     single<TextEmbedder> { LlamaTextEmbedder(DesktopNativeLibraryLoader(), get()) }
     single<SpeechEngine> { DesktopSherpaSpeechEngine(threads = get<DeviceInfo>().inferenceThreads.coerceIn(1, MAX_SPEECH_THREADS)) }

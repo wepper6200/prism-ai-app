@@ -32,6 +32,7 @@ enum class AgentTool(
 
     /** Инструмент MCP-сервера (для шагов ответа; модель вызывает его по имени `сервер__инструмент`). */
     MCP("mcp"),
+    WINDOW_CONTROL("window_control"),
     ;
 
     /** Инструмент управления экраном (снимки, мышь, клавиатура). */
@@ -70,6 +71,7 @@ data class PendingAction(
     val detail: String,
     /** Действие с файлами вне папки проекта (на компьютере пользователя). */
     val outsideProject: Boolean = false,
+    val screenPreview: String? = null,
 )
 
 /** Инструмент, который выполняется прямо сейчас (долгая команда): последние строки вывода. */
@@ -81,7 +83,7 @@ data class WorkspaceEntry(val path: String, val isDirectory: Boolean, val sizeBy
 /** Найденная строка: файл, номер строки (с 1) и текст. */
 data class WorkspaceHit(val path: String, val line: Int, val text: String)
 
-class WorkspaceException(message: String, cause: Throwable? = null) : Exception(message, cause)
+open class WorkspaceException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
 /**
  * Папка проекта, выбранная пользователем для диалога. Ассистент видит только её содержимое:
@@ -207,6 +209,8 @@ enum class MouseButton { LEFT, RIGHT, MIDDLE }
  * фокус не прыгает между окнами). Координаты — в точках экрана; ошибки — [WorkspaceException].
  */
 interface ScreenControl {
+    fun forDesktopTask(): ScreenControl = this
+
     suspend fun capture(): ScreenCapture
 
     suspend fun click(x: Int, y: Int, button: MouseButton, double: Boolean): ScreenCapture

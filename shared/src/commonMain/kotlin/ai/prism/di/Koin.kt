@@ -111,6 +111,7 @@ val sharedModule: Module = module {
             changeJournal = get(),
             benchmarkHistory = get(),
             branchDocuments = get(),
+            windows = getOrNull(),
         )
     }
     single {

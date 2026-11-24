@@ -546,6 +546,53 @@ class PrismAppUiTest {
         screenshot("compact_16_video")
     }
 
+
+    @Test
+    fun windowTaskPickerRoutesApprovalAndReportsResult() = runDesktopComposeUiTest(width = 1024, height = 800) {
+        val window = ai.prism.domain.agent.DesktopWindow(24, 7, "1", "Тестовый редактор", "editor")
+        var invoked = false
+        val control = object : ai.prism.domain.agent.WindowControl {
+            override suspend fun windows() = listOf(window)
+            override suspend fun inspect(window: ai.prism.domain.agent.DesktopWindow) =
+                ai.prism.domain.agent.WindowObservation(window.title, listOf(
+                    ai.prism.domain.agent.WindowElement("button-id", "Открыть документ", "Button", listOf("invoke")),
+                ))
+            override suspend fun act(
+                window: ai.prism.domain.agent.DesktopWindow,
+                element: ai.prism.domain.agent.WindowElement,
+                operation: ai.prism.domain.agent.WindowOperation,
+                text: String,
+            ) {
+                assertEquals("button-id", element.id)
+                assertEquals(ai.prism.domain.agent.WindowOperation.INVOKE, operation)
+                invoked = true
+            }
+        }
+        val (app, root) = createApp(TestApp(windowControl = control))
+        app.engine.queuedReplies += listOf("Уже открыл документ.")
+        app.engine.queuedReplies += listOf("<tool name=\"window_control\"><action>invoke</action><element>1</element></tool>")
+        app.engine.queuedReplies += listOf("Документ открыт.")
+        setContent { PrismApp(root) }
+        onNodeWithTag("new_chat").performClick()
+        onNodeWithTag("window_control").performClick()
+        onNodeWithText("Тестовый редактор").performClick()
+        onNodeWithTag("whole_desktop_scope").performClick()
+        onNodeWithText("Одно окно").performClick()
+        onNodeWithTag("window_task").performTextInput("Открой документ")
+        onNodeWithTag("window_automatic").performScrollTo().performClick()
+        onNodeWithText("Запустить автоматически").assertExists()
+        onNodeWithTag("window_automatic").performClick()
+        onNodeWithText("Начать задачу").assertExists()
+        screenshot("wide_10_window_task", "window_task_dialog")
+        onNodeWithText("Начать задачу").performClick()
+        onNodeWithTag("pending_approve").performScrollTo().assertIsDisplayed()
+        assertEquals(false, invoked)
+        onNodeWithTag("pending_approve").performClick()
+        onNodeWithText("Действия, выполненные Prism:", substring = true).assertExists()
+        onNodeWithText("Документ открыт.").assertDoesNotExist()
+        assertEquals(true, invoked)
+    }
+
     @Test
     fun compactSettingsChangesConcurrentReplyLimit() = runDesktopComposeUiTest(width = 412, height = 892) {
         val (app, root) = createApp(TestApp(models = models))

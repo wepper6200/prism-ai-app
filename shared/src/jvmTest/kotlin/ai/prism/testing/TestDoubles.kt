@@ -611,6 +611,7 @@ class TestApp(
     /** Объём оперативной памяти «устройства» (0 — неизвестен). */
     totalRamBytes: Long = 0L,
     val musicGenerator: ai.prism.domain.music.MusicGenerator = ai.prism.domain.music.MusicGenerator.None,
+    windowControl: ai.prism.domain.agent.WindowControl? = null,
 ) {
     val settings = DefaultSettingsRepository(MapKeyValueStore())
     val draftStore = MapKeyValueStore()
@@ -669,6 +670,7 @@ class TestApp(
         images = images,
         imageGenerator = imageGenerator,
         musicGenerator = musicGenerator,
+        windows = windowControl,
         changeJournal = changes,
         branchDocuments = documentRepository,
         settings = settings,

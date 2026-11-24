@@ -35,6 +35,8 @@ import ai.prism.resources.agent_open
 import ai.prism.resources.agent_running
 import ai.prism.resources.agent_step_open_program
 import ai.prism.resources.agent_step_system_info
+import ai.prism.resources.window_mode_title
+import ai.prism.resources.window_approval
 import ai.prism.resources.chat_computer
 import ai.prism.resources.agent_reject
 import ai.prism.resources.agent_run
@@ -171,7 +173,10 @@ private fun StepRow(step: AgentStep) {
 
 /** Запрос разрешения: что хочет сделать ассистент (разница «было/стало» или команда) и кнопки. */
 @Composable
-fun PendingActionCard(action: PendingAction, onResolve: (Boolean) -> Unit, modifier: Modifier = Modifier) {
+fun PendingActionCard(
+    action: PendingAction, onResolve: (Boolean) -> Unit, modifier: Modifier = Modifier,
+    preview: (@Composable () -> Unit)? = null,
+) {
     Surface(
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.secondaryContainer,
@@ -188,6 +193,7 @@ fun PendingActionCard(action: PendingAction, onResolve: (Boolean) -> Unit, modif
             }
             Text(action.title, style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace))
             if (action.detail.isNotBlank() && action.detail != action.title) DetailBox(action.detail)
+            preview?.invoke()
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = { onResolve(true) }, modifier = Modifier.testTag("pending_approve")) {
                     Text(stringResource(action.approveLabel()))
@@ -204,6 +210,7 @@ fun PendingActionCard(action: PendingAction, onResolve: (Boolean) -> Unit, modif
 private fun PendingAction.question(): StringResource = when (tool) {
     AgentTool.RUN_COMMAND -> Res.string.agent_approval_command
     AgentTool.OPEN_PROGRAM -> Res.string.agent_approval_open
+    AgentTool.WINDOW_CONTROL -> Res.string.window_approval
     AgentTool.SCREENSHOT -> Res.string.agent_approval_screenshot
     AgentTool.MCP -> Res.string.agent_approval_mcp
     AgentTool.CLICK -> Res.string.agent_approval_click
@@ -382,6 +389,7 @@ private fun AgentTool.icon(): ImageVector = when (this) {
     AgentTool.TYPE_TEXT, AgentTool.PRESS_KEYS -> Icons.Outlined.Keyboard
     AgentTool.SCROLL -> Icons.Outlined.SwapVert
     AgentTool.MCP -> Icons.Outlined.Extension
+    AgentTool.WINDOW_CONTROL -> Icons.Outlined.Screenshot
 }
 
 private fun AgentTool.label(): StringResource = when (this) {
@@ -402,4 +410,5 @@ private fun AgentTool.label(): StringResource = when (this) {
     AgentTool.PRESS_KEYS -> Res.string.agent_step_press_keys
     AgentTool.SCROLL -> Res.string.agent_step_scroll
     AgentTool.MCP -> Res.string.agent_step_mcp
+    AgentTool.WINDOW_CONTROL -> Res.string.window_mode_title
 }

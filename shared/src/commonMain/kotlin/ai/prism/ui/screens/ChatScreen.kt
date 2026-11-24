@@ -2,6 +2,10 @@ package ai.prism.ui.screens
 
 import ai.prism.resources.work_branch
 import ai.prism.ui.components.PromptSuggestions
+import ai.prism.ui.components.WindowTaskDialog
+import ai.prism.resources.computer_task_title
+import ai.prism.resources.window_screen_preview
+import androidx.compose.material.icons.outlined.DesktopWindows
 import ai.prism.ui.components.rememberTextCopier
 import ai.prism.resources.model_answer_status
 import ai.prism.resources.model_ready_status
@@ -147,6 +151,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -205,6 +210,8 @@ fun ChatScreen(
     val workbench by component.workbench.collectAsState()
     val expanded = LocalExpandedLayout.current
     val loadImage: ImageBytesLoader = component::imageBytes
+    var windowTaskOpen by remember(component) { mutableStateOf(false) }
+    if (windowTaskOpen) WindowTaskDialog(component::availableWindows, component::sendWindowTask) { windowTaskOpen = false }
     var workbenchOpen by remember { mutableStateOf(false) }
     ai.prism.ui.components.WorkbenchControls(state, workbench, component::onIntent, workbenchOpen) { workbenchOpen = false }
     var visionDialog by remember { mutableStateOf(false) }
@@ -265,6 +272,13 @@ fun ChatScreen(
             } ?: stringResource(Res.string.chat_no_model),
             onBack = if (expanded) null else ({ component.onIntent(ChatIntent.Back) }),
             actions = {
+                if (component.supportsWindowControl) {
+                    IconButton(
+                        onClick = { windowTaskOpen = true },
+                        enabled = state.modelDownloaded && !state.modelChangeBlocked,
+                        modifier = Modifier.testTag("window_control"),
+                    ) { Icon(Icons.Outlined.DesktopWindows, stringResource(Res.string.computer_task_title)) }
+                }
                 if (state.voice.supported) {
                     val conversation = state.voice.conversation
                     IconButton(
@@ -708,13 +722,28 @@ private fun AttachmentErrorBanner(error: AttachmentError, onDismiss: () -> Unit,
 @Composable
 private fun ChatEmptyState(state: ChatState, onOpenModels: () -> Unit, onPrompt: (String) -> Unit) {
     if (state.modelName != null && state.modelDownloaded) {
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
-        EmptyState(
-            icon = Icons.Outlined.AutoAwesome,
-            title = stringResource(Res.string.chat_greeting_title),
-            text = stringResource(Res.string.chat_greeting_text),
-        )
-        PromptSuggestions(onPrompt, Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+        Column(
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+        ) {
+            Column(
+                Modifier.widthIn(max = 520.dp).fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                androidx.compose.material3.Surface(
+                    shape = MaterialTheme.shapes.large,
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                ) {
+                    Icon(Icons.Outlined.AutoAwesome, null, Modifier.padding(16.dp).size(26.dp))
+                }
+                Text(stringResource(Res.string.chat_greeting_title), style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center)
+                Text(stringResource(Res.string.chat_greeting_text), style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+            }
+            PromptSuggestions(onPrompt)
         }
     } else {
         EmptyState(
@@ -942,7 +971,15 @@ private fun AssistantMessage(
             if (message.steps.isNotEmpty()) AgentSteps(message.steps)
             message.running?.let { running -> RunningToolCard(running) }
             message.pending?.let { action ->
-                PendingActionCard(action, onResolve = { approved -> onResolve(action.id, approved) })
+                PendingActionCard(action, onResolve = { approved -> onResolve(action.id, approved) }, preview = action.screenPreview?.let { file ->
+                    {
+                        StoredImage(
+                            fileName = file, load = loadImage, contentDescription = stringResource(Res.string.window_screen_preview),
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.fillMaxWidth().heightIn(max = 220.dp).clickable { onOpenImage(file) },
+                        )
+                    }
+                })
             }
             when {
                 message.drawing != null -> Drawing(message.drawing)

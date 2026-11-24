@@ -53,6 +53,17 @@ import ai.prism.resources.persona_question
 import ai.prism.resources.persona_reminder
 import ai.prism.resources.safe_mode_chat_rule
 import ai.prism.resources.system_prompt
+import ai.prism.resources.window_tool_description
+import ai.prism.resources.window_desktop_note
+import ai.prism.resources.window_task_instructions
+import ai.prism.resources.window_next_action
+import ai.prism.resources.window_incomplete
+import ai.prism.resources.window_no_input
+import ai.prism.resources.window_input_report
+import ai.prism.resources.window_check_result
+import ai.prism.resources.window_automatic_changed
+import ai.prism.resources.window_automatic_draft
+import ai.prism.resources.window_declined
 import ai.prism.service.AssistantPersona
 import ai.prism.service.PersonaProvider
 import org.jetbrains.compose.resources.getString
@@ -95,6 +106,16 @@ class ResourcePersonaProvider : PersonaProvider {
         agentComputerNote = getString(Res.string.agent_computer_note),
         agentScreenNote = getString(Res.string.agent_screen_note),
         agentMcpNote = getString(Res.string.agent_mcp_note),
+        desktopScopeNote = getString(Res.string.window_desktop_note),
+        windowTaskInstructions = getString(Res.string.window_task_instructions),
+        windowNextAction = getString(Res.string.window_next_action),
+        windowIncomplete = getString(Res.string.window_incomplete),
+        windowNoInput = getString(Res.string.window_no_input),
+        windowInputReport = getString(Res.string.window_input_report),
+        windowCheckResult = getString(Res.string.window_check_result),
+        windowAutomaticChanged = getString(Res.string.window_automatic_changed),
+        windowAutomaticDraft = getString(Res.string.window_automatic_draft),
+        windowDeclined = getString(Res.string.window_declined),
         toolDescriptions = AgentTool.entries.associateWith { tool -> getString(tool.description()) },
         agentStepLimit = getString(Res.string.agent_step_limit),
         agentStepLimitNotice = getString(Res.string.agent_step_limit_notice),
@@ -125,4 +146,5 @@ internal fun AgentTool.description(): StringResource = when (this) {
     AgentTool.SCROLL -> Res.string.agent_tool_scroll
     // Инструменты MCP описывает сам сервер; эта строка в промпт не попадает.
     AgentTool.MCP -> Res.string.agent_step_mcp
+    AgentTool.WINDOW_CONTROL -> Res.string.window_tool_description
 }

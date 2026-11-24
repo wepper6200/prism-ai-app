@@ -325,6 +325,9 @@ interface ChatComponent {
     val state: StateFlow<ChatState>
 
     fun onIntent(intent: ChatIntent)
+    val supportsWindowControl: Boolean get() = false
+    suspend fun availableWindows(): List<ai.prism.domain.agent.DesktopWindow> = emptyList()
+    fun sendWindowTask(window: ai.prism.domain.agent.DesktopWindow?, task: String, automatic: Boolean): Boolean = false
 
     /** Байты сохранённого изображения (JPEG) для показа или `null`. */
     suspend fun imageBytes(fileName: String): ByteArray?
@@ -739,6 +742,11 @@ class DefaultChatComponent(
             // Нет устройства вывода звука — ролик играет без звука.
         }
     }
+
+    override val supportsWindowControl get() = generation.canControlWindow
+    override suspend fun availableWindows() = generation.availableWindows()
+    override fun sendWindowTask(window: ai.prism.domain.agent.DesktopWindow?, task: String, automatic: Boolean): Boolean =
+        state.value.modelDownloaded && generation.sendToWindow(chatId, task, window, automatic)
 
     private fun send() {
         val current = state.value

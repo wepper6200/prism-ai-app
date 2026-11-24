@@ -39,7 +39,12 @@ private val fileMutationLock = Mutex()
  * Итог вызова инструмента: текст для модели, шаг для показа пользователю (`null` — вызов не распознан)
  * и изображения для модели (снимок экрана).
  */
-data class ToolOutcome(val result: String, val step: AgentStep?, val images: List<PromptImage> = emptyList())
+data class ToolOutcome(
+    val result: String,
+    val step: AgentStep?,
+    val images: List<PromptImage> = emptyList(),
+    val inputPerformed: Boolean = false,
+)
 
 /**
  * Инструменты ассистента в одном диалоге: папка проекта [workspace] (если выбрана), интернет [web]
@@ -67,10 +72,13 @@ class AgentToolbox(
     private val beforeProjectWrite: suspend (String, ByteArray?, ByteArray) -> Unit = { _, _, _ -> },
     private val approve: suspend (PendingAction) -> Boolean,
     private val newId: () -> String,
+    private val window: WindowSession? = null,
 ) {
     /** Инструменты, доступные в этом диалоге. */
-    val tools: List<AgentTool> = AgentTool.entries.filter { tool ->
-        tool != AgentTool.MCP &&
+    val tools: List<AgentTool> = if (window != null) {
+        listOf(AgentTool.WINDOW_CONTROL) + AgentTool.entries.filter { window.wholeDesktop && screen != null && imageStore != null && it.isScreen }
+    } else AgentTool.entries.filter { tool ->
+        tool != AgentTool.MCP && tool != AgentTool.WINDOW_CONTROL &&
             (!tool.needsInternet || web != null) &&
             (!tool.needsWorkspace || workspace != null || computer != null) &&
             (!tool.needsComputer || computer != null) &&
@@ -84,6 +92,15 @@ class AgentToolbox(
     /** Во сколько раз экран больше последнего снимка, который видела модель (координаты — в пикселях снимка). */
     private var scaleX = 0.0
     private var scaleY = 0.0
+    private val desktopCaptures = mutableListOf<String>()
+    private var screenPreview: String? = null
+    private var screenshotWidth = 0
+    private var screenshotHeight = 0
+
+    suspend fun releaseDesktopCaptures() {
+        if (desktopCaptures.isNotEmpty()) imageStore?.delete(desktopCaptures.toList())
+        desktopCaptures.clear()
+    }
 
     suspend fun execute(call: ToolCall): ToolOutcome {
         mcpTools.firstOrNull { it.callName == call.name }?.let { return mcp(it, call) }
@@ -93,6 +110,9 @@ class AgentToolbox(
                 null,
             )
         return try {
+            if (window?.needsVisualDraftCheck == true && tool.isScreen && tool != AgentTool.SCREENSHOT) {
+                throw WorkspaceException("The draft already has keyboard input. Use window_control submit_text for visual confirmation.")
+            }
             when (tool) {
                 AgentTool.WEB_SEARCH -> webSearch(call.arg("query"))
                 AgentTool.FETCH_PAGE -> fetchPage(call.arg("url"))
@@ -120,6 +140,7 @@ class AgentToolbox(
                     folder = call.optional("folder"),
                     timeoutSeconds = call.optional("timeout")?.filter { it.isDigit() }?.toLongOrNull(),
                 )
+                AgentTool.WINDOW_CONTROL -> checkNotNull(window).execute(call, approve, newId, imageStore)
                 AgentTool.SYSTEM_INFO -> systemInfo()
                 AgentTool.OPEN_PROGRAM -> openProgram(call.arg("target"), call.optional("arguments").orEmpty())
                 AgentTool.SCREENSHOT -> screenAction(AgentTool.SCREENSHOT, "") { control -> control.capture() }
@@ -133,6 +154,7 @@ class AgentToolbox(
                         else -> MouseButton.LEFT
                     }
                     val double = "double" in kind
+                    if (window != null) checkScreenshotPoint(x, y)
                     screenAction(AgentTool.CLICK, "$x, $y" + if (kind.isEmpty()) "" else " ($kind)") { control ->
                         val (screenX, screenY) = toScreen(x, y)
                         control.click(screenX, screenY, button, double)
@@ -150,6 +172,7 @@ class AgentToolbox(
                     val x = call.number("x")
                     val y = call.number("y")
                     val amount = call.optional("amount")?.let { value -> value.trim().toIntOrNull() } ?: DEFAULT_SCROLL
+                    if (window != null) checkScreenshotPoint(x, y)
                     screenAction(AgentTool.SCROLL, "$x, $y: $amount") { control ->
                         val (screenX, screenY) = toScreen(x, y)
                         control.scroll(screenX, screenY, amount)
@@ -482,12 +505,21 @@ class AgentToolbox(
         if (tool != AgentTool.SCREENSHOT && scaleX == 0.0) {
             return failed(tool, title, "take a screenshot first: coordinates are pixels of the last screenshot")
         }
-        if (!ask(tool, title, title)) return rejected(tool, title)
+        val approved = if (window != null) {
+            approve(PendingAction(newId(), tool, title, title, screenPreview = screenPreview.takeIf { tool != AgentTool.SCREENSHOT }))
+        } else ask(tool, title, title)
+        if (!approved) return rejected(tool, title)
         val capture = action(control)
         val image = try {
             store.save(capture.bytes)
         } catch (e: ImageException) {
             return failed(tool, title, "cannot read the screenshot: ${e.message}")
+        }
+        if (window != null) {
+            desktopCaptures += image.fileName
+            screenPreview = image.fileName
+            screenshotWidth = image.width
+            screenshotHeight = image.height
         }
         scaleX = capture.screenWidth.toDouble() / image.width.coerceAtLeast(1)
         scaleY = capture.screenHeight.toDouble() / image.height.coerceAtLeast(1)
@@ -498,7 +530,14 @@ class AgentToolbox(
             result = text,
             step = AgentStep(tool, title, "", AgentStepStatus.DONE),
             images = listOf(PromptImage(id = image.id, path = store.path(image.fileName))),
+            inputPerformed = tool in setOf(AgentTool.CLICK, AgentTool.TYPE_TEXT, AgentTool.PRESS_KEYS),
         )
+    }
+
+    private fun checkScreenshotPoint(x: Int, y: Int) {
+        if (x !in 0 until screenshotWidth || y !in 0 until screenshotHeight) {
+            throw WorkspaceException("Coordinates must be inside the last desktop screenshot. Take a new screenshot if needed.")
+        }
     }
 
     private fun toScreen(x: Int, y: Int): Pair<Int, Int> = (x * scaleX).roundToInt() to (y * scaleY).roundToInt()

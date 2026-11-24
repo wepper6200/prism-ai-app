@@ -36,12 +36,28 @@ fun PromptSuggestions(onPrompt: (String) -> Unit, modifier: Modifier = Modifier)
                 else -> listOf(Triple(Res.string.prompt_explain_title, Res.string.prompt_explain_detail, Res.string.suggestion_explain_prompt), Triple(Res.string.prompt_compare_title, Res.string.prompt_compare_detail, Res.string.prompt_compare_text))
             }
             val icon = when (selected) { 1 -> Icons.Outlined.EditNote; 2 -> Icons.Outlined.Route; else -> Icons.Outlined.AutoAwesome }
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                prompts.forEachIndexed { index, (title, detail, prompt) ->
-                    val text = stringResource(prompt)
-                    PrismActionCard(stringResource(title), stringResource(detail), icon, { onPrompt(text) }, Modifier.fillMaxWidth().testTag("chat_suggestion_$index"))
-                }
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val columns = if (maxWidth >= 480.dp) 2 else 1
+                val cardWidth = if (columns == 2) (maxWidth - 10.dp) / 2 else maxWidth
+                SuggestionCards(prompts, icon, cardWidth, onPrompt)
             }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SuggestionCards(
+    prompts: List<Triple<org.jetbrains.compose.resources.StringResource, org.jetbrains.compose.resources.StringResource, org.jetbrains.compose.resources.StringResource>>,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    cardWidth: androidx.compose.ui.unit.Dp,
+    onPrompt: (String) -> Unit,
+) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        prompts.forEachIndexed { index, (title, detail, prompt) ->
+            val text = stringResource(prompt)
+            PrismActionCard(stringResource(title), stringResource(detail), icon, { onPrompt(text) },
+                Modifier.width(cardWidth).fillMaxRowHeight().testTag("chat_suggestion_$index"))
         }
     }
 }

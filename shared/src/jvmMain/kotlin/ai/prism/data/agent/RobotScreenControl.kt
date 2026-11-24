@@ -4,12 +4,7 @@ import ai.prism.domain.agent.MouseButton
 import ai.prism.domain.agent.ScreenCapture
 import ai.prism.domain.agent.ScreenControl
 import ai.prism.domain.agent.WorkspaceException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
 import java.awt.AWTException
-import java.awt.EventQueue
-import java.awt.Frame
 import java.awt.GraphicsEnvironment
 import java.awt.HeadlessException
 import java.awt.Rectangle
@@ -19,6 +14,7 @@ import java.awt.datatransfer.DataFlavor
 import java.awt.datatransfer.StringSelection
 import java.awt.event.InputEvent
 import java.awt.event.KeyEvent
+import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
 import javax.imageio.ImageIO
 
@@ -26,7 +22,10 @@ import javax.imageio.ImageIO
  * Экран, мышь и клавиатура через java.awt.Robot (основной монитор). На время действия окна Prism AI сворачиваются,
  * чтобы не закрывать экран, и после снимка возвращаются — пользователь подтверждает следующее действие.
  */
-class RobotScreenControl : ScreenControl {
+class RobotScreenControl(private val guardDesktopInput: Boolean = false) : ScreenControl {
+    private var desktopBeforeInput: BufferedImage? = null
+
+    override fun forDesktopTask(): ScreenControl = RobotScreenControl(guardDesktopInput = true)
     private val mac = System.getProperty("os.name").orEmpty().startsWith("Mac")
 
     private val robot: Robot by lazy {
@@ -41,10 +40,11 @@ class RobotScreenControl : ScreenControl {
         }
     }
 
-    override suspend fun capture(): ScreenCapture = hidden { shot() }
+    override suspend fun capture(): ScreenCapture = withPrismWindowsHidden { shot() }
 
-    override suspend fun click(x: Int, y: Int, button: MouseButton, double: Boolean): ScreenCapture = hidden {
+    override suspend fun click(x: Int, y: Int, button: MouseButton, double: Boolean): ScreenCapture = withPrismWindowsHidden {
         val bounds = bounds()
+        verifyDesktop(bounds, x, y)
         robot.mouseMove(bounds.x + x.coerceIn(0, bounds.width - 1), bounds.y + y.coerceIn(0, bounds.height - 1))
         val mask = when (button) {
             MouseButton.LEFT -> InputEvent.BUTTON1_DOWN_MASK
@@ -59,15 +59,17 @@ class RobotScreenControl : ScreenControl {
         shot()
     }
 
-    override suspend fun scroll(x: Int, y: Int, amount: Int): ScreenCapture = hidden {
+    override suspend fun scroll(x: Int, y: Int, amount: Int): ScreenCapture = withPrismWindowsHidden {
         val bounds = bounds()
+        verifyDesktop(bounds, x, y)
         robot.mouseMove(bounds.x + x.coerceIn(0, bounds.width - 1), bounds.y + y.coerceIn(0, bounds.height - 1))
         robot.mouseWheel(amount.coerceIn(-MAX_SCROLL, MAX_SCROLL))
         settle()
         shot()
     }
 
-    override suspend fun type(text: String): ScreenCapture = hidden {
+    override suspend fun type(text: String): ScreenCapture = withPrismWindowsHidden {
+        verifyDesktop(bounds())
         // Через буфер обмена: Robot печатает только клавиши текущей раскладки, а кириллица и символы — нет.
         val clipboard = Toolkit.getDefaultToolkit().systemClipboard
         val previous = runCatching {
@@ -86,7 +88,8 @@ class RobotScreenControl : ScreenControl {
             keyCode(name) ?: throw WorkspaceException("unknown key \"$name\" in \"$keys\" (examples: ctrl+s, alt+tab, enter, win+r, f5)")
         }
         if (codes.isEmpty()) throw WorkspaceException("no keys in \"$keys\"")
-        return hidden {
+        return withPrismWindowsHidden {
+            verifyDesktop(bounds())
             chord(codes)
             settle()
             shot()
@@ -136,6 +139,7 @@ class RobotScreenControl : ScreenControl {
     private fun shot(): ScreenCapture {
         val bounds = bounds()
         val image = robot.createScreenCapture(bounds)
+        if (guardDesktopInput) desktopBeforeInput = image
         val bytes = ByteArrayOutputStream().use { out ->
             ImageIO.write(image, "png", out)
             out.toByteArray()
@@ -143,36 +147,44 @@ class RobotScreenControl : ScreenControl {
         return ScreenCapture(bytes, bounds.width, bounds.height)
     }
 
-    /** Время программе ответить на действие перед снимком. */
-    private fun settle() = robot.delay(SETTLE_MS)
-
-    /** Сворачивает окна Prism AI на время [block] и возвращает их, когда снимок сделан. */
-    private suspend fun <T> hidden(block: () -> T): T = withContext(Dispatchers.IO) {
-        if (GraphicsEnvironment.isHeadless()) throw WorkspaceException("screen control is not available: no screen")
-        val frames = onUi { Frame.getFrames().filter { it.isVisible && it.extendedState and Frame.ICONIFIED == 0 } }
-        onUi { frames.forEach { it.extendedState = it.extendedState or Frame.ICONIFIED } }
-        try {
-            delay(HIDE_MS)
-            block()
-        } finally {
-            onUi {
-                frames.forEach { it.extendedState = it.extendedState and Frame.ICONIFIED.inv() }
-                frames.lastOrNull()?.toFront()
-            }
+    /** Check the desktop again after hiding Prism and before sending an approved input. */
+    private fun verifyDesktop(bounds: Rectangle, x: Int? = null, y: Int? = null) {
+        if (!guardDesktopInput) return
+        val previous = desktopBeforeInput ?: throw WorkspaceException("Take a desktop screenshot before sending input.")
+        val now = robot.createScreenCapture(bounds)
+        val sameSize = now.width == previous.width && now.height == previous.height
+        val full = Rectangle(0, 0, now.width, now.height)
+        val point = if (x != null && y != null) Rectangle(x - 22, y - 16, 45, 33).intersection(full) else null
+        if (!sameSize || changedPixels(previous, now, full, 22) > 0.08 ||
+            (point != null && changedPixels(previous, now, point, 3) > 0.15)) {
+            desktopBeforeInput = null
+            throw WorkspaceException("The desktop changed during approval. Take a fresh screenshot before retrying.")
         }
     }
 
-    private fun <T> onUi(block: () -> T): T {
-        if (EventQueue.isDispatchThread()) return block()
-        var result: Result<T>? = null
-        EventQueue.invokeAndWait { result = runCatching(block) }
-        return checkNotNull(result).getOrThrow()
+    private fun changedPixels(before: BufferedImage, after: BufferedImage, area: Rectangle, stride: Int): Double {
+        var samples = 0
+        var changed = 0
+        for (y in area.y until area.y + area.height step stride) {
+            for (x in area.x until area.x + area.width step stride) {
+                val first = before.getRGB(x, y)
+                val second = after.getRGB(x, y)
+                val difference = kotlin.math.abs((first and 255) - (second and 255)) +
+                    kotlin.math.abs((first shr 8 and 255) - (second shr 8 and 255)) +
+                    kotlin.math.abs((first shr 16 and 255) - (second shr 16 and 255))
+                if (difference > 60) changed++
+                samples++
+            }
+        }
+        return changed.toDouble() / samples.coerceAtLeast(1)
     }
+
+    /** Время программе ответить на действие перед снимком. */
+    private fun settle() = robot.delay(SETTLE_MS)
 
     private companion object {
         const val ROBOT_DELAY_MS = 30
         const val SETTLE_MS = 700
-        const val HIDE_MS = 450L
         const val MAX_SCROLL = 50
         val FUNCTION_KEYS = intArrayOf(
             KeyEvent.VK_F1, KeyEvent.VK_F2, KeyEvent.VK_F3, KeyEvent.VK_F4, KeyEvent.VK_F5, KeyEvent.VK_F6,
